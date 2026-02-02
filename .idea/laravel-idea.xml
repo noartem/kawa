@@ -8,18 +8,12 @@
     </option>
   </component>
   <component name="LaravelIdeaMainSettings">
-    <option name="codeGeneration">
-      <LaravelCodeGeneration>
-        <option name="generationStringSettings">
-          <map>
-            <entry key="createEloquentScope:namespace" value="Models\Scopes" />
-            <entry key="createModel:namespace" value="Models" />
-          </map>
-        </option>
-      </LaravelCodeGeneration>
-    </option>
     <option name="frameworkFound" value="true" />
     <option name="laravelBasePath" value="ui" />
-    <option name="userClassName" value="\App\Models\User" />
+    <option name="translation">
+      <LaravelTranslation>
+        <option name="defaultLanguageFromConfig" value="ru" />
+      </LaravelTranslation>
+    </option>
   </component>
 </project>

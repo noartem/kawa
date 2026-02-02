@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="MessDetector">
-    <phpmd_settings>
-      <phpmd_by_interpreter asDefaultInterpreter="true" interpreter_id="23aa407e-3aa8-466a-afd1-beb39951c3a9" timeout="30000" />
-    </phpmd_settings>
-  </component>
   <component name="MessDetectorOptionsConfiguration">
     <option name="transferred" value="true" />
   </component>
@@ -15,260 +10,154 @@
     <option name="highlightLevel" value="WARNING" />
     <option name="transferred" value="true" />
   </component>
-  <component name="PhpCodeSniffer">
-    <phpcs_settings>
-      <phpcs_by_interpreter asDefaultInterpreter="true" interpreter_id="23aa407e-3aa8-466a-afd1-beb39951c3a9" timeout="30000" />
-    </phpcs_settings>
-  </component>
   <component name="PhpIncludePathManager">
     <include_path>
-      <path value="$PROJECT_DIR$/ui" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/bacon" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/doctrine" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/brick" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/fakerphp" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/egulias" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/composer" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/bin" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/dflydev" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/dasprid" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/carbonphp" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/brianium" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/dragonmantank" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/fidry" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/filp" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/fruitcake" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/guzzlehttp" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/graham-campbell" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/jean85" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/hamcrest" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/laravel" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/inertiajs" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/league" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/mockery" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/nesbot" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/myclabs" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/monolog" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phpstan" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/nikic" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phpdocumentor" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phpseclib" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/paragonie" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phpunit" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/php-amqplib" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/nunomaduro" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/pestphp" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/nette" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phar-io" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/phpoption" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/psr" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/psy" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/pragmarx" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/staabm" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/symfony" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/ralouphie" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/ramsey" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/sebastian" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/webmozart" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/vlucas" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/ta-tikoma" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/tijsverkoyen" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/voku" />
-      <path value="$PROJECT_DIR$/ui/vendor/vendor/theseer" />
-      <path value="$PROJECT_DIR$/ui/vendor/_laravel_idea" />
+      <path value="$PROJECT_DIR$/ui/vendor/dragonmantank/cron-expression" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpdocumentor/type-resolver" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpdocumentor/reflection-docblock" />
+      <path value="$PROJECT_DIR$/ui/vendor/mockery/mockery" />
+      <path value="$PROJECT_DIR$/ui/vendor/paragonie/constant_time_encoding" />
+      <path value="$PROJECT_DIR$/ui/vendor/paragonie/random_compat" />
+      <path value="$PROJECT_DIR$/ui/vendor/brick/math" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpdocumentor/reflection-common" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/phpunit" />
+      <path value="$PROJECT_DIR$/ui/vendor/composer" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/php-code-coverage" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/php-invoker" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/php-text-template" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/php-file-iterator" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpunit/php-timer" />
+      <path value="$PROJECT_DIR$/ui/vendor/nesbot/carbon" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpoption/phpoption" />
+      <path value="$PROJECT_DIR$/ui/vendor/hamcrest/hamcrest-php" />
+      <path value="$PROJECT_DIR$/ui/vendor/fidry/cpu-core-counter" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/container" />
+      <path value="$PROJECT_DIR$/ui/vendor/nunomaduro/termwind" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpseclib/phpseclib" />
+      <path value="$PROJECT_DIR$/ui/vendor/nunomaduro/collision" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/sail" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/clock" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/framework" />
+      <path value="$PROJECT_DIR$/ui/vendor/myclabs/deep-copy" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/simple-cache" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/fortify" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/log" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/tinker" />
+      <path value="$PROJECT_DIR$/ui/vendor/theseer/tokenizer" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/event-dispatcher" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/roster" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/http-message" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/pail" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/http-factory" />
+      <path value="$PROJECT_DIR$/ui/vendor/psr/http-client" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/prompts" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/serializable-closure" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/mcp" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/pint" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/boost" />
+      <path value="$PROJECT_DIR$/ui/vendor/laravel/wayfinder" />
+      <path value="$PROJECT_DIR$/ui/vendor/brianium/paratest" />
+      <path value="$PROJECT_DIR$/ui/vendor/phar-io/version" />
+      <path value="$PROJECT_DIR$/ui/vendor/phar-io/manifest" />
+      <path value="$PROJECT_DIR$/ui/vendor/nette/utils" />
+      <path value="$PROJECT_DIR$/ui/vendor/nette/schema" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest-plugin-profanity" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest-plugin-laravel" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest-plugin-mutate" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest-plugin-arch" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest-plugin" />
+      <path value="$PROJECT_DIR$/ui/vendor/pestphp/pest" />
+      <path value="$PROJECT_DIR$/ui/vendor/doctrine/deprecations" />
+      <path value="$PROJECT_DIR$/ui/vendor/doctrine/inflector" />
+      <path value="$PROJECT_DIR$/ui/vendor/ta-tikoma/phpunit-architecture-test" />
+      <path value="$PROJECT_DIR$/ui/vendor/staabm/side-effects-detector" />
+      <path value="$PROJECT_DIR$/ui/vendor/vlucas/phpdotenv" />
+      <path value="$PROJECT_DIR$/ui/vendor/doctrine/lexer" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-php83" />
+      <path value="$PROJECT_DIR$/ui/vendor/nikic/php-parser" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-intl-idn" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/var-dumper" />
+      <path value="$PROJECT_DIR$/ui/vendor/psy/psysh" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/mime" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/service-contracts" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/string" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/deprecation-contracts" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/event-dispatcher" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/css-selector" />
+      <path value="$PROJECT_DIR$/ui/vendor/pragmarx/google2fa" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/error-handler" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/routing" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/uid" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-php80" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-php85" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-php84" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/clock" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-intl-normalizer" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/process" />
+      <path value="$PROJECT_DIR$/ui/vendor/filp/whoops" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/console" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/yaml" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/event-dispatcher-contracts" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-intl-grapheme" />
+      <path value="$PROJECT_DIR$/ui/vendor/php-amqplib/php-amqplib" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-ctype" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/translation-contracts" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/http-foundation" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-mbstring" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/translation" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/polyfill-uuid" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/finder" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/mailer" />
+      <path value="$PROJECT_DIR$/ui/vendor/symfony/http-kernel" />
+      <path value="$PROJECT_DIR$/ui/vendor/jean85/pretty-package-versions" />
+      <path value="$PROJECT_DIR$/ui/vendor/monolog/monolog" />
+      <path value="$PROJECT_DIR$/ui/vendor/carbonphp/carbon-doctrine-types" />
+      <path value="$PROJECT_DIR$/ui/vendor/phpstan/phpdoc-parser" />
+      <path value="$PROJECT_DIR$/ui/vendor/webmozart/assert" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/global-state" />
+      <path value="$PROJECT_DIR$/ui/vendor/graham-campbell/result-type" />
+      <path value="$PROJECT_DIR$/ui/vendor/guzzlehttp/promises" />
+      <path value="$PROJECT_DIR$/ui/vendor/guzzlehttp/psr7" />
+      <path value="$PROJECT_DIR$/ui/vendor/guzzlehttp/guzzle" />
+      <path value="$PROJECT_DIR$/ui/vendor/dasprid/enum" />
+      <path value="$PROJECT_DIR$/ui/vendor/ralouphie/getallheaders" />
+      <path value="$PROJECT_DIR$/ui/vendor/guzzlehttp/uri-template" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/mime-type-detection" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/type" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/flysystem-local" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/lines-of-code" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/commonmark" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/diff" />
+      <path value="$PROJECT_DIR$/ui/vendor/bacon/bacon-qr-code" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/config" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/cli-parser" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/uri" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/object-reflector" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/uri-interfaces" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/object-enumerator" />
+      <path value="$PROJECT_DIR$/ui/vendor/league/flysystem" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/recursion-context" />
+      <path value="$PROJECT_DIR$/ui/vendor/fruitcake/php-cors" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/complexity" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/environment" />
+      <path value="$PROJECT_DIR$/ui/vendor/ramsey/uuid" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/exporter" />
+      <path value="$PROJECT_DIR$/ui/vendor/ramsey/collection" />
+      <path value="$PROJECT_DIR$/ui/vendor/dflydev/dot-access-data" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/comparator" />
+      <path value="$PROJECT_DIR$/ui/vendor/inertiajs/inertia-laravel" />
+      <path value="$PROJECT_DIR$/ui/vendor/sebastian/version" />
+      <path value="$PROJECT_DIR$/ui/vendor/egulias/email-validator" />
+      <path value="$PROJECT_DIR$/ui/vendor/fakerphp/faker" />
+      <path value="$PROJECT_DIR$/ui/vendor/voku/portable-ascii" />
+      <path value="$PROJECT_DIR$/ui/vendor/tijsverkoyen/css-to-inline-styles" />
     </include_path>
   </component>
-  <component name="PhpInterpreters">
-    <interpreters>
-      <interpreter id="23aa407e-3aa8-466a-afd1-beb39951c3a9" name="[Docker] php 8.5.0" home="docker-compose://DATA" auto="false" debugger_id="php.debugger.XDebug">
-        <remote_data INTERPRETER_PATH="php" HELPERS_PATH="/opt/.phpstorm_helpers" VALID="true" RUN_AS_ROOT_VIA_SUDO="false" DOCKER_ACCOUNT_NAME="Docker" DOCKER_COMPOSE_SERVICE_NAME="ui-app" DOCKER_REMOTE_PROJECT_PATH="/opt/project">
-          <type_data command="EXEC" />
-          <dockerComposeConfigurationPaths>
-            <item value="$PROJECT_DIR$/compose.yml" />
-          </dockerComposeConfigurationPaths>
-          <envs />
-        </remote_data>
-      </interpreter>
-    </interpreters>
-  </component>
-  <component name="PhpInterpretersPhpInfoCache">
-    <phpInfoCache>
-      <interpreter name="[Docker] php 8.5.0">
-        <phpinfo binary_type="PHP" php_cgi="/usr/local/bin/php-cgi" php_cli="/usr/local/bin/php" path_separator=":" version="8.5.0">
-          <additional_php_ini>/usr/local/etc/php/conf.d/docker-php-ext-pdo_pgsql.ini, /usr/local/etc/php/conf.d/docker-php-ext-sockets.ini, /usr/local/etc/php/conf.d/docker-php-ext-sodium.ini, /usr/local/etc/php/conf.d/docker-php-ext-zip.ini</additional_php_ini>
-          <configuration_file />
-          <configuration_options>
-            <configuration_option name="include_path" value=".:/usr/local/lib/php" />
-          </configuration_options>
-          <debuggers />
-          <loaded_extensions>
-            <extension name="Core" />
-            <extension name="PDO" />
-            <extension name="Phar" />
-            <extension name="Reflection" />
-            <extension name="SPL" />
-            <extension name="SimpleXML" />
-            <extension name="Zend OPcache" />
-            <extension name="ctype" />
-            <extension name="curl" />
-            <extension name="date" />
-            <extension name="dom" />
-            <extension name="fileinfo" />
-            <extension name="filter" />
-            <extension name="hash" />
-            <extension name="iconv" />
-            <extension name="json" />
-            <extension name="lexbor" />
-            <extension name="libxml" />
-            <extension name="mbstring" />
-            <extension name="mysqlnd" />
-            <extension name="openssl" />
-            <extension name="pcre" />
-            <extension name="pdo_pgsql" />
-            <extension name="pdo_sqlite" />
-            <extension name="posix" />
-            <extension name="random" />
-            <extension name="readline" />
-            <extension name="session" />
-            <extension name="sockets" />
-            <extension name="sodium" />
-            <extension name="sqlite3" />
-            <extension name="standard" />
-            <extension name="tokenizer" />
-            <extension name="uri" />
-            <extension name="xml" />
-            <extension name="xmlreader" />
-            <extension name="xmlwriter" />
-            <extension name="zip" />
-            <extension name="zlib" />
-          </loaded_extensions>
-        </phpinfo>
-      </interpreter>
-    </phpInfoCache>
-  </component>
-  <component name="PhpProjectSharedConfiguration" php_language_level="8.5" />
-  <component name="PhpRuntimeConfiguration">
-    <extensions>
-      <extension name="Ev" enabled="false" />
-      <extension name="SQLite" enabled="false" />
-      <extension name="SplType" enabled="false" />
-      <extension name="ZendDebugger" enabled="false" />
-      <extension name="ZendUtils" enabled="false" />
-      <extension name="amqp" enabled="false" />
-      <extension name="apache" enabled="false" />
-      <extension name="apcu" enabled="false" />
-      <extension name="bcmath" enabled="false" />
-      <extension name="brotli" enabled="false" />
-      <extension name="bz2" enabled="false" />
-      <extension name="calendar" enabled="false" />
-      <extension name="cassandra" enabled="false" />
-      <extension name="couchbase" enabled="false" />
-      <extension name="cubrid" enabled="false" />
-      <extension name="dba" enabled="false" />
-      <extension name="decimal" enabled="false" />
-      <extension name="dio" enabled="false" />
-      <extension name="elastic_apm" enabled="false" />
-      <extension name="enchant" enabled="false" />
-      <extension name="exif" enabled="false" />
-      <extension name="fann" enabled="false" />
-      <extension name="ffmpeg" enabled="false" />
-      <extension name="frankenphp" enabled="false" />
-      <extension name="ftp" enabled="false" />
-      <extension name="gd" enabled="false" />
-      <extension name="gearman" enabled="false" />
-      <extension name="geoip" enabled="false" />
-      <extension name="geos" enabled="false" />
-      <extension name="gettext" enabled="false" />
-      <extension name="gmagick" enabled="false" />
-      <extension name="gmp" enabled="false" />
-      <extension name="gnupg" enabled="false" />
-      <extension name="grpc" enabled="false" />
-      <extension name="http" enabled="false" />
-      <extension name="ibm_db2" enabled="false" />
-      <extension name="igbinary" enabled="false" />
-      <extension name="imagick" enabled="false" />
-      <extension name="imap" enabled="false" />
-      <extension name="inotify" enabled="false" />
-      <extension name="interbase" enabled="false" />
-      <extension name="intl" enabled="false" />
-      <extension name="jsonpath" enabled="false" />
-      <extension name="judy" enabled="false" />
-      <extension name="ldap" enabled="false" />
-      <extension name="libevent" enabled="false" />
-      <extension name="libsodium" enabled="false" />
-      <extension name="mailparse" enabled="false" />
-      <extension name="mcrypt" enabled="false" />
-      <extension name="memcache" enabled="false" />
-      <extension name="memcached" enabled="false" />
-      <extension name="ming" enabled="false" />
-      <extension name="mongo" enabled="false" />
-      <extension name="mongodb" enabled="false" />
-      <extension name="mosquitto-php" enabled="false" />
-      <extension name="mqseries" enabled="false" />
-      <extension name="mssql" enabled="false" />
-      <extension name="mysql" enabled="false" />
-      <extension name="mysql_xdevapi" enabled="false" />
-      <extension name="mysqli" enabled="false" />
-      <extension name="ncurses" enabled="false" />
-      <extension name="newrelic" enabled="false" />
-      <extension name="oauth" enabled="false" />
-      <extension name="oci8" enabled="false" />
-      <extension name="odbc" enabled="false" />
-      <extension name="opentelemetry" enabled="false" />
-      <extension name="pcntl" enabled="false" />
-      <extension name="pdflib" enabled="false" />
-      <extension name="pgsql" enabled="false" />
-      <extension name="pspell" enabled="false" />
-      <extension name="pthreads" enabled="false" />
-      <extension name="rar" enabled="false" />
-      <extension name="recode" enabled="false" />
-      <extension name="redis" enabled="false" />
-      <extension name="relay" enabled="false" />
-      <extension name="rrd" enabled="false" />
-      <extension name="shmop" enabled="false" />
-      <extension name="snappy" enabled="false" />
-      <extension name="snmp" enabled="false" />
-      <extension name="soap" enabled="false" />
-      <extension name="sqlsrv" enabled="false" />
-      <extension name="ssh2" enabled="false" />
-      <extension name="suhosin" enabled="false" />
-      <extension name="svn" enabled="false" />
-      <extension name="sybase" enabled="false" />
-      <extension name="sysvmsg" enabled="false" />
-      <extension name="sysvsem" enabled="false" />
-      <extension name="sysvshm" enabled="false" />
-      <extension name="tidy" enabled="false" />
-      <extension name="v8js" enabled="false" />
-      <extension name="wddx" enabled="false" />
-      <extension name="win32service" enabled="false" />
-      <extension name="wincache" enabled="false" />
-      <extension name="xdebug" enabled="false" />
-      <extension name="xhprof" enabled="false" />
-      <extension name="xlswriter" enabled="false" />
-      <extension name="xmlrpc" enabled="false" />
-      <extension name="xsl" enabled="false" />
-      <extension name="yaml" enabled="false" />
-      <extension name="zend" enabled="false" />
-      <extension name="zmq" enabled="false" />
-    </extensions>
-  </component>
-  <component name="PhpStan">
-    <PhpStan_settings>
-      <phpstan_by_interpreter asDefaultInterpreter="true" interpreter_id="23aa407e-3aa8-466a-afd1-beb39951c3a9" timeout="60000" />
-    </PhpStan_settings>
+  <component name="PhpProjectSharedConfiguration" php_language_level="8.5">
+    <option name="suggestChangeDefaultLanguageLevel" value="false" />
   </component>
   <component name="PhpStanOptionsConfiguration">
     <option name="transferred" value="true" />
-  </component>
-  <component name="PhpUnit">
-    <phpunit_settings>
-      <PhpUnitSettings configuration_file_path="$PROJECT_DIR$/ui/phpunit.xml" custom_loader_path="$PROJECT_DIR$/ui/vendor/autoload.php" use_configuration_file="true" />
-    </phpunit_settings>
-  </component>
-  <component name="Psalm">
-    <Psalm_settings>
-      <psalm_fixer_by_interpreter asDefaultInterpreter="true" interpreter_id="23aa407e-3aa8-466a-afd1-beb39951c3a9" timeout="60000" />
-    </Psalm_settings>
   </component>
   <component name="PsalmOptionsConfiguration">
     <option name="transferred" value="true" />

@@ -1,9 +1,19 @@
 {
     "agents": [
-        "codex"
+        "opencode"
     ],
-    "editors": [
-        "codex"
+    "guidelines": true,
+    "herd_mcp": false,
+    "mcp": true,
+    "packages": [
+        "laravel/fortify"
     ],
-    "guidelines": []
+    "sail": false,
+    "skills": [
+        "wayfinder-development",
+        "pest-testing",
+        "inertia-vue-development",
+        "tailwindcss-development",
+        "developing-with-fortify"
+    ]
 }

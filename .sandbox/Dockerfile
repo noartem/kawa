@@ -4,12 +4,12 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uvx /usr/local/bin/uvx
 
 ARG USER
-ARG PROJECT_PATH
+ARG PWD
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=24
 ARG COMPOSER_VERSION=2.8.7
-ARG PHP_VERSION=8.5
+ARG PHP_VERSION=8.4
 ARG APP_UID
 ARG APP_GID
 
@@ -19,7 +19,7 @@ ARG NEXUS_PORT=801
 ENV NEXUS_URL=http://${NEXUS_HOST}:${NEXUS_PORT}
 ENV NPM_REGISTRY=${NEXUS_URL}/repository/npm/
 ENV COMPOSER_REGISTRY=${NEXUS_URL}/repository/composer/
-ENV PYPI_REGISTRY=${NEXUS_URL}/repository/pypi/
+ENV PYPI_INDEX=${NEXUS_URL}/repository/pypi/simple
 
 RUN set -eux; \
     cat > /etc/apt/sources.list.d/nexus.list <<EOF
@@ -90,13 +90,13 @@ COPY .sandbox/zshrc /home/${USER}/.zshrc
 COPY .sandbox/vimrc /home/${USER}/.vimrc
 
 RUN mkdir -p \
-    ${PROJECT_PATH} \
-    ${PROJECT_PATH}/vendor \
-    ${PROJECT_PATH}/node_modules \
+    ${PWD} \
     /home/${USER}/.config/opencode \
+    /home/${USER}/.config/pip \
     /home/${USER}/.local/share/opencode \
     /home/${USER}/.local/state/opencode \
     /home/${USER}/.cache/opencode \
+    /home/${USER}/.cache/uv \
     /home/${USER}/.composer \
     /home/${USER}/.composer/cache \
     /home/${USER}/.npm \
@@ -117,29 +117,30 @@ RUN set -eux; \
     su -s /bin/zsh ${USER} -c "composer config -g --no-plugins --no-interaction secure-http false"
 
 RUN set -eux; \
-    mkdir -p /etc/uv; \
-    printf 'index-url = %s\n' "${PYPI_REGISTRY}" > /etc/uv/uv.toml
-
-RUN set -eux; \
-    su -s /bin/zsh ${USER} -c "mkdir -p ~/.config/uv"; \
-    printf 'index-url = %s\n' "${PYPI_REGISTRY}" | su -s /bin/zsh ${USER} -c "cat > ~/.config/uv/uv.toml"
-
-RUN set -eux; \
     mkdir -p /etc/pip; \
-    printf '[global]\nindex-url = %s\n' "${PYPI_REGISTRY}" > /etc/pip/pip.conf
-
+    cat > /etc/pip.conf <<EOF
+[global]
+index-url = ${PYPI_INDEX}
+trusted-host = ${NEXUS_HOST}
+disable-pip-version-check = true
+EOF
 RUN set -eux; \
-    su -s /bin/zsh ${USER} -c "mkdir -p ~/.pip"; \
-    printf '[global]\nindex-url = %s\n' "${PYPI_REGISTRY}" | su -s /bin/zsh ${USER} -c "cat > ~/.pip/pip.conf"
+    mkdir -p /home/${USER}/.config/pip; \
+    cat > /home/${USER}/.config/pip/pip.conf <<EOF
+[global]
+index-url = ${PYPI_INDEX}
+trusted-host = ${NEXUS_HOST}
+disable-pip-version-check = true
+EOF
+ENV UV_DEFAULT_INDEX=${PYPI_INDEX}
+ENV UV_INDEX=''
+ENV UV_NATIVE_TLS=true
 
 RUN npm install -g opencode-ai
 
 RUN su -s /bin/zsh ${USER} -c "git config --global --add safe.directory '*'"
 
-WORKDIR ${PROJECT_PATH}
-
-#COPY --chown=${APP_UID}:${APP_GID} scripts ./scripts
-#RUN chmod +x ./scripts/start ./scripts/stop
+WORKDIR ${PWD}
 
 ENV HOME=/home/${USER}
 ENV COMPOSER_HOME=/home/${USER}/.composer

@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/kawaflow.iml" filepath="$PROJECT_DIR$/.idea/kawaflow.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/kawa.iml" filepath="$PROJECT_DIR$/.idea/kawa.iml" />
     </modules>
   </component>
 </project>

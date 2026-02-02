@@ -1,13 +1,13 @@
-# Kawaflow
+# Kawa
 
 ## TODO
 
-- [ ] flow-template
-  - [ ] Socket
-  - [ ] Commands
-- [ ] flow-managers
-- [ ] laravel app
-- [ ] TimeoutEvent
-- [ ] IntervalEvent
-- [ ] Code generation
-  - [ ] https://github.com/upstash/context7
+- [-] Запустить
+- [ ] Запустить все полностью пустое без ошибок
+- [ ] Попробовать хоть один запустить
+- [ ] Добавить `Laravel Boost`
+- [ ] Доработать интерфейс потока
+- [ ] Починить E2E тесты
+- [ ] Дополнительные события
+    - [ ] TimeoutEvent
+    - [ ] IntervalEvent

@@ -1,114 +1,53 @@
-# https://taskfile.dev
+version: 3
 
-version: "3"
-
-dotenv: [".env"]
-
-includes:
-  docs:
-    taskfile: ./docs/Taskfile.yml
-    dir: ./docs
-  flow:
-    taskfile: ./flow/Taskfile.yml
-    dir: ./flow
-  kawa:
-    taskfile: ./kawa/Taskfile.yml
-    dir: ./kawa
-  flow-manager:
-    taskfile: ./flow-manager/Taskfile.yml
-    dir: ./flow-manager
-  ui:
-    taskfile: ./ui/Taskfile.yml
-    dir: ./ui
-  e2e:
-    taskfile: ./e2e/Taskfile.yml
+dotenv: ['.env']
 
 tasks:
-  init:
-    desc: Initialize the project
-    cmds:
-      - npm install
-
-  repomix:
-    desc: Run repomix code analysis
-    cmd: npx -y repomix
-
-  gemini:
-    desc: Run Google Gemini CLI
-    cmds:
-      - npx -y gemini
-
-  act:
-    desc: Run GitHub Actions locally
-    cmds:
-      - act
-
-  test:
-    desc: Run all tests
-    cmds:
-      - task: flow:test
-      - task: kawa:test
-      # - task: flow-manager:test
-      - task: ui:test
-
-  lint:
-    desc: Run all linting checks
-    cmds:
-      - task: kawa:lint
-      # - task: flow-manager:lint
-
-  lint-fix:
-    desc: Fix all linting issues
-    cmds:
-      - task: kawa:lint-fix
-      # - task: flow-manager:lint-fix
-
   compose:
     internal: true
-    cmd: docker compose -f compose.yml {{ .CLI_ARGS }}
+    cmd: docker compose -f ./.sandbox/compose.yml --project-directory . {{.COMPOSE}}
 
-  compose:build:
+  compose-exec:
+    internal: true
     cmds:
       - task: compose
         vars:
-          CLI_ARGS: --profile build build
+          COMPOSE: exec --user {{.USER}} sandbox {{.COMMAND}}
 
-  compose:up:
-    aliases: [up, start]
+  up:
     cmds:
       - task: compose
         vars:
-          CLI_ARGS: up -d
+          COMPOSE: up -d
 
-  compose:down:
-    aliases: [down, stop]
+  down:
     cmds:
       - task: compose
         vars:
-          CLI_ARGS: down
-
-  compose:restart:
-    aliases: [restart]
-    cmds:
-      - task: compose
-        vars:
-          CLI_ARGS: restart
-
-  compose:rebuild:
-    aliases: [rebuild]
-    cmds:
-      - task: compose:down
-      - task: compose:build
-      - task: compose:up
-
-  compose:logs:
-    desc: Show logs
-    cmds:
-      - task: compose
-        vars:
-          CLI_ARGS: logs -f {{ .CLI_ARGS }}
+          COMPOSE: down
 
   build:
     cmds:
-      - task: compose:build
-      - task: e2e:build
+      - task: compose
+        vars:
+          COMPOSE: build sandbox
+
+  cleanup:
+    cmds:
+      - task: compose
+        vars:
+          COMPOSE: down --rmi all --volumes
+
+  shell:
+    aliases: [sh]
+    cmds:
+      - task: compose-exec
+        vars:
+          COMMAND: /bin/zsh
+
+  shell-execute:
+    aliases: [exec]
+    cmds:
+      - task: compose-exec
+        vars:
+          COMMAND: /bin/zsh -c "{{.CLI_ARGS}}"

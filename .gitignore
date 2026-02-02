@@ -5,8 +5,9 @@
 
 node_modules/
 
-.env
+**/.opencode
+**/opencode.json
 
-repomix-output.xml
+.env
 
 e2e/reports/

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="TypeScriptCompiler">
-    <option name="nodeInterpreterTextField" value="docker-compose://[C:/Users/admin/Projects/kawaflow/compose.yml]:ui-app/node" />
-  </component>
-</project>

@@ -4,11 +4,11 @@ services:
             context: .
             dockerfile: .sandbox/Dockerfile
             args:
-                APP_UID: ${APP_UID:-1000}
-                APP_GID: ${APP_GID:-1000}
+                APP_UID: 1000
+                APP_GID: 1000
                 USER: ${USER}
-                PROJECT_PATH: ${PWD}
-        user: "${APP_UID:-1000}:${APP_GID:-1000}"
+                PWD: ${PWD}
+        user: "1000:1000"
         command: sleep infinity
         env_file:
             - .env
@@ -20,15 +20,18 @@ services:
             - XDG_CACHE_HOME=/home/${USER}/.cache
         volumes:
             - tmp:/tmp
-            - vendor:${PWD}/vendor
             - composer-cache:/home/${USER}/.composer/cache
-            - node-modules:${PWD}/node_modules
+            - npm-cache:/home/${USER}/.npm
+            - uv-cache:/home/${USER}/.cache/uv
             - .:${PWD}
             - ${PWD}/../${PROJECT}:${PWD}/../${PROJECT}
             - .sandbox/zshrc:/home/${USER}/.zshrc
             - zsh-history:/home/${USER}/.zsh_history.d
             - .sandbox/vimrc:/home/${USER}/.vimrc
             - ${HOME}/.gitconfig:/home/${USER}/.gitconfig:ro
+            - ${HOME}/.config/opencode/opencode.json:/home/${USER}/.config/opencode/opencode.json:ro
+            - ${HOME}/.config/opencode/antigravity-accounts.json:/home/${USER}/.config/opencode/antigravity-accounts.json:ro
+            - ${HOME}/.local/share/opencode/auth.json:/home/${USER}/.local/share/opencode/auth.json:ro
             - opencode-config:/home/${USER}/.config/opencode
             - opencode-data:/home/${USER}/.local/share/opencode
             - opencode-state:/home/${USER}/.local/state/opencode
@@ -38,25 +41,24 @@ services:
         ports:
             - '${APP_PORT}:${APP_PORT}'
             - '${VITE_PORT}:${VITE_PORT}'
-            - '${OPENCODE_WEB_PORT}:${OPENCODE_WEB_PORT}'
 
     postgres:
-        image: postgres:16-alpine3.18
+        image: postgres:18-alpine
         environment:
-            POSTGRES_DB: ${DB_DATABASE}
-            POSTGRES_USER: ${DB_USERNAME}
-            POSTGRES_PASSWORD: ${DB_PASSWORD}
+            POSTGRES_DB: ui
+            POSTGRES_USER: kawa
+            POSTGRES_PASSWORD: secret
         volumes:
-            - pg-data:/var/lib/postgresql/data:rw
+            - postgres-data:/var/lib/postgresql:rw
         healthcheck:
-            test: pg_isready -d ${DB_DATABASE} -U ${DB_USERNAME}
+            test: pg_isready -d ui -U kawa
             interval: 2s
             timeout: 5s
             start_period: 2s
 
     redis:
-        image: redis:7.2.3-alpine3.18
-        command: --requirepass ${REDIS_PASSWORD}
+        image: redis:8-alpine
+        command: --requirepass secret
         volumes:
             - redis-data:/data:rw
         healthcheck:
@@ -64,25 +66,15 @@ services:
             interval: 500ms
             timeout: 1s
 
-    minio:
-        image: minio/minio:latest
-        command: server /data --console-address ":9001"
-        environment:
-            MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-            MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-        volumes:
-            - minio-data:/data:rw
-
 volumes:
     tmp: {}
-    vendor: {}
     composer-cache: {}
-    node-modules: {}
+    npm-cache: {}
+    uv-cache: {}
     zsh-history: {}
     opencode-config: {}
     opencode-data: {}
     opencode-state: {}
     opencode-cache: {}
-    pg-data: {}
+    postgres-data: {}
     redis-data: {}
-    minio-data: {}
