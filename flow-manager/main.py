@@ -70,6 +70,8 @@ class FlowManagerApp:
 
         self._shutdown_event = asyncio.Event()
         self._background_tasks = []
+        self._shutdown_lock = asyncio.Lock()
+        self._started = False
 
         self.logger.debug(
             "FlowManagerApp initialized",
@@ -90,8 +92,13 @@ class FlowManagerApp:
 
     async def startup(self) -> None:
         """Initialize application components and start background tasks."""
+        if self._started:
+            self.logger.debug("Startup requested for already running app", {})
+            return
+
         self.logger.debug("Starting Flow Manager application", {})
         os.makedirs(self.socket_dir, exist_ok=True)
+        self._shutdown_event.clear()
 
         try:
             await self.messaging.connect()
@@ -115,6 +122,7 @@ class FlowManagerApp:
         await self.event_handler.start()
 
         self._background_tasks.append(asyncio.create_task(self._health_check_loop()))
+        self._started = True
 
         self.logger.debug(
             "Flow Manager application started",
@@ -122,20 +130,26 @@ class FlowManagerApp:
         )
 
     async def shutdown(self) -> None:
-        self.logger.debug("Shutting down Flow Manager application", {})
-        self._shutdown_event.set()
+        async with self._shutdown_lock:
+            if not self._started:
+                return
 
-        for task in self._background_tasks:
-            if not task.done():
-                task.cancel()
-        if self._background_tasks:
-            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._started = False
+            self.logger.debug("Shutting down Flow Manager application", {})
+            self._shutdown_event.set()
 
-        await self.container_manager.stop_monitoring()
-        await self.socket_handler.close_all_connections()
-        await self.messaging.close()
+            for task in self._background_tasks:
+                if not task.done():
+                    task.cancel()
+            if self._background_tasks:
+                await asyncio.gather(*self._background_tasks, return_exceptions=True)
+            self._background_tasks = []
 
-        self.logger.debug("Flow Manager application shutdown complete", {})
+            await self.container_manager.stop_monitoring()
+            await self.socket_handler.close_all_connections()
+            await self.messaging.close()
+
+            self.logger.debug("Flow Manager application shutdown complete", {})
 
     async def _health_check_loop(self) -> None:
         while not self._shutdown_event.is_set():

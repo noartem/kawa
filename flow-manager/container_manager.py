@@ -48,6 +48,7 @@ class ContainerManager:
 
         # Container monitoring state
         self._container_states: Dict[str, ContainerState] = {}
+        self._reported_crashes: Dict[str, Dict[str, Any]] = {}
         self._status_change_callbacks: List[Callable] = []
         self._health_check_callbacks: List[Callable] = []
         self._crash_callbacks: List[Callable] = []
@@ -113,9 +114,7 @@ class ContainerManager:
             port_bindings = {}
             for container_port, host_port in config.ports.items():
                 port_key = (
-                    container_port
-                    if "/" in container_port
-                    else f"{container_port}/tcp"
+                    container_port if "/" in container_port else f"{container_port}/tcp"
                 )
                 port_bindings[port_key] = host_port
 
@@ -543,7 +542,9 @@ class ContainerManager:
                     image_obj.id, command=["cat", "/app/uv.lock"], remove=True
                 )
                 lock_content = (
-                    output.decode("utf-8") if isinstance(output, (bytes, bytearray)) else str(output)
+                    output.decode("utf-8")
+                    if isinstance(output, (bytes, bytearray))
+                    else str(output)
                 )
 
                 return lock_content
@@ -583,6 +584,9 @@ class ContainerManager:
 
             # Remove container
             container.remove()
+            self._container_states.pop(container_id, None)
+            self._reported_crashes.pop(container_id, None)
+            self._resource_usage_history.pop(container_id, None)
 
             # Clean up socket file
             socket_path = os.path.join(self.socket_dir, f"{container_name}.sock")
@@ -827,11 +831,17 @@ class ContainerManager:
         try:
             # Get container stats (non-blocking)
             stats = container.stats(stream=False)
+            if not isinstance(stats, dict):
+                stats = {}
 
             # Calculate CPU usage percentage
             cpu_usage = 0.0
             cpu_stats = stats.get("cpu_stats", {})
             precpu_stats = stats.get("precpu_stats", {})
+            if not isinstance(cpu_stats, dict):
+                cpu_stats = {}
+            if not isinstance(precpu_stats, dict):
+                precpu_stats = {}
 
             if cpu_stats and precpu_stats:
                 cpu_delta = cpu_stats.get("cpu_usage", {}).get(
@@ -847,6 +857,8 @@ class ContainerManager:
 
             # Calculate memory usage
             memory_stats = stats.get("memory_stats", {})
+            if not isinstance(memory_stats, dict):
+                memory_stats = {}
             memory_usage = memory_stats.get("usage", 0)
             memory_limit = memory_stats.get("limit", 0)
             memory_percent = 0.0
@@ -855,18 +867,28 @@ class ContainerManager:
 
             # Network I/O stats
             networks = stats.get("networks", {})
+            if not isinstance(networks, dict):
+                networks = {}
             network_rx = 0
             network_tx = 0
             for interface_stats in networks.values():
+                if not isinstance(interface_stats, dict):
+                    continue
                 network_rx += interface_stats.get("rx_bytes", 0)
                 network_tx += interface_stats.get("tx_bytes", 0)
 
             # Block I/O stats
             blkio_stats = stats.get("blkio_stats", {})
-            io_service_bytes = blkio_stats.get("io_service_bytes_recursive", [])
+            if not isinstance(blkio_stats, dict):
+                blkio_stats = {}
+            io_service_bytes = blkio_stats.get("io_service_bytes_recursive") or []
+            if not isinstance(io_service_bytes, list):
+                io_service_bytes = []
             disk_read = 0
             disk_write = 0
             for io_stat in io_service_bytes:
+                if not isinstance(io_stat, dict):
+                    continue
                 if io_stat.get("op") == "Read":
                     disk_read += io_stat.get("value", 0)
                 elif io_stat.get("op") == "Write":
@@ -1078,6 +1100,8 @@ class ContainerManager:
 
             # Update stored state
             self._container_states[container_id] = current_state
+            if current_state not in [ContainerState.EXITED, ContainerState.DEAD]:
+                self._reported_crashes.pop(container_id, None)
 
             # Check for crashes
             if current_state in [ContainerState.EXITED, ContainerState.DEAD]:
@@ -1123,6 +1147,11 @@ class ContainerManager:
                     "oom_killed": state_info.get("OOMKilled", False),
                     "pid": state_info.get("Pid", 0),
                 }
+                previous_crash = self._reported_crashes.get(container_id)
+                if previous_crash == crash_details:
+                    return
+
+                self._reported_crashes[container_id] = crash_details.copy()
 
                 self.logger.error(
                     Exception(f"Container crashed with exit code {exit_code}"),

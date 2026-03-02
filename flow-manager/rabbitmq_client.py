@@ -154,7 +154,9 @@ class RabbitMQMessaging(Messaging):
             content_type="application/json",
         )
         await self.event_exchange.publish(
-            message, routing_key=routing_key or f"event.{event_name}"
+            message,
+            routing_key=routing_key or f"event.{event_name}",
+            mandatory=False,
         )
         self.logger.debug(
             "Published event",

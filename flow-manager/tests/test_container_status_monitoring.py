@@ -259,6 +259,31 @@ class TestContainerStatusMonitoring:
 
     @pytest.mark.asyncio
     @patch("container_manager.docker")
+    async def test_container_crash_detection_deduplicated(self, _):
+        """Test duplicate crash notifications are suppressed."""
+        mock_container = Mock()
+        mock_container.id = "test_container_id"
+        mock_container.attrs = {
+            "State": {
+                "Status": "exited",
+                "ExitCode": 1,
+                "FinishedAt": "2025-01-19T10:30:00.000000000Z",
+                "Error": "Container crashed",
+                "OOMKilled": False,
+                "Pid": 0,
+            }
+        }
+
+        crash_callback = AsyncMock()
+        self.container_manager.register_crash_callback(crash_callback)
+
+        await self.container_manager._check_container_crash(mock_container)
+        await self.container_manager._check_container_crash(mock_container)
+
+        crash_callback.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("container_manager.docker")
     async def test_health_check_monitoring(self, _):
         """Test container health check monitoring."""
         # Mock unhealthy container
@@ -361,6 +386,36 @@ class TestContainerStatusMonitoring:
 
         # Should return empty dict on error
         assert resource_usage == {}
+
+    @pytest.mark.asyncio
+    @patch("container_manager.docker")
+    async def test_get_resource_usage_with_nullable_io_stats(self, _):
+        """Test resource usage with nullable network and blkio fields."""
+        mock_container = Mock()
+        mock_container.id = "test_container_id"
+        mock_container.stats.return_value = {
+            "cpu_stats": {
+                "cpu_usage": {"total_usage": 2000000000},
+                "system_cpu_usage": 10000000000,
+                "online_cpus": 2,
+            },
+            "precpu_stats": {
+                "cpu_usage": {"total_usage": 1000000000},
+                "system_cpu_usage": 8000000000,
+            },
+            "memory_stats": {"usage": 1, "limit": 2},
+            "networks": None,
+            "blkio_stats": {"io_service_bytes_recursive": None},
+        }
+
+        resource_usage = await self.container_manager._get_resource_usage(
+            mock_container
+        )
+
+        assert resource_usage["network_rx_bytes"] == 0
+        assert resource_usage["network_tx_bytes"] == 0
+        assert resource_usage["disk_read_bytes"] == 0
+        assert resource_usage["disk_write_bytes"] == 0
 
     @pytest.mark.asyncio
     async def test_no_status_change_no_callback(self):
