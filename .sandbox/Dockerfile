@@ -42,6 +42,7 @@ RUN apt-get update \
     zsh \
     vim \
     less \
+    ripgrep \
     fzf \
     libpng-dev \
     libzip-dev \
