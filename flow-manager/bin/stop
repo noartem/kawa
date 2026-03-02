@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RUN_DIR="$ROOT_DIR/.run"
+PID_FILE="$RUN_DIR/flow-manager.pid"
+
+is_pid_active() {
+    local pid="$1"
+    local state=""
+
+    if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
+        return 1
+    fi
+
+    state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
+    state="${state//[[:space:]]/}"
+
+    if [[ -z "$state" ]] || [[ "${state:0:1}" == "Z" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+get_process_group() {
+    local pid="$1"
+    local pgid=""
+
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null || true)"
+    pgid="${pgid//[[:space:]]/}"
+    printf '%s' "$pgid"
+}
+
+if [[ ! -f "$PID_FILE" ]]; then
+    printf 'Flow Manager is not running (pid file not found).\n'
+    exit 0
+fi
+
+pid="$(<"$PID_FILE")"
+
+if [[ -z "$pid" ]]; then
+    rm -f "$PID_FILE"
+    printf 'Removed invalid pid file.\n'
+    exit 0
+fi
+
+if ! is_pid_active "$pid"; then
+    rm -f "$PID_FILE"
+    printf 'Flow Manager is not running (stale pid %s).\n' "$pid"
+    exit 0
+fi
+
+pgid="$(get_process_group "$pid")"
+current_pgid="$(get_process_group "$$")"
+
+if [[ -n "$pgid" ]] && [[ "$pgid" != "$current_pgid" ]]; then
+    kill -TERM -- "-$pgid" 2>/dev/null || kill "$pid"
+else
+    kill "$pid"
+fi
+
+for _ in {1..20}; do
+    if ! is_pid_active "$pid"; then
+        rm -f "$PID_FILE"
+        printf 'Flow Manager stopped (pid %s).\n' "$pid"
+        exit 0
+    fi
+    sleep 0.5
+done
+
+if [[ -n "$pgid" ]] && [[ "$pgid" != "$current_pgid" ]]; then
+    kill -KILL -- "-$pgid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+else
+    kill -9 "$pid" 2>/dev/null || true
+fi
+sleep 0.2
+
+if is_pid_active "$pid"; then
+    printf 'Failed to stop Flow Manager (pid %s).\n' "$pid" >&2
+    exit 1
+fi
+
+rm -f "$PID_FILE"
+printf 'Flow Manager force-stopped (pid %s).\n' "$pid"

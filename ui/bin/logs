@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RUN_DIR="$ROOT_DIR/.run"
+LOG_FILE="${UI_DEV_LOG_FILE:-$RUN_DIR/ui-dev.log}"
+LINES="${UI_DEV_LOG_LINES:-200}"
+FOLLOW=true
+
+usage() {
+    printf 'Usage: %s [--no-follow] [lines]\n' "$0"
+    printf 'Examples:\n'
+    printf '  %s                # follow logs (default)\n' "$0"
+    printf '  %s --no-follow 100\n' "$0"
+}
+
+if [[ "${1:-}" == "--no-follow" ]]; then
+    FOLLOW=false
+    shift
+fi
+
+if [[ -n "${1:-}" ]]; then
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+        LINES="$1"
+        shift
+    else
+        usage >&2
+        exit 1
+    fi
+fi
+
+if [[ -n "${1:-}" ]]; then
+    usage >&2
+    exit 1
+fi
+
+if [[ ! -f "$LOG_FILE" ]]; then
+    printf 'Log file not found: %s\n' "$LOG_FILE" >&2
+    printf 'Start the dev stack first with %s/start\n' "$SCRIPT_DIR" >&2
+    exit 1
+fi
+
+if [[ "$FOLLOW" == true ]]; then
+    exec tail -n "$LINES" -f "$LOG_FILE"
+fi
+
+exec tail -n "$LINES" "$LOG_FILE"

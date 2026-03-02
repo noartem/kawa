@@ -56,6 +56,13 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
 
+## Background Dev Scripts
+
+- Use `bin/start` to launch `composer run dev` in the background.
+- Use `bin/stop` to stop the background dev stack.
+- Use `bin/restart` to restart it.
+- Use `bin/logs [--no-follow] [lines]` to read or follow logs.
+
 ## Documentation Files
 
 - You must only create documentation files if explicitly requested by the user.
@@ -112,7 +119,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 ## Constructors
 
 - Use PHP 8 constructor property promotion in `__construct()`.
-    - <code-snippet>public function __construct(public GitHub $github) { }</code-snippet>
+    - <code-snippet>public function \_\_construct(public GitHub $github) { }</code-snippet>
 - Do not allow empty `__construct()` methods with zero parameters unless the constructor is private.
 
 ## Type Declarations
@@ -277,6 +284,7 @@ Wayfinder generates TypeScript functions for Laravel routes. Import from `@/acti
 # Inertia + Vue
 
 Vue components must have a single root element.
+
 - IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
 
 === tailwindcss/core rules ===
@@ -294,4 +302,4 @@ Vue components must have a single root element.
 - Fortify is a headless authentication backend that provides authentication routes and controllers for Laravel applications.
 - IMPORTANT: Always use the `search-docs` tool for detailed Laravel Fortify patterns and documentation.
 - IMPORTANT: Activate `developing-with-fortify` skill when working with Fortify authentication features.
-</laravel-boost-guidelines>
+  </laravel-boost-guidelines>

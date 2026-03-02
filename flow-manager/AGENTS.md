@@ -130,6 +130,7 @@
 ## File layout
 - Modules are at the repo root; keep new modules at the same level unless needed.
 - Test files go in `tests/` and must start with `test_`.
+- `bin/` contains helper scripts to start/stop/restart the service and view logs.
 - Reuse existing helpers (`InMemoryMessaging`, fixtures in `tests/conftest.py`).
 
 ## Testing guidelines

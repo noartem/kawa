@@ -9,6 +9,7 @@ node_modules/
 
 **/.opencode
 **/opencode.json
+**/.run/
 
 .env
 
