@@ -99,11 +99,8 @@ const runTypeLabel = (type?: FlowRunSummary['type'] | null) =>
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="space-y-6 px-4 pt-2 pb-10">
             <div
-                class="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm dark:from-primary/3"
+                class="relative overflow-hidden rounded-2xl border border-border/80 bg-background p-6 shadow-sm"
             >
-                <div
-                    class="absolute inset-0 bg-[radial-gradient(circle_at_top,theme(colors.primary/10),transparent_35%)] dark:bg-[radial-gradient(circle_at_top,theme(colors.primary/3),transparent_70%)]"
-                />
                 <div
                     class="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
                 >
