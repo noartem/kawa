@@ -6,12 +6,12 @@ from unittest.mock import Mock, patch
 
 
 from container_manager import ContainerManager
+from event_handler import EventHandler
 from messaging import InMemoryMessaging
-from rabbitmq_event_handler import RabbitMQEventHandler
+from models import ContainerConfig, ContainerHealth, ContainerState
 from socket_communication_handler import SocketCommunicationHandler
 from system_logger import SystemLogger
 from user_activity_logger import UserActivityLogger
-from models import ContainerState, ContainerHealth, ContainerConfig
 
 
 class TestTaskVerification:
@@ -23,19 +23,19 @@ class TestTaskVerification:
 
     def test_system_logger_methods(self):
         logger = SystemLogger("test_logger")
-        assert hasattr(logger, "log_container_operation")
-        assert hasattr(logger, "log_error")
-        assert hasattr(logger, "log_debug")
+        assert hasattr(logger, "container_operation")
+        assert hasattr(logger, "error")
+        assert hasattr(logger, "debug")
 
     def test_user_activity_logger_methods(self):
-        logger = UserActivityLogger(InMemoryMessaging())
+        logger = UserActivityLogger(InMemoryMessaging(logger=Mock(spec=SystemLogger)))
         assert hasattr(logger, "container_created")
-        assert hasattr(logger, "log_container_message")
-        assert hasattr(logger, "log_container_error")
+        assert hasattr(logger, "container_message")
+        assert hasattr(logger, "container_error")
 
     def test_container_manager_methods(self):
         with patch("docker.from_env"):
-            manager = ContainerManager()
+            manager = ContainerManager(logger=Mock(spec=SystemLogger))
             assert hasattr(manager, "create_container")
             assert hasattr(manager, "start_container")
             assert hasattr(manager, "stop_container")
@@ -49,12 +49,12 @@ class TestTaskVerification:
         assert hasattr(handler, "send_message")
         assert hasattr(handler, "receive_message")
 
-    def test_rabbitmq_event_handler_methods(self):
-        handler = RabbitMQEventHandler(
-            messaging=InMemoryMessaging(),
+    def test_event_handler_methods(self):
+        handler = EventHandler(
+            messaging=InMemoryMessaging(logger=Mock(spec=SystemLogger)),
             container_manager=Mock(spec=ContainerManager),
             socket_handler=Mock(spec=SocketCommunicationHandler),
-            system_logger=Mock(spec=SystemLogger),
+            logger=Mock(spec=SystemLogger),
             user_logger=Mock(spec=UserActivityLogger),
         )
         assert hasattr(handler, "handle_create_container")

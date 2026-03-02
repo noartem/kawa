@@ -14,7 +14,9 @@ use Inertia\Response;
 
 class FlowController extends Controller
 {
-    private const DEFAULT_CODE = <<<PY
+    private const TEMPLATES = [
+        'blank' => '',
+        'cron' => <<<'PY'
 from kawa import actor, event, NotSupportedEvent, Context
 from kawa.cron import CronEvent
 
@@ -22,7 +24,19 @@ from kawa.cron import CronEvent
 @actor(receivs=CronEvent.by("0 8 * * *"))
 def MorningActor(ctx: Context, event):
     print("Good morning!")
-PY;
+PY
+        ,
+        'webhook' => <<<'PY'
+from kawa import actor, event, Context
+from kawa.webhook import WebhookEvent
+
+
+@actor(receivs=WebhookEvent.by("my-webhook"))
+def HandleWebhook(ctx: Context, event):
+    print("Received webhook:", event.payload)
+PY
+        ,
+    ];
 
     public function index(Request $request): Response
     {
@@ -38,41 +52,8 @@ PY;
 
     public function create(Request $request): Response
     {
-        $user = $request->user();
-
-        return Inertia::render('flows/Editor', [
-            'mode' => 'create',
-            'flow' => [
-                'id' => null,
-                'name' => __('flows.default_name'),
-                'slug' => null,
-                'description' => '',
-                'code' => self::DEFAULT_CODE,
-                'graph' => $this->defaultGraph(),
-                'status' => 'draft',
-                'runs_count' => 0,
-                'last_started_at' => null,
-                'last_finished_at' => null,
-                'user' => [
-                    'name' => $user?->name,
-                ],
-            ],
-            'productionRun' => null,
-            'developmentRun' => null,
-            'productionRuns' => [],
-            'developmentRuns' => [],
-            'productionLogs' => [],
-            'developmentLogs' => [],
-            'status' => null,
-            'runStats' => [],
-            'history' => [],
-            'permissions' => [
-                'canRun' => false,
-                'canUpdate' => $request->user()->can('create', Flow::class),
-                'canDelete' => false,
-            ],
-            'viewMode' => 'development',
-            'requiresDeletePassword' => false,
+        return Inertia::render('flows/Create', [
+            'defaultTemplate' => 'cron',
         ]);
     }
 
@@ -81,9 +62,10 @@ PY;
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'code' => ['nullable', 'string'],
-            'graph' => ['nullable', 'array'],
+            'template' => ['required', 'string', 'in:blank,cron,webhook'],
         ]);
+
+        $code = self::TEMPLATES[$data['template']] ?? '';
 
         $slug = Str::slug($data['name']) ?: Str::random(8);
         $suffix = 1;
@@ -93,7 +75,10 @@ PY;
         }
 
         $flow = Flow::create([
-            ...$data,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'code' => $code,
+            'graph' => $this->defaultGraph(),
             'user_id' => $request->user()->id,
             'status' => 'draft',
             'slug' => $slug,

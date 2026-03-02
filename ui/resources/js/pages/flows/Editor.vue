@@ -2,17 +2,21 @@
 import FlowLogsPanel from '@/components/FlowLogsPanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { create as flowCreate, index as flowsIndex, show as flowShow } from '@/routes/flows';
+import { show as flowShow, index as flowsIndex } from '@/routes/flows';
 import type { BreadcrumbItem, FlowSidebarItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
-import { useI18n } from 'vue-i18n';
 import {
     Activity,
     AlarmClock,
@@ -28,6 +32,8 @@ import {
     Trash2,
     UploadCloud,
 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 interface FlowLog {
     id: number;
@@ -87,7 +93,6 @@ interface RunStat {
 }
 
 const props = defineProps<{
-    mode: 'create' | 'edit';
     flow: FlowDetail;
     productionRun: FlowRun | null;
     developmentRun: FlowRun | null;
@@ -105,7 +110,6 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const isNew = computed(() => props.mode === 'create' || !props.flow.id);
 const saving = ref(false);
 const form = useForm({
     name: props.flow.name,
@@ -121,7 +125,7 @@ watch(
     (value) => {
         try {
             form.graph = JSON.parse(value || '{}');
-        } catch (error) {
+        } catch {
             // ignore parse errors in preview
         }
     },
@@ -148,57 +152,48 @@ const statusTone = (status?: string | null) => {
     }
 };
 
-const saveLabel = computed(() => (isNew.value ? t('flows.actions.create') : t('flows.actions.save')));
-const canSave = computed(() => props.permissions.canUpdate || isNew.value);
+const saveLabel = computed(() => t('flows.actions.save'));
+const canSave = computed(() => props.permissions.canUpdate);
 
 const save = () => {
     if (!canSave.value) return;
     saving.value = true;
 
-    const action = isNew.value
-        ? form.post('/flows', {
-              preserveScroll: true,
-              onFinish: () => {
-                  saving.value = false;
-              },
-          })
-        : form.put(`/flows/${props.flow.id}`, {
-              preserveScroll: true,
-              onFinish: () => {
-                  saving.value = false;
-              },
-          });
-
-    return action;
+    return form.put(`/flows/${props.flow.id}`, {
+        preserveScroll: true,
+        onFinish: () => {
+            saving.value = false;
+        },
+    });
 };
 
 const runFlow = () => {
-    if (isNew.value || !props.permissions.canRun) return;
+    if (!props.permissions.canRun) return;
     router.post(`/flows/${props.flow.id}/run`);
 };
 
 const stopFlow = () => {
-    if (isNew.value || !props.permissions.canRun) return;
+    if (!props.permissions.canRun) return;
     router.post(`/flows/${props.flow.id}/stop`);
 };
 
 const deployProd = () => {
-    if (isNew.value || !props.permissions.canRun) return;
+    if (!props.permissions.canRun) return;
     router.post(`/flows/${props.flow.id}/deploy`);
 };
 
 const undeployProd = () => {
-    if (isNew.value || !props.permissions.canRun) return;
+    if (!props.permissions.canRun) return;
     router.post(`/flows/${props.flow.id}/undeploy`);
 };
 
 const archiveFlow = () => {
-    if (isNew.value || !props.permissions.canUpdate) return;
+    if (!props.permissions.canUpdate) return;
     router.post(`/flows/${props.flow.id}/archive`);
 };
 
 const restoreFlow = () => {
-    if (isNew.value || !props.permissions.canUpdate) return;
+    if (!props.permissions.canUpdate) return;
     router.post(`/flows/${props.flow.id}/restore`);
 };
 
@@ -208,21 +203,23 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
         href: flowsIndex().url,
     },
     {
-        title: isNew.value ? t('flows.new') : t('flows.breadcrumbs.flow', { id: props.flow.id }),
-        href: isNew.value ? flowCreate().url : flowShow({ flow: props.flow.id ?? 0 }).url,
+        title: t('flows.breadcrumbs.flow', { id: props.flow.id }),
+        href: flowShow({ flow: props.flow.id }).url,
     },
 ]);
 
-const pageTitle = computed(() => (isNew.value ? t('flows.new') : form.name || t('flows.untitled')));
+const pageTitle = computed(() => form.name || t('flows.untitled'));
 
 const deleteFlow = () => {
-    if (isNew.value || !props.permissions.canDelete) return;
+    if (!props.permissions.canDelete) return;
 
     if (!confirm(t('flows.delete.confirm'))) {
         return;
     }
 
-    const password = props.requiresDeletePassword ? prompt(t('flows.delete.password_prompt')) : null;
+    const password = props.requiresDeletePassword
+        ? prompt(t('flows.delete.password_prompt'))
+        : null;
     if (props.requiresDeletePassword && !password) {
         return;
     }
@@ -244,71 +241,110 @@ const formatDuration = (start?: string | null, end?: string | null) => {
     if (!start) return t('common.empty');
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : new Date();
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return t('common.empty');
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
+        return t('common.empty');
     const diffMs = Math.max(endDate.getTime() - startDate.getTime(), 0);
     const seconds = Math.floor(diffMs / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
-    if (hours > 0) return t('common.duration.hours', { hours, minutes: minutes % 60 });
-    if (minutes > 0) return t('common.duration.minutes', { minutes, seconds: seconds % 60 });
+    if (hours > 0)
+        return t('common.duration.hours', { hours, minutes: minutes % 60 });
+    if (minutes > 0)
+        return t('common.duration.minutes', { minutes, seconds: seconds % 60 });
     return t('common.duration.seconds', { seconds });
 };
 
-const hasActiveDeploys = computed(() => Boolean(props.productionRun?.active || props.developmentRun?.active));
+const hasActiveDeploys = computed(() =>
+    Boolean(props.productionRun?.active || props.developmentRun?.active),
+);
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.developmentRun);
 const isArchived = computed(() => Boolean(props.flow.archived_at));
 const currentModeLabel = computed(() =>
-    props.viewMode === 'development' ? t('environments.devShort') : t('environments.prodShort'),
+    props.viewMode === 'development'
+        ? t('environments.devShort')
+        : t('environments.prodShort'),
 );
 
-const statusLabel = (status?: string | null) => t(`statuses.${status ?? 'unknown'}`);
+const statusLabel = (status?: string | null) =>
+    t(`statuses.${status ?? 'unknown'}`);
 const runTypeLabel = (type?: FlowRun['type'] | null) =>
-    type === 'production' ? t('environments.production') : t('environments.development');
+    type === 'production'
+        ? t('environments.production')
+        : t('environments.development');
 </script>
 
 <template>
     <Head :title="pageTitle" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="space-y-6 px-4 pb-12 pt-2">
+        <div class="space-y-6 px-4 pt-2 pb-12">
             <div
-                class="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm"
+                class="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm dark:from-primary/3"
             >
-                <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,theme(colors.primary/12),transparent_45%)]" />
-                <div class="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div
+                    class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,theme(colors.primary/12),transparent_45%)] dark:bg-[radial-gradient(circle_at_top_left,theme(colors.primary/3),transparent_70%)]"
+                />
+                <div
+                    class="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+                >
                     <div class="space-y-3">
                         <div class="flex flex-wrap items-center gap-3">
-                            <Badge variant="outline" class="bg-muted/60 text-muted-foreground">
-                                {{ t('flows.badges.flow_id', { id: props.flow.id ?? t('common.empty') }) }}
+                            <Badge
+                                variant="outline"
+                                class="bg-muted/60 text-muted-foreground"
+                            >
+                                {{
+                                    t('flows.badges.flow_id', {
+                                        id: props.flow.id ?? t('common.empty'),
+                                    })
+                                }}
                             </Badge>
-                            <Badge variant="outline" class="bg-muted/60 text-muted-foreground">{{ currentModeLabel }}</Badge>
-                            <Badge v-if="isArchived" variant="outline" class="bg-amber-500/15 text-amber-300">
+                            <Badge
+                                variant="outline"
+                                class="bg-muted/60 text-muted-foreground"
+                                >{{ currentModeLabel }}</Badge
+                            >
+                            <Badge
+                                v-if="isArchived"
+                                variant="outline"
+                                class="bg-amber-500/15 text-amber-300"
+                            >
                                 {{ t('flows.badges.archived') }}
                             </Badge>
                         </div>
-                        <h1 class="text-3xl font-semibold leading-tight">
+                        <h1 class="text-3xl leading-tight font-semibold">
                             {{ form.name || t('flows.untitled') }}
                         </h1>
                         <p class="max-w-2xl text-sm text-muted-foreground">
-                            {{ form.description || t('flows.description.placeholder') }}
+                            {{
+                                form.description ||
+                                t('flows.description.placeholder')
+                            }}
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <Button
                             v-if="currentProduction?.active"
                             variant="outline"
-                            :disabled="isNew || !permissions.canRun"
+                            :disabled="!permissions.canRun"
                             @click="undeployProd"
                         >
                             <Square class="size-4" />
                             {{ t('actions.stop') }}
                         </Button>
-                        <Button v-else :disabled="isNew || !permissions.canRun" @click="deployProd">
+                        <Button
+                            v-else
+                            :disabled="!permissions.canRun"
+                            @click="deployProd"
+                        >
                             <UploadCloud class="size-4" />
                             {{ t('actions.deploy') }}
                         </Button>
-                        <Button variant="outline" :disabled="isNew">
+                        <Button
+                            variant="outline"
+                            :disabled="!permissions.canRun"
+                        >
                             <Share2 class="size-4" />
                             {{ t('actions.share') }}
                         </Button>
@@ -323,50 +359,109 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                             <UploadCloud class="size-4 text-muted-foreground" />
                             {{ t('flows.current_deploy.title') }}
                         </CardTitle>
-                        <CardDescription>{{ t('flows.current_deploy.description') }}</CardDescription>
+                        <CardDescription>{{
+                            t('flows.current_deploy.description')
+                        }}</CardDescription>
                     </CardHeader>
                     <CardContent class="space-y-4">
                         <div v-if="currentProduction" class="space-y-4">
                             <div class="flex flex-wrap items-center gap-2">
-                                <Badge :class="statusTone(currentProduction.status)" variant="outline">
+                                <Badge
+                                    :class="
+                                        statusTone(currentProduction.status)
+                                    "
+                                    variant="outline"
+                                >
                                     {{ statusLabel(currentProduction.status) }}
                                 </Badge>
-                                <Badge variant="outline" class="bg-muted/60 text-muted-foreground">
+                                <Badge
+                                    variant="outline"
+                                    class="bg-muted/60 text-muted-foreground"
+                                >
                                     {{ runTypeLabel(currentProduction.type) }}
                                 </Badge>
-                                <Badge variant="outline" class="bg-muted/60 text-muted-foreground">
-                                    {{ t('common.started') }}: {{ formatDate(currentProduction.started_at) }}
+                                <Badge
+                                    variant="outline"
+                                    class="bg-muted/60 text-muted-foreground"
+                                >
+                                    {{ t('common.started') }}:
+                                    {{
+                                        formatDate(currentProduction.started_at)
+                                    }}
                                 </Badge>
-                                <Badge variant="outline" class="bg-muted/60 text-muted-foreground">
-                                    {{ t('common.finished') }}: {{ formatDate(currentProduction.finished_at) }}
+                                <Badge
+                                    variant="outline"
+                                    class="bg-muted/60 text-muted-foreground"
+                                >
+                                    {{ t('common.finished') }}:
+                                    {{
+                                        formatDate(
+                                            currentProduction.finished_at,
+                                        )
+                                    }}
                                 </Badge>
                             </div>
                             <div class="grid gap-3 md:grid-cols-3">
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <div class="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>{{ t('flows.metrics.actors') }}</span>
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <div
+                                        class="flex items-center justify-between text-xs text-muted-foreground"
+                                    >
+                                        <span>{{
+                                            t('flows.metrics.actors')
+                                        }}</span>
                                         <Activity class="size-4" />
                                     </div>
                                     <p class="mt-2 text-sm">
-                                        {{ currentProduction.actors?.length ? currentProduction.actors.join(', ') : t('common.empty') }}
+                                        {{
+                                            currentProduction.actors?.length
+                                                ? currentProduction.actors.join(
+                                                      ', ',
+                                                  )
+                                                : t('common.empty')
+                                        }}
                                     </p>
                                 </div>
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <div class="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>{{ t('flows.metrics.events') }}</span>
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <div
+                                        class="flex items-center justify-between text-xs text-muted-foreground"
+                                    >
+                                        <span>{{
+                                            t('flows.metrics.events')
+                                        }}</span>
                                         <Boxes class="size-4" />
                                     </div>
                                     <p class="mt-2 text-sm">
-                                        {{ currentProduction.events?.length ? currentProduction.events.join(', ') : t('common.empty') }}
+                                        {{
+                                            currentProduction.events?.length
+                                                ? currentProduction.events.join(
+                                                      ', ',
+                                                  )
+                                                : t('common.empty')
+                                        }}
                                     </p>
                                 </div>
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <div class="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>{{ t('flows.metrics.duration') }}</span>
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <div
+                                        class="flex items-center justify-between text-xs text-muted-foreground"
+                                    >
+                                        <span>{{
+                                            t('flows.metrics.duration')
+                                        }}</span>
                                         <AlarmClock class="size-4" />
                                     </div>
                                     <p class="mt-2 text-sm">
-                                        {{ formatDuration(currentProduction.started_at, currentProduction.finished_at) }}
+                                        {{
+                                            formatDuration(
+                                                currentProduction.started_at,
+                                                currentProduction.finished_at,
+                                            )
+                                        }}
                                     </p>
                                 </div>
                             </div>
@@ -376,7 +471,10 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                                 :empty-message="t('flows.logs.empty_current')"
                             />
                         </div>
-                        <div v-else class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                        <div
+                            v-else
+                            class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground"
+                        >
                             {{ t('flows.current_deploy.empty') }}
                         </div>
                     </CardContent>
@@ -385,27 +483,54 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                 <div class="space-y-4">
                     <Card>
                         <CardHeader class="pb-3">
-                            <CardTitle>{{ t('flows.summary.title') }}</CardTitle>
-                            <CardDescription>{{ t('flows.summary.description') }}</CardDescription>
+                            <CardTitle>{{
+                                t('flows.summary.title')
+                            }}</CardTitle>
+                            <CardDescription>{{
+                                t('flows.summary.description')
+                            }}</CardDescription>
                         </CardHeader>
-                        <CardContent class="space-y-2 text-sm text-muted-foreground">
+                        <CardContent
+                            class="space-y-2 text-sm text-muted-foreground"
+                        >
                             <div class="flex items-center justify-between">
-                                <span class="inline-flex items-center gap-2 text-foreground">
-                                    <Activity class="size-4 text-muted-foreground" /> {{ t('flows.summary.runs') }}
+                                <span
+                                    class="inline-flex items-center gap-2 text-foreground"
+                                >
+                                    <Activity
+                                        class="size-4 text-muted-foreground"
+                                    />
+                                    {{ t('flows.summary.runs') }}
                                 </span>
-                                <span class="font-semibold text-foreground">{{ props.flow.runs_count ?? 0 }}</span>
+                                <span class="font-semibold text-foreground">{{
+                                    props.flow.runs_count ?? 0
+                                }}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="inline-flex items-center gap-2 text-foreground">
-                                    <AlarmClock class="size-4 text-muted-foreground" /> {{ t('flows.summary.last_start') }}
+                                <span
+                                    class="inline-flex items-center gap-2 text-foreground"
+                                >
+                                    <AlarmClock
+                                        class="size-4 text-muted-foreground"
+                                    />
+                                    {{ t('flows.summary.last_start') }}
                                 </span>
-                                <span class="font-semibold text-foreground">{{ formatDate(props.flow.last_started_at) }}</span>
+                                <span class="font-semibold text-foreground">{{
+                                    formatDate(props.flow.last_started_at)
+                                }}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="inline-flex items-center gap-2 text-foreground">
-                                    <Square class="size-4 text-muted-foreground" /> {{ t('flows.summary.last_finish') }}
+                                <span
+                                    class="inline-flex items-center gap-2 text-foreground"
+                                >
+                                    <Square
+                                        class="size-4 text-muted-foreground"
+                                    />
+                                    {{ t('flows.summary.last_finish') }}
                                 </span>
-                                <span class="font-semibold text-foreground">{{ formatDate(props.flow.last_finished_at) }}</span>
+                                <span class="font-semibold text-foreground">{{
+                                    formatDate(props.flow.last_finished_at)
+                                }}</span>
                             </div>
                             <Separator class="my-1" />
                             <div class="flex flex-wrap gap-2">
@@ -415,9 +540,13 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                                     variant="outline"
                                     class="bg-muted/50 text-muted-foreground"
                                 >
-                                    {{ statusLabel(stat.status) }} • {{ stat.total }}
+                                    {{ statusLabel(stat.status) }} •
+                                    {{ stat.total }}
                                 </Badge>
-                                <span v-if="!props.runStats.length" class="text-sm text-muted-foreground">
+                                <span
+                                    v-if="!props.runStats.length"
+                                    class="text-sm text-muted-foreground"
+                                >
                                     {{ t('flows.summary.empty_runs') }}
                                 </span>
                             </div>
@@ -433,32 +562,56 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                             <Code class="size-4 text-muted-foreground" />
                             {{ t('flows.editor.title') }}
                         </CardTitle>
-                        <CardDescription>{{ t('flows.editor.description') }}</CardDescription>
+                        <CardDescription>{{
+                            t('flows.editor.description')
+                        }}</CardDescription>
                     </CardHeader>
                     <CardContent class="space-y-4">
                         <div class="flex flex-wrap items-center gap-2">
-                            <Button variant="outline" :disabled="isNew || !permissions.canRun" @click="stopFlow">
+                            <Button
+                                variant="outline"
+                                :disabled="!permissions.canRun"
+                                @click="stopFlow"
+                            >
                                 <Square class="size-4" />
                                 {{ t('actions.stop') }}
                             </Button>
-                            <Button :disabled="isNew || !permissions.canRun" @click="runFlow">
+                            <Button
+                                :disabled="!permissions.canRun"
+                                @click="runFlow"
+                            >
                                 <Play class="size-4" />
                                 {{ t('actions.start') }}
                             </Button>
-                            <Button variant="outline" :disabled="isNew">
+                            <Button
+                                variant="outline"
+                                :disabled="!permissions.canRun"
+                            >
                                 <Share2 class="size-4" />
                                 {{ t('actions.share') }}
                             </Button>
-                            <Badge v-if="currentDevelopment" :class="statusTone(currentDevelopment.status)" variant="outline">
+                            <Badge
+                                v-if="currentDevelopment"
+                                :class="statusTone(currentDevelopment.status)"
+                                variant="outline"
+                            >
                                 {{ statusLabel(currentDevelopment.status) }}
                             </Badge>
                         </div>
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <div class="inline-flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-3"
+                        >
+                            <div
+                                class="inline-flex items-center gap-1 rounded-lg bg-muted/50 p-1"
+                            >
                                 <button
                                     type="button"
                                     class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition"
-                                    :class="editorTab === 'code' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                    :class="
+                                        editorTab === 'code'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    "
                                     @click="editorTab = 'code'"
                                 >
                                     <Code class="size-4" />
@@ -467,7 +620,11 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                                 <button
                                     type="button"
                                     class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition"
-                                    :class="editorTab === 'chat' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                    :class="
+                                        editorTab === 'chat'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    "
                                     @click="editorTab = 'chat'"
                                 >
                                     <Share2 class="size-4" />
@@ -482,38 +639,112 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                             <div class="space-y-4">
                                 <template v-if="editorTab === 'code'">
                                     <div class="space-y-2">
-                                        <Label for="flow-code">{{ t('flows.editor.code_label') }}</Label>
-                                        <Textarea id="flow-code" v-model="form.code" class="font-mono" rows="16" />
-                                        <p v-if="form.errors.code" class="text-sm text-destructive">{{ form.errors.code }}</p>
+                                        <Label for="flow-code">{{
+                                            t('flows.editor.code_label')
+                                        }}</Label>
+                                        <Textarea
+                                            id="flow-code"
+                                            v-model="form.code"
+                                            class="font-mono"
+                                            rows="16"
+                                        />
+                                        <p
+                                            v-if="form.errors.code"
+                                            class="text-sm text-destructive"
+                                        >
+                                            {{ form.errors.code }}
+                                        </p>
                                     </div>
                                     <div class="space-y-2">
-                                        <Label for="flow-graph">{{ t('flows.editor.graph_label') }}</Label>
-                                        <Textarea id="flow-graph" v-model="graphText" class="font-mono text-xs" rows="10" />
-                                        <p v-if="form.errors.graph" class="text-sm text-destructive">{{ form.errors.graph }}</p>
+                                        <Label for="flow-graph">{{
+                                            t('flows.editor.graph_label')
+                                        }}</Label>
+                                        <Textarea
+                                            id="flow-graph"
+                                            v-model="graphText"
+                                            class="font-mono text-xs"
+                                            rows="10"
+                                        />
+                                        <p
+                                            v-if="form.errors.graph"
+                                            class="text-sm text-destructive"
+                                        >
+                                            {{ form.errors.graph }}
+                                        </p>
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <div class="rounded-lg border border-border/60 bg-muted/30 p-4">
-                                        <p class="text-sm font-semibold text-foreground">{{ t('flows.editor.chat.title') }}</p>
-                                        <p class="mt-1 text-xs text-muted-foreground">{{ t('flows.editor.chat.subtitle') }}</p>
-                                        <div class="mt-3 space-y-2 text-sm text-muted-foreground">
-                                            <p>{{ t('flows.editor.chat.example_question') }}</p>
-                                            <p>{{ t('flows.editor.chat.example_answer') }}</p>
+                                    <div
+                                        class="rounded-lg border border-border/60 bg-muted/30 p-4"
+                                    >
+                                        <p
+                                            class="text-sm font-semibold text-foreground"
+                                        >
+                                            {{ t('flows.editor.chat.title') }}
+                                        </p>
+                                        <p
+                                            class="mt-1 text-xs text-muted-foreground"
+                                        >
+                                            {{
+                                                t('flows.editor.chat.subtitle')
+                                            }}
+                                        </p>
+                                        <div
+                                            class="mt-3 space-y-2 text-sm text-muted-foreground"
+                                        >
+                                            <p>
+                                                {{
+                                                    t(
+                                                        'flows.editor.chat.example_question',
+                                                    )
+                                                }}
+                                            </p>
+                                            <p>
+                                                {{
+                                                    t(
+                                                        'flows.editor.chat.example_answer',
+                                                    )
+                                                }}
+                                            </p>
                                         </div>
                                     </div>
                                 </template>
                             </div>
                             <div class="space-y-4">
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <p class="text-xs text-muted-foreground">{{ t('flows.dev_deploy.title') }}</p>
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <p class="text-xs text-muted-foreground">
+                                        {{ t('flows.dev_deploy.title') }}
+                                    </p>
                                     <p class="mt-2 text-sm">
-                                        {{ currentDevelopment?.status ? statusLabel(currentDevelopment.status) : t('flows.dev_deploy.empty') }}
+                                        {{
+                                            currentDevelopment?.status
+                                                ? statusLabel(
+                                                      currentDevelopment.status,
+                                                  )
+                                                : t('flows.dev_deploy.empty')
+                                        }}
                                     </p>
-                                    <p class="mt-2 text-xs text-muted-foreground">
-                                        {{ t('common.started') }}: {{ formatDate(currentDevelopment?.started_at) }}
+                                    <p
+                                        class="mt-2 text-xs text-muted-foreground"
+                                    >
+                                        {{ t('common.started') }}:
+                                        {{
+                                            formatDate(
+                                                currentDevelopment?.started_at,
+                                            )
+                                        }}
                                     </p>
-                                    <p class="mt-1 text-xs text-muted-foreground">
-                                        {{ t('common.finished') }}: {{ formatDate(currentDevelopment?.finished_at) }}
+                                    <p
+                                        class="mt-1 text-xs text-muted-foreground"
+                                    >
+                                        {{ t('common.finished') }}:
+                                        {{
+                                            formatDate(
+                                                currentDevelopment?.finished_at,
+                                            )
+                                        }}
                                     </p>
                                 </div>
                             </div>
@@ -532,9 +763,13 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                             <Code class="size-4 text-muted-foreground" />
                             {{ t('flows.editor.readonly.title') }}
                         </CardTitle>
-                        <CardDescription>{{ t('flows.editor.readonly.description') }}</CardDescription>
+                        <CardDescription>{{
+                            t('flows.editor.readonly.description')
+                        }}</CardDescription>
                     </CardHeader>
-                    <CardContent class="space-y-2 text-sm text-muted-foreground">
+                    <CardContent
+                        class="space-y-2 text-sm text-muted-foreground"
+                    >
                         <p>{{ t('flows.editor.readonly.note_edit') }}</p>
                         <p>{{ t('flows.editor.readonly.note_production') }}</p>
                     </CardContent>
@@ -543,42 +778,116 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                 <div class="space-y-4">
                     <Card>
                         <CardHeader class="pb-3">
-                            <CardTitle>{{ t('flows.past_deploys.title') }}</CardTitle>
-                            <CardDescription>{{ t('flows.past_deploys.description') }}</CardDescription>
+                            <CardTitle>{{
+                                t('flows.past_deploys.title')
+                            }}</CardTitle>
+                            <CardDescription>{{
+                                t('flows.past_deploys.description')
+                            }}</CardDescription>
                         </CardHeader>
                         <CardContent class="space-y-4">
                             <div>
-                                <p class="text-xs uppercase tracking-wide text-muted-foreground">{{ t('environments.production') }}</p>
-                                <div v-if="productionRuns.length" class="mt-2 space-y-2">
-                                    <div v-for="run in productionRuns" :key="run.id" class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm font-semibold">{{ t('flows.deploy.label', { id: run.id }) }}</span>
-                                            <Badge :class="statusTone(run.status)" variant="outline">{{ statusLabel(run.status) }}</Badge>
+                                <p
+                                    class="text-xs tracking-wide text-muted-foreground uppercase"
+                                >
+                                    {{ t('environments.production') }}
+                                </p>
+                                <div
+                                    v-if="productionRuns.length"
+                                    class="mt-2 space-y-2"
+                                >
+                                    <div
+                                        v-for="run in productionRuns"
+                                        :key="run.id"
+                                        class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                    >
+                                        <div
+                                            class="flex items-center justify-between"
+                                        >
+                                            <span
+                                                class="text-sm font-semibold"
+                                                >{{
+                                                    t('flows.deploy.label', {
+                                                        id: run.id,
+                                                    })
+                                                }}</span
+                                            >
+                                            <Badge
+                                                :class="statusTone(run.status)"
+                                                variant="outline"
+                                                >{{
+                                                    statusLabel(run.status)
+                                                }}</Badge
+                                            >
                                         </div>
-                                        <p class="text-xs text-muted-foreground">
-                                            {{ formatDate(run.started_at) }} → {{ formatDate(run.finished_at) }}
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ formatDate(run.started_at) }} →
+                                            {{ formatDate(run.finished_at) }}
                                         </p>
                                     </div>
                                 </div>
-                                <div v-else class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                                    {{ t('flows.past_deploys.empty_production') }}
+                                <div
+                                    v-else
+                                    class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground"
+                                >
+                                    {{
+                                        t('flows.past_deploys.empty_production')
+                                    }}
                                 </div>
                             </div>
                             <div>
-                                <p class="text-xs uppercase tracking-wide text-muted-foreground">{{ t('environments.development') }}</p>
-                                <div v-if="developmentRuns.length" class="mt-2 space-y-2">
-                                    <div v-for="run in developmentRuns" :key="run.id" class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                        <div class="flex items-center justify-between">
-                                            <span class="text-sm font-semibold">{{ t('flows.deploy.label', { id: run.id }) }}</span>
-                                            <Badge :class="statusTone(run.status)" variant="outline">{{ statusLabel(run.status) }}</Badge>
+                                <p
+                                    class="text-xs tracking-wide text-muted-foreground uppercase"
+                                >
+                                    {{ t('environments.development') }}
+                                </p>
+                                <div
+                                    v-if="developmentRuns.length"
+                                    class="mt-2 space-y-2"
+                                >
+                                    <div
+                                        v-for="run in developmentRuns"
+                                        :key="run.id"
+                                        class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                    >
+                                        <div
+                                            class="flex items-center justify-between"
+                                        >
+                                            <span
+                                                class="text-sm font-semibold"
+                                                >{{
+                                                    t('flows.deploy.label', {
+                                                        id: run.id,
+                                                    })
+                                                }}</span
+                                            >
+                                            <Badge
+                                                :class="statusTone(run.status)"
+                                                variant="outline"
+                                                >{{
+                                                    statusLabel(run.status)
+                                                }}</Badge
+                                            >
                                         </div>
-                                        <p class="text-xs text-muted-foreground">
-                                            {{ formatDate(run.started_at) }} → {{ formatDate(run.finished_at) }}
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ formatDate(run.started_at) }} →
+                                            {{ formatDate(run.finished_at) }}
                                         </p>
                                     </div>
                                 </div>
-                                <div v-else class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                                    {{ t('flows.past_deploys.empty_development') }}
+                                <div
+                                    v-else
+                                    class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground"
+                                >
+                                    {{
+                                        t(
+                                            'flows.past_deploys.empty_development',
+                                        )
+                                    }}
                                 </div>
                             </div>
                         </CardContent>
@@ -586,24 +895,46 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
 
                     <Card>
                         <CardHeader class="pb-3">
-                            <CardTitle>{{ t('flows.past_chats.title') }}</CardTitle>
-                            <CardDescription>{{ t('flows.past_chats.description') }}</CardDescription>
+                            <CardTitle>{{
+                                t('flows.past_chats.title')
+                            }}</CardTitle>
+                            <CardDescription>{{
+                                t('flows.past_chats.description')
+                            }}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div class="space-y-3">
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <div
+                                        class="flex items-center justify-between text-xs text-muted-foreground"
+                                    >
                                         <span>{{ t('common.today') }}</span>
                                         <ExternalLink class="size-4" />
                                     </div>
-                                    <p class="mt-2 text-sm">{{ t('flows.past_chats.example_today') }}</p>
+                                    <p class="mt-2 text-sm">
+                                        {{
+                                            t('flows.past_chats.example_today')
+                                        }}
+                                    </p>
                                 </div>
-                                <div class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                                    <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                <div
+                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                >
+                                    <div
+                                        class="flex items-center justify-between text-xs text-muted-foreground"
+                                    >
                                         <span>{{ t('common.yesterday') }}</span>
                                         <ExternalLink class="size-4" />
                                     </div>
-                                    <p class="mt-2 text-sm">{{ t('flows.past_chats.example_yesterday') }}</p>
+                                    <p class="mt-2 text-sm">
+                                        {{
+                                            t(
+                                                'flows.past_chats.example_yesterday',
+                                            )
+                                        }}
+                                    </p>
                                 </div>
                             </div>
                         </CardContent>
@@ -617,14 +948,30 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                 </CardHeader>
                 <CardContent>
                     <div class="max-h-72 space-y-3 overflow-y-auto pr-1">
-                        <div v-for="item in history" :key="item.id" class="rounded-lg border border-border/60 bg-muted/30 p-3">
-                            <div class="flex items-center justify-between text-xs text-muted-foreground">
+                        <div
+                            v-for="item in history"
+                            :key="item.id"
+                            class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                        >
+                            <div
+                                class="flex items-center justify-between text-xs text-muted-foreground"
+                            >
                                 <span class="inline-flex items-center gap-2">
-                                    <History class="size-4" /> {{ t('flows.history.version', { id: item.id }) }}
+                                    <History class="size-4" />
+                                    {{
+                                        t('flows.history.version', {
+                                            id: item.id,
+                                        })
+                                    }}
                                 </span>
                                 <span>{{ formatDate(item.created_at) }}</span>
                             </div>
-                            <pre class="mt-2 max-h-28 overflow-auto rounded-md bg-background px-3 py-2 text-xs text-muted-foreground">{{ item.diff || t('flows.history.empty_diff') }}</pre>
+                            <pre
+                                class="mt-2 max-h-28 overflow-auto rounded-md bg-background px-3 py-2 text-xs text-muted-foreground"
+                                >{{
+                                    item.diff || t('flows.history.empty_diff')
+                                }}</pre
+                            >
                         </div>
                     </div>
                 </CardContent>
@@ -637,30 +984,54 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                 <CardContent class="space-y-4">
                     <div class="grid gap-4 lg:grid-cols-2">
                         <div class="space-y-2">
-                            <Label for="flow-name">{{ t('flows.settings.name') }}</Label>
-                            <Input id="flow-name" v-model="form.name" required :placeholder="t('flows.settings.name_placeholder')" />
-                            <p v-if="form.errors.name" class="text-sm text-destructive">{{ form.errors.name }}</p>
+                            <Label for="flow-name">{{
+                                t('flows.settings.name')
+                            }}</Label>
+                            <Input
+                                id="flow-name"
+                                v-model="form.name"
+                                required
+                                :placeholder="
+                                    t('flows.settings.name_placeholder')
+                                "
+                            />
+                            <p
+                                v-if="form.errors.name"
+                                class="text-sm text-destructive"
+                            >
+                                {{ form.errors.name }}
+                            </p>
                         </div>
                         <div class="space-y-2">
-                            <Label for="flow-description">{{ t('flows.settings.description') }}</Label>
+                            <Label for="flow-description">{{
+                                t('flows.settings.description')
+                            }}</Label>
                             <Textarea
                                 id="flow-description"
                                 v-model="form.description"
-                                :placeholder="t('flows.settings.description_placeholder')"
+                                :placeholder="
+                                    t('flows.settings.description_placeholder')
+                                "
                                 class="min-h-[90px]"
                             />
                         </div>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <Button type="button" :disabled="form.processing || !canSave" @click="save">
+                        <Button
+                            type="button"
+                            :disabled="form.processing || !canSave"
+                            @click="save"
+                        >
                             <Save class="size-4" />
                             {{ saveLabel }}
                         </Button>
                         <Button
                             v-if="!isArchived"
                             variant="outline"
-                            :disabled="!permissions.canUpdate || hasActiveDeploys"
+                            :disabled="
+                                !permissions.canUpdate || hasActiveDeploys
+                            "
                             @click="archiveFlow"
                         >
                             <Archive class="size-4" />
@@ -678,7 +1049,9 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                         <Button
                             variant="outline"
                             class="text-destructive"
-                            :disabled="isNew || !permissions.canDelete || hasActiveDeploys"
+                            :disabled="
+                                !permissions.canDelete || hasActiveDeploys
+                            "
                             @click="deleteFlow"
                         >
                             <Trash2 class="size-4" />

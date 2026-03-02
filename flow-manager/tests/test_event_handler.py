@@ -12,7 +12,7 @@ from models import ContainerInfo
 
 
 def _make_handler():
-    messaging = InMemoryMessaging()
+    messaging = InMemoryMessaging(logger=Mock(spec=SystemLogger))
     container_manager = Mock(spec=ContainerManager)
     socket_handler = Mock(spec=SocketCommunicationHandler)
     logger = Mock(spec=SystemLogger)
@@ -22,7 +22,7 @@ def _make_handler():
         messaging=messaging,
         container_manager=container_manager,
         socket_handler=socket_handler,
-        system_logger=logger,
+        logger=logger,
         user_logger=user_logger,
     )
     return handler, messaging, container_manager, socket_handler, user_logger

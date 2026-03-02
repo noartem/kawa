@@ -93,6 +93,7 @@ RUN mkdir -p \
     ${PWD} \
     /home/${USER}/.config/opencode \
     /home/${USER}/.config/pip \
+    /home/${USER}/.local/share/uv \
     /home/${USER}/.local/share/opencode \
     /home/${USER}/.local/state/opencode \
     /home/${USER}/.cache/opencode \

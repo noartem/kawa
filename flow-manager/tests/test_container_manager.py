@@ -6,13 +6,14 @@ including creation, start/stop operations, and cleanup.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from docker.errors import APIError, ImageNotFound, NotFound
 
 from container_manager import ContainerManager
 from models import ContainerConfig, ContainerInfo, ContainerState, ContainerStatus
+from system_logger import SystemLogger
 
 
 @pytest.fixture
@@ -28,7 +29,7 @@ def mock_docker_client():
 def container_manager(mock_docker_client):
     """Create a ContainerManager instance with mocked Docker client."""
     with patch("docker.from_env", return_value=mock_docker_client):
-        manager = ContainerManager()
+        manager = ContainerManager(logger=Mock(spec=SystemLogger))
         manager.docker_client = mock_docker_client
         return manager
 

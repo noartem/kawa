@@ -5,500 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7213037a-dbdb-44e1-a4df-dea6e3a76be7" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/kawa.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/php-test-framework.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/prettier.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/flow-manager/AGENTS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.env.example" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/agent/laravel-simplifier.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/baseline-ui/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/complexity-guardrails/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/developing-with-fortify/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/inertia-vue-development/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/pest-testing/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/accordion.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/alert-dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/aspect-ratio.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/avatar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/calendar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/checkbox.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/collapsible.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/combobox.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/config-provider.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/context-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/date-field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/date-picker.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/date-range-field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/date-range-picker.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/dropdown-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/editable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/focus-scope.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/hover-card.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/label.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/listbox.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/menubar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/navigation-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/number-field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/pagination.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/pin-input.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/popover.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/presence.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/primitive.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/progress.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/radio-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/range-calendar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/rating.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/scroll-area.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/select.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/separator.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/slider.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/splitter.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/stepper.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/switch.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/tabs.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/tags-input.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/time-field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/toast.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/toggle-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/toggle.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/toolbar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/tooltip.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/tree.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/components/visually-hidden.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/references/components.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/reka-ui/scripts/generate-components.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/assets/components.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/assets/nuxt.config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/assets/tailwind.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/assets/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/assets/vite.config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/accordion.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/alert-dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/alert.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/aspect-ratio.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/avatar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/badge.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/breadcrumb.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/button-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/button.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/calendar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/card.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/carousel.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/chart.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/checkbox.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/collapsible.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/combobox.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/command.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/context-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/data-table.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/date-picker.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/drawer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/dropdown-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/empty.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/form.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/hover-card.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/input-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/input-otp.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/input.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/item.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/kbd.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/label.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/menubar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/native-select.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/navigation-menu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/number-field.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/pagination.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/pin-input.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/popover.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/progress.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/radio-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/range-calendar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/resizable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/scroll-area.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/select.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/separator.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/sheet.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/sidebar.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/skeleton.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/slider.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/sonner.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/spinner.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/stepper.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/switch.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/table.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/tabs.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/tags-input.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/textarea.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/toast.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/toggle-group.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/toggle.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/tooltip.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/components/typography.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/cli.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/component-examples.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/components.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/dark-mode-setup.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/data-tables.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/error-catalog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/mcp.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/references/theming.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/shadcn-vue/scripts/generate-components.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/tailwindcss-development/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/build-and-ssr.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/core-config.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/core-features.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/core-plugin-api.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/environment-api.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vite/references/rolldown-migration.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/components.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/composables.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/directives.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/gotchas.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/provide-inject.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/reactivity.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/router.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/testing.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/typescript.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vue/references/utils-client.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/computed-async.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/computed-eager.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/computed-inject.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/computed-with-control.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-event-hook.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-generic-projection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-global-state.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-injection-state.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-projection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-ref.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-reusable-template.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-shared-composable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-template-promise.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/create-unref-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/extend-ref.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/from.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/get.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/inject-local.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/is-defined.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/logic-and.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/logic-not.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/logic-or.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/make-destructurable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/on-click-outside.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/on-element-removal.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/on-key-stroke.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/on-long-press.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/on-start-typing.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/provide-local.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/reactify-object.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/reactify.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/reactive-computed.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/reactive-omit.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/reactive-pick.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-auto-reset.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-debounced.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-default.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-manual-reset.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-throttled.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/ref-with-control.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/set.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/sync-ref.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/sync-refs.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/template-ref.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/to-observer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/to-reactive.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/to-ref.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/to-refs.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/try-on-before-mount.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/try-on-before-unmount.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/try-on-mounted.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/try-on-scope-dispose.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/try-on-unmounted.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/unref-element.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/until.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-abs.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-active-element.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-animate.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-difference.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-every.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-filter.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-find-index.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-find-last.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-find.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-includes.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-join.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-map.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-reduce.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-some.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-array-unique.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-async-queue.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-async-state.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-async-validator.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-auth.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-average.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-axios.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-base64.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-battery.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-bluetooth.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-breakpoints.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-broadcast-channel.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-browser-location.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-cached.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ceil.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-change-case.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-clamp.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-clipboard-items.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-clipboard.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-cloned.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-color-mode.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-confirm-dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-cookies.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-countdown.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-counter.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-css-supports.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-css-var.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-current-element.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-cycle-list.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-dark.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-date-format.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-debounce-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-debounced-ref-history.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-device-motion.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-device-orientation.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-device-pixel-ratio.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-devices-list.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-display-media.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-document-visibility.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-draggable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-drauu.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-drop-zone.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-element-bounding.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-element-by-point.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-element-hover.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-element-size.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-element-visibility.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-event-bus.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-event-listener.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-event-source.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-extracted-observable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-eye-dropper.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-favicon.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-fetch.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-file-dialog.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-file-system-access.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-firestore.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-floor.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-focus-trap.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-focus-within.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-focus.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-fps.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-fullscreen.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-fuse.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-gamepad.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-geolocation.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-idbkeyval.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-idle.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-image.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-infinite-scroll.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-intersection-observer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-interval-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-interval.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ipc-renderer-invoke.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ipc-renderer-on.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ipc-renderer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-jwt.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-key-modifier.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-last-changed.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-local-storage.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-magic-keys.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-manual-ref-history.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-math.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-max.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-media-controls.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-media-query.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-memoize.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-memory.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-min.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-mounted.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-mouse-in-element.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-mouse-pressed.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-mouse.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-mutation-observer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-navigator-language.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-network.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-now.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-nprogress.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-object-url.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-observable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-offset-pagination.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-online.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-page-leave.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-parallax.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-parent-element.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-performance-observer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-permission.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-pointer-lock.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-pointer-swipe.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-pointer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-precision.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-color-scheme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-contrast.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-dark.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-languages.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-reduced-motion.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-preferred-reduced-transparency.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-previous.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-projection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-qrcode.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-raf-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ref-history.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-resize-observer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-round.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-route-hash.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-route-params.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-route-query.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-rtdb.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-screen-orientation.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-screen-safe-area.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-script-tag.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-scroll-lock.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-scroll.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-session-storage.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-share.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-sortable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-sorted.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-speech-recognition.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-speech-synthesis.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-ssrwidth.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-stepper.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-storage-async.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-storage.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-style-tag.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-subject.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-subscription.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-sum.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-supported.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-swipe.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-template-refs-list.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-text-direction.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-text-selection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-textarea-autosize.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-throttle-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-throttled-ref-history.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-time-ago-intl.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-time-ago.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-timeout-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-timeout-poll.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-timeout.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-timestamp.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-title.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-to-number.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-to-string.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-toggle.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-transition.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-trunc.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-url-search-params.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-user-media.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-vibrate.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-virtual-list.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-vmodel.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-vmodels.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-wake-lock.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-web-notification.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-web-socket.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-web-worker-fn.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-web-worker.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-window-focus.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-window-scroll.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-window-size.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-zoom-factor.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/use-zoom-level.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-array.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-at-most.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-debounced.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-deep.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-extracted-observable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-ignorable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-immediate.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-once.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-pausable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-throttled.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-triggerable.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/watch-with-filter.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/composables/whenever.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/references/composables.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/vueuse/scripts/generate-composables.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/.opencode/skills/wayfinder-development/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ui/opencode.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.codex/config.toml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/ci.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.github/workflows/kawa-publish.yaml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/project.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/kawaflow.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/laravel-idea-personal.xml" beforeDir="false" />
+      <change afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ui/AGENTS.boost.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/laravel-idea.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/laravel-idea.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/php.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/php.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/phpunit.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/remote-mappings.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sandbox/.env.example" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sandbox/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/.sandbox/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.sandbox/compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.sandbox/compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Taskfile.yml" beforeDir="false" afterPath="$PROJECT_DIR$/Taskfile.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/compose.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/flow-manager/api_reference.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/flow-manager/deployment_guide.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/flow-manager/error_handling.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/flow-manager/index.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/flow-manager/usage_guide.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/docs/index.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/mkdocs.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/.dockerignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/AGENTS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/compose.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/e2e/scenraios.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/flow-manager/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/flow-manager/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/flow-manager/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/flow-manager/uv.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/flow/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/kawa/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/kawa/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/kawa/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/kawa/uv.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/plan.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/repomix.config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/ui/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/Dockerfile" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/Taskfile.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/boost.json" beforeDir="false" afterPath="$PROJECT_DIR$/ui/boost.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/composer.json" beforeDir="false" afterPath="$PROJECT_DIR$/ui/composer.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/composer.lock" beforeDir="false" afterPath="$PROJECT_DIR$/ui/composer.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/ui/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/ui/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -516,7 +26,7 @@
     <execution />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="4060" />
+    <option name="cachedIndexableFilesCount" value="867" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -668,45 +178,41 @@
       <path value="$PROJECT_DIR$/ui/vendor/tijsverkoyen/css-to-inline-styles" />
     </include_path>
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 8
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 8
+}</component>
   <component name="ProjectId" id="3976gYAgWVQGlxEWFpv8HRDtnDA" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "//wsl.localhost/Ubuntu/home/noartem/Projects/kawa/ui",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "prettierjs.PrettierConfiguration.Package": "\\\\wsl.localhost\\Ubuntu\\home\\noartem\\Projects\\kawa\\ui\\node_modules\\prettier",
-    "settings.editor.selected.configurable": "web-ide.project.structure",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;//wsl.localhost/Ubuntu/home/noartem/Projects/kawa/ui&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;prettierjs.PrettierConfiguration.Package&quot;: &quot;\\\\wsl.localhost\\Ubuntu\\home\\noartem\\Projects\\kawa\\ui\\node_modules\\prettier&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;web-ide.project.structure&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="\\wsl.localhost\Ubuntu\home\noartem\Projects\kawa\ui" />
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ComposerRunConfigurationType" factoryName="Composer Script">
-      <option name="pathToComposerJson" value="$PROJECT_DIR$/ui/composer.json" />
-      <method v="2" />
-    </configuration>
     <configuration name="Main" type="PestRunConfigurationType">
       <PestRunner configuration_file="$PROJECT_DIR$/ui/phpunit.xml" scope="ConfigurationFile" use_alternative_configuration_file="true" />
       <method v="2" />
@@ -728,6 +234,7 @@
       <option name="presentableId" value="Default" />
       <updated>1696223781902</updated>
       <workItem from="1770034874627" duration="3455000" />
+      <workItem from="1770184606418" duration="11000" />
     </task>
     <servers />
   </component>

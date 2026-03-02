@@ -17,6 +17,7 @@ import pytest
 import pytest_asyncio
 
 from container_manager import ContainerManager
+from system_logger import SystemLogger
 
 
 class TestResourceUsageMonitoring:
@@ -37,7 +38,9 @@ class TestResourceUsageMonitoring:
         self.mock_docker.from_env.return_value = self.mock_docker_client
 
         # Create container manager with mocked Docker
-        self.container_manager = ContainerManager(socket_dir=self.temp_dir)
+        self.container_manager = ContainerManager(
+            logger=Mock(spec=SystemLogger), socket_dir=self.temp_dir
+        )
         self.container_manager.docker_client = self.mock_docker_client
 
         yield

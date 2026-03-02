@@ -1,8 +1,8 @@
 from unittest.mock import Mock, patch
 
-from messaging import InMemoryMessaging
+from event_handler import EventHandler
 from main import FlowManagerApp
-from rabbitmq_event_handler import RabbitMQEventHandler
+from messaging import InMemoryMessaging
 
 
 def test_flow_manager_app_uses_pluggable_messaging(monkeypatch):
@@ -12,5 +12,5 @@ def test_flow_manager_app_uses_pluggable_messaging(monkeypatch):
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
     assert isinstance(app.messaging, InMemoryMessaging)
-    assert isinstance(app.event_handler, RabbitMQEventHandler)
+    assert isinstance(app.event_handler, EventHandler)
     assert app.event_handler.messaging is app.messaging

@@ -35,14 +35,19 @@ const { t } = useI18n();
             class="space-y-4 rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-200/10 dark:bg-red-700/10"
         >
             <div class="relative space-y-0.5 text-red-600 dark:text-red-100">
-                <p class="font-medium">{{ t('settings.delete_account.warning') }}</p>
+                <p class="font-medium">
+                    {{ t('settings.delete_account.warning') }}
+                </p>
                 <p class="text-sm">
                     {{ t('settings.delete_account.warning_description') }}
                 </p>
             </div>
             <Dialog>
                 <DialogTrigger as-child>
-                    <Button variant="destructive" data-test="delete-user-button">
+                    <Button
+                        variant="destructive"
+                        data-test="delete-user-button"
+                    >
                         {{ t('settings.delete_account.action') }}
                     </Button>
                 </DialogTrigger>
@@ -58,14 +63,22 @@ const { t } = useI18n();
                         v-slot="{ errors, processing, reset, clearErrors }"
                     >
                         <DialogHeader class="space-y-3">
-                            <DialogTitle>{{ t('settings.delete_account.modal_title') }}</DialogTitle>
+                            <DialogTitle>{{
+                                t('settings.delete_account.modal_title')
+                            }}</DialogTitle>
                             <DialogDescription>
-                                {{ t('settings.delete_account.modal_description') }}
+                                {{
+                                    t(
+                                        'settings.delete_account.modal_description',
+                                    )
+                                }}
                             </DialogDescription>
                         </DialogHeader>
 
                         <div class="grid gap-2">
-                            <Label for="password" class="sr-only">{{ t('forms.password') }}</Label>
+                            <Label for="password" class="sr-only">{{
+                                t('forms.password')
+                            }}</Label>
                             <Input
                                 id="password"
                                 type="password"

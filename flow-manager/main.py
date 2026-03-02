@@ -2,6 +2,7 @@ import asyncio
 import os
 import signal
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
@@ -19,11 +20,32 @@ from system_logger import SystemLogger
 from user_activity_logger import UserActivityLogger
 
 
+def _load_env_file(env_path: Path) -> None:
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env_file(Path(__file__).with_name(".env"))
+
+
 class FlowManagerApp:
     def __init__(self, socket_dir: str = "/tmp/kawaflow/sockets"):
         self.socket_dir = socket_dir
         self.logger = SystemLogger("flow_manager")
-        self.messaging_kind = os.getenv("MESSAGING_BACKEND", "rabbitmq")
+        self._messaging_backend_env = os.getenv("MESSAGING_BACKEND")
+        self.messaging_kind = self._messaging_backend_env or "rabbitmq"
         self.messaging = create_messaging(
             kind=self.messaging_kind,
             logger=SystemLogger(f"messaging_{self.messaging_kind}"),
@@ -54,12 +76,41 @@ class FlowManagerApp:
             {"socket_dir": socket_dir, "messaging": self.messaging_kind},
         )
 
+    def _swap_messaging_backend(self, kind: str) -> None:
+        self.messaging_kind = kind
+        self.messaging = create_messaging(
+            kind=kind,
+            logger=SystemLogger(f"messaging_{kind}"),
+        )
+        self.user_logger = UserActivityLogger(
+            self.messaging, sensivity_filter=self.sensivity_filter
+        )
+        self.event_handler.messaging = self.messaging
+        self.event_handler.user_logger = self.user_logger
+
     async def startup(self) -> None:
         """Initialize application components and start background tasks."""
         self.logger.debug("Starting Flow Manager application", {})
         os.makedirs(self.socket_dir, exist_ok=True)
 
-        await self.messaging.connect()
+        try:
+            await self.messaging.connect()
+        except Exception as exc:
+            if (
+                self._messaging_backend_env is None
+                and self.messaging_kind == "rabbitmq"
+            ):
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "messaging_connect",
+                        "fallback": "inmemory",
+                    },
+                )
+                self._swap_messaging_backend("inmemory")
+                await self.messaging.connect()
+            else:
+                raise
         await self.container_manager.start_monitoring()
         await self.event_handler.start()
 
@@ -99,13 +150,15 @@ class FlowManagerApp:
                         status = await self.container_manager.get_container_status(
                             container.id
                         )
+                        state = getattr(status.state, "value", status.state)
+                        health = getattr(status.health, "value", status.health)
                         await self.messaging.publish_event(
                             "container_status_update",
                             {
                                 "container_id": container.id,
                                 "status": {
-                                    "state": status.state.value,
-                                    "health": status.health.value,
+                                    "state": state,
+                                    "health": health,
                                     "socket_connected": status.socket_connected,
                                     "uptime": str(status.uptime)
                                     if status.uptime
@@ -168,7 +221,7 @@ async def health_check():
             "container_manager": "active",
             "socket_handler": "active",
             "event_handler": "active",
-            "messaging": "rabbitmq",
+            "messaging": app_instance.messaging_kind,
         },
     }
 

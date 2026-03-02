@@ -318,7 +318,7 @@ class EventHandler:
 
         await self.messaging.publish_response(
             action or "unknown",
-            error_response.dict(),
+            error_response.model_dump(mode="json"),
             reply_to=reply_to,
             correlation_id=correlation_id,
         )

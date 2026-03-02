@@ -17,6 +17,7 @@ defineProps<{
     status?: string;
     canResetPassword: boolean;
     canRegister: boolean;
+    csrf_token: string;
 }>();
 
 const { t } = useI18n();
@@ -42,6 +43,7 @@ const { t } = useI18n();
             v-slot="{ errors, processing }"
             class="flex flex-col gap-6"
         >
+            <input type="hidden" name="_token" :value="csrf_token" />
             <div class="grid gap-6">
                 <div class="grid gap-2">
                     <Label for="email">{{ t('forms.email') }}</Label>
@@ -106,7 +108,9 @@ const { t } = useI18n();
                 v-if="canRegister"
             >
                 {{ t('auth.login.no_account') }}
-                <TextLink :href="register()" :tabindex="5">{{ t('auth.login.sign_up') }}</TextLink>
+                <TextLink :href="register()" :tabindex="5">{{
+                    t('auth.login.sign_up')
+                }}</TextLink>
             </div>
         </Form>
     </AuthBase>

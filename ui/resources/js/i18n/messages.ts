@@ -88,7 +88,7 @@ export const messages = {
             name_placeholder: 'Full name',
             email: 'Email address',
             email_placeholder: 'Email address',
-            email_example: 'email@example.com',
+            email_example: "email{'@'}example.com",
             password: 'Password',
             password_placeholder: 'Password',
             current_password: 'Current password',
@@ -120,7 +120,8 @@ export const messages = {
             },
             forgot: {
                 title: 'Forgot password',
-                description: 'Enter your email to receive a password reset link',
+                description:
+                    'Enter your email to receive a password reset link',
                 submit: 'Email password reset link',
                 return: 'Or, return to',
             },
@@ -286,6 +287,25 @@ export const messages = {
                 save: 'Save changes',
                 all: 'All flows',
             },
+            create: {
+                title: 'New flow',
+                description: 'Choose a template and name your flow.',
+                template: {
+                    label: 'Template',
+                    blank: {
+                        name: 'Blank',
+                        description: 'Start with an empty canvas',
+                    },
+                    cron: {
+                        name: 'Cron',
+                        description: 'Scheduled tasks with cron expressions',
+                    },
+                    webhook: {
+                        name: 'Webhook',
+                        description: 'React to HTTP webhook events',
+                    },
+                },
+            },
             badges: {
                 flow_id: 'Flow #{id}',
                 archived: 'Archived',
@@ -309,8 +329,7 @@ export const messages = {
             },
             logs: {
                 empty_current: 'No logs for the current deployment.',
-                empty_dev:
-                    'Logs will appear after the test deployment starts.',
+                empty_dev: 'Logs will appear after the test deployment starts.',
                 empty: 'Message is empty.',
                 node: 'Node: {node}',
             },
@@ -339,8 +358,7 @@ export const messages = {
                 graph_label: 'Graph (JSON)',
                 chat: {
                     title: 'Chat with code',
-                    subtitle:
-                        'Describe the change and apply it to the flow.',
+                    subtitle: 'Describe the change and apply it to the flow.',
                     example_question:
                         'Last question: “How do I optimize the actor?”',
                     example_answer:
@@ -393,8 +411,7 @@ export const messages = {
                 description_empty: 'Description not set',
                 runs: 'Runs: {count}',
                 updated: 'Updated: {date}',
-                empty:
-                    'No flows yet. Create the first one, add code, and start it.',
+                empty: 'No flows yet. Create the first one, add code, and start it.',
             },
             new: 'New flow',
             untitled: 'Untitled',
@@ -493,7 +510,7 @@ export const messages = {
             name_placeholder: 'Полное имя',
             email: 'Почта',
             email_placeholder: 'Адрес почты',
-            email_example: 'email@example.com',
+            email_example: "email{'@'}example.com",
             password: 'Пароль',
             password_placeholder: 'Пароль',
             current_password: 'Текущий пароль',
@@ -555,8 +572,7 @@ export const messages = {
                 or: 'или вы можете',
                 code: {
                     title: 'Код аутентификации',
-                    description:
-                        'Введите код из приложения-аутентификатора.',
+                    description: 'Введите код из приложения-аутентификатора.',
                     toggle: 'войти с кодом восстановления',
                 },
                 recovery: {
@@ -691,6 +707,25 @@ export const messages = {
                 save: 'Сохранить изменения',
                 all: 'Все потоки',
             },
+            create: {
+                title: 'Новый поток',
+                description: 'Выберите шаблон и назовите поток.',
+                template: {
+                    label: 'Шаблон',
+                    blank: {
+                        name: 'Пустой',
+                        description: 'Начните с чистого листа',
+                    },
+                    cron: {
+                        name: 'Cron',
+                        description: 'Запланированные задачи по расписанию',
+                    },
+                    webhook: {
+                        name: 'Webhook',
+                        description: 'Реакция на события HTTP webhook',
+                    },
+                },
+            },
             badges: {
                 flow_id: 'Поток #{id}',
                 archived: 'Архив',
@@ -744,8 +779,10 @@ export const messages = {
                 chat: {
                     title: 'Чат с кодом',
                     subtitle: 'Опишите изменение и примените его к потоку.',
-                    example_question: 'Последний вопрос: «Как оптимизировать актор?»',
-                    example_answer: 'Ответ: «Попробуйте вынести IO в отдельный шаг»',
+                    example_question:
+                        'Последний вопрос: «Как оптимизировать актор?»',
+                    example_answer:
+                        'Ответ: «Попробуйте вынести IO в отдельный шаг»',
                 },
                 readonly: {
                     title: 'Редактор недоступен',

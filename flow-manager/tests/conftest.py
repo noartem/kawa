@@ -23,10 +23,10 @@ def mock_docker_client():
 
 
 @pytest.fixture
-def container_manager(mock_docker_client):
+def container_manager(mock_docker_client, mock_logger):
     """Create a ContainerManager instance with mocked Docker client."""
     with patch("docker.from_env", return_value=mock_docker_client):
-        manager = ContainerManager()
+        manager = ContainerManager(logger=mock_logger)
         manager.docker_client = mock_docker_client
         return manager
 

@@ -61,11 +61,12 @@ class TestSocketCommunicationHandler:
         # Verify debug logging
         mock_logger.debug.assert_called_once()
 
-    def test_init_default_logger(self, temp_socket_dir):
-        """Test handler initialization with default logger."""
-        handler = SocketCommunicationHandler(socket_dir=temp_socket_dir)
+    def test_init_with_system_logger(self, temp_socket_dir):
+        """Test handler initialization with system logger."""
+        logger = SystemLogger("socket_handler_test")
+        handler = SocketCommunicationHandler(socket_dir=temp_socket_dir, logger=logger)
 
-        assert isinstance(handler.logger, SystemLogger)
+        assert handler.logger is logger
 
     def test_get_socket_path(self, handler):
         """Test socket path generation."""
@@ -441,7 +442,8 @@ class TestSocketCommunicationHandlerIntegration:
     @pytest.fixture
     def handler(self, temp_socket_dir):
         """Create SocketCommunicationHandler instance."""
-        return SocketCommunicationHandler(socket_dir=temp_socket_dir)
+        logger = SystemLogger("socket_handler_integration")
+        return SocketCommunicationHandler(socket_dir=temp_socket_dir, logger=logger)
 
     @pytest.mark.asyncio
     async def test_socket_lifecycle(self, handler):

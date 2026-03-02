@@ -6,16 +6,20 @@ import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
+    SidebarGroup,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-    SidebarGroup,
-    SidebarGroupLabel,
 } from '@/components/ui/sidebar';
 import { urlIsActive } from '@/lib/utils';
 import { dashboard } from '@/routes';
-import { create as flowCreate, index as flowsIndex, show as flowShow } from '@/routes/flows';
+import {
+    create as flowCreate,
+    show as flowShow,
+    index as flowsIndex,
+} from '@/routes/flows';
 import { type FlowSidebarItem, type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import { Activity, LayoutGrid, Plus, Workflow } from 'lucide-vue-next';
@@ -43,11 +47,12 @@ const mainNavItems = computed<NavItem[]>(() => [
     },
 ]);
 
-const footerNavItems: NavItem[] = [
-];
+const footerNavItems: NavItem[] = [];
 
 const page = usePage();
-const recentFlows = computed<FlowSidebarItem[]>(() => (page.props.recentFlows as FlowSidebarItem[] | undefined) ?? []);
+const recentFlows = computed<FlowSidebarItem[]>(
+    () => (page.props.recentFlows as FlowSidebarItem[] | undefined) ?? [],
+);
 
 const statusTone = (status?: string | null) => {
     switch (status) {
@@ -62,7 +67,8 @@ const statusTone = (status?: string | null) => {
     }
 };
 
-const statusLabel = (status?: string | null) => t(`statuses.${status ?? 'draft'}`);
+const statusLabel = (status?: string | null) =>
+    t(`statuses.${status ?? 'draft'}`);
 </script>
 
 <template>
@@ -83,7 +89,9 @@ const statusLabel = (status?: string | null) => t(`statuses.${status ?? 'draft'}
             <NavMain :items="mainNavItems" />
 
             <SidebarGroup v-if="recentFlows.length" class="px-2 pt-2">
-                <SidebarGroupLabel>{{ t('nav.recent_flows') }}</SidebarGroupLabel>
+                <SidebarGroupLabel>{{
+                    t('nav.recent_flows')
+                }}</SidebarGroupLabel>
                 <SidebarMenu>
                     <SidebarMenuItem
                         v-for="flow in recentFlows"
@@ -94,13 +102,23 @@ const statusLabel = (status?: string | null) => t(`statuses.${status ?? 'draft'}
                             as-child
                             size="sm"
                             :tooltip="flow.name"
-                            :is-active="urlIsActive(flowShow({ flow: flow.id }).url, page.url)"
+                            :is-active="
+                                urlIsActive(
+                                    flowShow({ flow: flow.id }).url,
+                                    page.url,
+                                )
+                            "
                         >
-                            <Link :href="flowShow({ flow: flow.id }).url" class="flex items-center gap-2">
-                                <Activity class="size-4 text-muted-foreground" />
+                            <Link
+                                :href="flowShow({ flow: flow.id }).url"
+                                class="flex items-center gap-2"
+                            >
+                                <Activity
+                                    class="size-4 text-muted-foreground"
+                                />
                                 <span class="truncate">{{ flow.name }}</span>
                                 <span
-                                    class="ml-auto rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    class="ml-auto rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
                                     :class="statusTone(flow.status)"
                                 >
                                     {{ statusLabel(flow.status) }}
