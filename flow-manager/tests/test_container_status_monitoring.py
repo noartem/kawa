@@ -140,7 +140,9 @@ class TestContainerStatusMonitoring:
         )
 
         # Create socket file
-        socket_path = os.path.join(self.temp_dir, "test_container.sock")
+        socket_dir = os.path.join(self.temp_dir, "test_container")
+        os.makedirs(socket_dir, exist_ok=True)
+        socket_path = os.path.join(socket_dir, "kawaflow.sock")
         with open(socket_path, "w") as f:
             f.write("")
 

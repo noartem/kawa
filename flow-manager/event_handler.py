@@ -104,6 +104,8 @@ class EventHandler:
 
     async def handle_create_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = CreateContainerEvent(**data)
+        prepared_socket_key: Optional[str] = None
+
         labels = dict(event_data.labels)
         if event_data.flow_id is not None:
             labels.setdefault("kawaflow.flow_id", str(event_data.flow_id))
@@ -126,8 +128,28 @@ class EventHandler:
             working_dir=event_data.working_dir,
         )
 
-        container_info = await self.container_manager.create_container(config)
-        await self.socket_handler.setup_socket(container_info.id)
+        if event_data.name:
+            prepared_socket_key = event_data.name
+            await self.socket_handler.setup_socket(
+                prepared_socket_key, prepared_socket_key
+            )
+
+        try:
+            container_info = await self.container_manager.create_container(config)
+        except Exception:
+            if prepared_socket_key:
+                await self.socket_handler.cleanup_socket(prepared_socket_key)
+            raise
+
+        if prepared_socket_key and prepared_socket_key == container_info.name:
+            self.socket_handler.link_socket_key(prepared_socket_key, container_info.id)
+        else:
+            if prepared_socket_key:
+                await self.socket_handler.cleanup_socket(prepared_socket_key)
+            await self.socket_handler.setup_socket(
+                container_info.id, container_info.name
+            )
+
         await self.user_logger.container_created(
             container_info.id, container_info.name, container_info.image
         )
@@ -199,14 +221,16 @@ class EventHandler:
             (c.name for c in containers if c.id == event_data.container_id),
             event_data.container_id,
         )
-        await self.container_manager.update_container(
+        updated_container_id = await self.container_manager.update_container(
             event_data.container_id, event_data.code_path
         )
-        await self.user_logger.container_updated(
-            event_data.container_id, container_name
+        self.socket_handler.link_socket_key(
+            event_data.container_id, updated_container_id
         )
+        await self.user_logger.container_updated(updated_container_id, container_name)
         return {
-            "container_id": event_data.container_id,
+            "container_id": updated_container_id,
+            "previous_container_id": event_data.container_id,
             "code_path": event_data.code_path,
             "status": "updated",
         }

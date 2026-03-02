@@ -56,7 +56,7 @@ class TestResourceUsageMonitoring:
         """Test that default resource thresholds are set correctly."""
         thresholds = self.container_manager.get_resource_thresholds()
 
-        assert thresholds["cpu_percent"] == 80.0
+        assert thresholds["cpu_percent"] == 200.0
         assert thresholds["memory_percent"] == 85.0
         assert thresholds["disk_read_bytes_per_sec"] == 100 * 1024 * 1024
         assert thresholds["disk_write_bytes_per_sec"] == 100 * 1024 * 1024

@@ -74,7 +74,7 @@ def mock_container():
         "HostConfig": {
             "Binds": [
                 "/host/path:/container/path",
-                "/tmp/kawaflow/sockets/test-container.sock:/var/run/kawaflow.sock",
+                "/tmp/kawaflow/sockets/test-container:/run",
             ]
         },
     }
@@ -177,14 +177,14 @@ class TestContainerManager:
 
         with (
             patch("os.path.exists", return_value=True),
-            patch("os.remove") as mock_remove,
+            patch("shutil.rmtree") as mock_rmtree,
         ):
             # Execute
             await container_manager.delete_container("test-container-id")
 
             # Assert
             mock_container.remove.assert_called_once()
-            mock_remove.assert_called_once()
+            mock_rmtree.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_delete_running_container(self, container_manager, mock_container):
@@ -340,17 +340,19 @@ class TestContainerManager:
         """Test socket path generation for containers."""
         # Execute
         container_id = "test-container-id"
-        socket_path = os.path.join(container_manager.socket_dir, f"{container_id}.sock")
+        socket_path = os.path.join(
+            container_manager.socket_dir, container_id, "kawaflow.sock"
+        )
 
         # Assert
-        assert socket_path.endswith("test-container-id.sock")
+        assert socket_path.endswith("test-container-id/kawaflow.sock")
         assert "/tmp/kawaflow" in socket_path
 
     @pytest.mark.asyncio
     async def test_container_info_conversion(self, container_manager, mock_container):
         """Test conversion of Docker container to ContainerInfo."""
         # Execute
-        socket_path = "/tmp/kawaflow/sockets/test-container.sock"
+        socket_path = "/tmp/kawaflow/sockets/test-container/kawaflow.sock"
         result = container_manager._build_container_info(mock_container, socket_path)
 
         # Assert
@@ -382,14 +384,14 @@ class TestContainerManager:
 
         with (
             patch("os.path.exists", return_value=True) as mock_exists,
-            patch("os.remove") as mock_remove,
+            patch("shutil.rmtree") as mock_rmtree,
         ):
             # Execute
             await container_manager.delete_container("test-container-id")
 
             # Assert
             mock_exists.assert_called()
-            mock_remove.assert_called()
+            mock_rmtree.assert_called()
 
     @pytest.mark.asyncio
     async def test_update_container_nonexistent_code_path(

@@ -67,7 +67,12 @@ async def test_handle_create_container_success():
     await handler._dispatch_command(payload, message=None)
 
     container_manager.create_container.assert_awaited()
-    socket_handler.setup_socket.assert_awaited_with(sample_container.id)
+    socket_handler.setup_socket.assert_awaited_with(
+        sample_container.name, sample_container.name
+    )
+    socket_handler.link_socket_key.assert_called_once_with(
+        sample_container.name, sample_container.id
+    )
     user_logger.container_created.assert_awaited()
 
     assert messaging.published_responses

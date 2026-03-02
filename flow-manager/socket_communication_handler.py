@@ -3,14 +3,15 @@ Socket Communication Handler for container communication via Unix sockets.
 
 This module provides the SocketCommunicationHandler class that manages
 bidirectional communication with flow containers through Unix socket files.
-Each container has a dedicated socket file named {container_id}.sock.
+Each container has a dedicated socket path {container_name}/kawaflow.sock.
 """
 
 import asyncio
 import json
+import select
 import socket
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from system_logger import SystemLogger
 
@@ -46,6 +47,7 @@ class SocketCommunicationHandler:
         # Track active socket connections
         self._connections: Dict[str, socket.socket] = {}
         self._connection_status: Dict[str, bool] = {}
+        self._socket_aliases: Dict[str, str] = {}
 
         self.logger.debug(
             "initialized",
@@ -54,9 +56,12 @@ class SocketCommunicationHandler:
 
     def _get_socket_path(self, container_id: str) -> Path:
         """Get the socket file path for a container."""
-        return self.socket_dir / f"{container_id}.sock"
+        socket_name = self._socket_aliases.get(container_id, container_id)
+        return self.socket_dir / socket_name / "kawaflow.sock"
 
-    async def setup_socket(self, container_id: str) -> None:
+    async def setup_socket(
+        self, container_id: str, socket_name: Optional[str] = None
+    ) -> None:
         """
         Set up Unix socket for container communication.
 
@@ -67,7 +72,9 @@ class SocketCommunicationHandler:
             SocketConnectionError: If socket setup fails
         """
         try:
+            self._socket_aliases[container_id] = socket_name or container_id
             socket_path = self._get_socket_path(container_id)
+            socket_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Remove existing socket file if it exists
             if socket_path.exists():
@@ -79,7 +86,7 @@ class SocketCommunicationHandler:
 
             # Create Unix socket
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.setblocking(False)
+            sock.setblocking(True)
 
             # Bind to socket path
             sock.bind(str(socket_path))
@@ -101,6 +108,29 @@ class SocketCommunicationHandler:
             raise SocketConnectionError(
                 f"Failed to setup socket for container {container_id}: {str(e)}"
             )
+
+    def link_socket_key(self, existing_id: str, new_id: str) -> None:
+        """Move an existing socket binding to a new container ID key."""
+        if existing_id == new_id:
+            return
+
+        if existing_id in self._connections:
+            self._connections[new_id] = self._connections.pop(existing_id)
+
+        if existing_id in self._connection_status:
+            self._connection_status[new_id] = self._connection_status.pop(existing_id)
+
+        socket_name = self._socket_aliases.pop(existing_id, existing_id)
+        self._socket_aliases[new_id] = socket_name
+
+        self.logger.debug(
+            "Socket key linked",
+            {
+                "existing_id": existing_id,
+                "new_id": new_id,
+                "socket_name": socket_name,
+            },
+        )
 
     async def cleanup_socket(self, container_id: str) -> None:
         """
@@ -124,9 +154,16 @@ class SocketCommunicationHandler:
                     "Removed socket file",
                     {"container_id": container_id, "socket_path": str(socket_path)},
                 )
+            if socket_path.parent.exists():
+                try:
+                    socket_path.parent.rmdir()
+                except OSError:
+                    pass
 
             # Update connection status
             self._connection_status[container_id] = False
+            if container_id in self._socket_aliases:
+                del self._socket_aliases[container_id]
 
             self.logger.debug(
                 "Socket cleanup completed", {"container_id": container_id}
@@ -150,13 +187,37 @@ class SocketCommunicationHandler:
         """
         return self._connection_status.get(container_id, False)
 
-    async def send_message(self, container_id: str, message: dict) -> None:
+    def _is_stale_client_connection(self, client_sock: socket.socket) -> bool:
+        """Check whether an accepted client socket is stale response traffic."""
+        try:
+            ready, _, _ = select.select([client_sock], [], [], 0.01)
+        except (OSError, ValueError):
+            return True
+
+        if not ready:
+            return False
+
+        try:
+            data = client_sock.recv(1, socket.MSG_PEEK)
+        except BlockingIOError:
+            return False
+        except OSError:
+            return True
+
+        # Readable with no bytes means peer already closed. Readable with bytes means
+        # this is likely a queued container->manager response connection.
+        return data == b"" or len(data) > 0
+
+    async def send_message(
+        self, container_id: str, message: dict, timeout: int = 30
+    ) -> None:
         """
         Send message to container via Unix socket.
 
         Args:
             container_id: ID of the container to send message to
             message: Message dictionary to send
+            timeout: Timeout in seconds for accepting socket connection
 
         Raises:
             SocketConnectionError: If socket is not connected
@@ -179,28 +240,79 @@ class SocketCommunicationHandler:
                     f"No socket connection for container {container_id}"
                 )
 
-            # Accept connection if needed (for server socket)
-            try:
-                client_sock, _ = await asyncio.get_event_loop().run_in_executor(
-                    None, sock.accept
-                )
-            except Exception:
-                # If accept fails, assume we're already connected
-                client_sock = sock
-
-            # Send message length first (4 bytes)
+            loop = asyncio.get_event_loop()
+            deadline = loop.time() + timeout
             length_bytes = message_length.to_bytes(4, byteorder="big")
-            await asyncio.get_event_loop().run_in_executor(
-                None, client_sock.send, length_bytes
-            )
 
-            # Send message data
-            await asyncio.get_event_loop().run_in_executor(
-                None, client_sock.send, message_data
-            )
+            retry_count = 0
+            while True:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    raise SocketTimeoutError(
+                        f"Timeout waiting for container connection {container_id}"
+                    )
+
+                try:
+                    client_sock, _ = await asyncio.wait_for(
+                        loop.run_in_executor(None, sock.accept),
+                        timeout=remaining,
+                    )
+                except asyncio.TimeoutError:
+                    raise SocketTimeoutError(
+                        f"Timeout waiting for container connection {container_id}"
+                    )
+
+                if self._is_stale_client_connection(client_sock):
+                    retry_count += 1
+                    client_sock.close()
+                    self.logger.debug(
+                        "Skipping stale socket connection",
+                        {
+                            "container_id": container_id,
+                            "retry_count": retry_count,
+                        },
+                    )
+                    continue
+
+                try:
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        raise SocketTimeoutError(
+                            f"Timeout sending message to container {container_id}"
+                        )
+                    await asyncio.wait_for(
+                        loop.run_in_executor(None, client_sock.sendall, length_bytes),
+                        timeout=remaining,
+                    )
+
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        raise SocketTimeoutError(
+                            f"Timeout sending message to container {container_id}"
+                        )
+                    await asyncio.wait_for(
+                        loop.run_in_executor(None, client_sock.sendall, message_data),
+                        timeout=remaining,
+                    )
+                    client_sock.close()
+                    break
+                except OSError as exc:
+                    retry_count += 1
+                    client_sock.close()
+                    self.logger.debug(
+                        "Retrying socket send after socket write error",
+                        {
+                            "container_id": container_id,
+                            "retry_count": retry_count,
+                            "error_type": type(exc).__name__,
+                        },
+                    )
+                    continue
 
             self.logger.communication(container_id, "sent", message)
 
+        except (SocketConnectionError, SocketTimeoutError):
+            raise
         except Exception as e:
             self.logger.error(
                 e,
@@ -208,6 +320,7 @@ class SocketCommunicationHandler:
                     "operation": "send_message",
                     "container_id": container_id,
                     "message": message,
+                    "timeout": timeout,
                 },
             )
             raise SocketCommunicationError(

@@ -71,7 +71,7 @@ class TestSocketCommunicationHandler:
     def test_get_socket_path(self, handler):
         """Test socket path generation."""
         container_id = "test_container_123"
-        expected_path = handler.socket_dir / f"{container_id}.sock"
+        expected_path = handler.socket_dir / container_id / "kawaflow.sock"
 
         actual_path = handler._get_socket_path(container_id)
 
@@ -92,7 +92,7 @@ class TestSocketCommunicationHandler:
             mock_socket_class.assert_called_once_with(
                 socket.AF_UNIX, socket.SOCK_STREAM
             )
-            mock_socket.setblocking.assert_called_once_with(False)
+            mock_socket.setblocking.assert_called_once_with(True)
             mock_socket.bind.assert_called_once()
             mock_socket.listen.assert_called_once_with(1)
 
@@ -111,6 +111,7 @@ class TestSocketCommunicationHandler:
         socket_path = handler._get_socket_path(container_id)
 
         # Create existing socket file
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
         socket_path.touch()
         assert socket_path.exists()
 
@@ -153,6 +154,7 @@ class TestSocketCommunicationHandler:
 
         # Create socket file
         socket_path = handler._get_socket_path(container_id)
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
         socket_path.touch()
 
         await handler.cleanup_socket(container_id)
@@ -237,10 +239,16 @@ class TestSocketCommunicationHandler:
         handler._connections[container_id] = mock_socket
         handler._connection_status[container_id] = True
 
-        with patch("asyncio.get_event_loop") as mock_loop:
+        with (
+            patch("asyncio.get_event_loop") as mock_loop,
+            patch("asyncio.wait_for") as mock_wait_for,
+            patch.object(handler, "_is_stale_client_connection", return_value=False),
+        ):
             mock_executor = AsyncMock()
             mock_executor.return_value = None  # For send operations
             mock_loop.return_value.run_in_executor = mock_executor
+            mock_loop.return_value.time.return_value = 0
+            mock_wait_for.side_effect = [(mock_client_socket, None), None, None]
 
             await handler.send_message(container_id, message)
 
@@ -292,11 +300,20 @@ class TestSocketCommunicationHandler:
         handler._connections[container_id] = mock_socket
         handler._connection_status[container_id] = True
 
-        with patch("asyncio.get_event_loop") as mock_loop:
+        with (
+            patch("asyncio.get_event_loop") as mock_loop,
+            patch("asyncio.wait_for") as mock_wait_for,
+            patch.object(handler, "_is_stale_client_connection", return_value=False),
+        ):
             mock_executor = AsyncMock()
             # Make the send operation fail
             mock_executor.side_effect = Exception("Send failed")
             mock_loop.return_value.run_in_executor = mock_executor
+            mock_loop.return_value.time.return_value = 0
+            mock_wait_for.side_effect = [
+                (mock_client_socket, None),
+                Exception("Send failed"),
+            ]
 
             with pytest.raises(SocketCommunicationError) as exc_info:
                 await handler.send_message(container_id, message)
@@ -305,6 +322,91 @@ class TestSocketCommunicationHandler:
 
             # Verify error logging
             handler.logger.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_send_message_skips_stale_connection(self, handler):
+        """Test skipping stale queued response connections before sending."""
+        container_id = "test_container_123"
+        message = {"command": "test", "data": {"key": "value"}}
+
+        mock_socket = Mock()
+        stale_client_socket = Mock()
+        fresh_client_socket = Mock()
+
+        handler._connections[container_id] = mock_socket
+        handler._connection_status[container_id] = True
+
+        with (
+            patch("asyncio.get_event_loop") as mock_loop,
+            patch("asyncio.wait_for") as mock_wait_for,
+            patch.object(
+                handler,
+                "_is_stale_client_connection",
+                side_effect=[True, False],
+            ),
+        ):
+            mock_executor = AsyncMock()
+            mock_executor.return_value = None
+            mock_loop.return_value.run_in_executor = mock_executor
+            mock_loop.return_value.time.return_value = 0
+
+            mock_wait_for.side_effect = [
+                (stale_client_socket, None),
+                (fresh_client_socket, None),
+                None,
+                None,
+            ]
+
+            await handler.send_message(container_id, message)
+
+            stale_client_socket.close.assert_called_once()
+            fresh_client_socket.close.assert_called_once()
+            handler.logger.communication.assert_called_once_with(
+                container_id, "sent", message
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_message_retries_until_success(self, handler):
+        """Test retry loop continues after socket write errors."""
+        container_id = "test_container_123"
+        message = {"command": "test"}
+
+        mock_socket = Mock()
+        first_client = Mock()
+        second_client = Mock()
+        third_client = Mock()
+
+        handler._connections[container_id] = mock_socket
+        handler._connection_status[container_id] = True
+
+        with (
+            patch("asyncio.get_event_loop") as mock_loop,
+            patch("asyncio.wait_for") as mock_wait_for,
+            patch.object(handler, "_is_stale_client_connection", return_value=False),
+        ):
+            mock_executor = AsyncMock()
+            mock_executor.return_value = None
+            mock_loop.return_value.run_in_executor = mock_executor
+            mock_loop.return_value.time.return_value = 0
+
+            mock_wait_for.side_effect = [
+                (first_client, None),
+                BrokenPipeError("broken pipe"),
+                (second_client, None),
+                OSError("socket closed"),
+                (third_client, None),
+                None,
+                None,
+            ]
+
+            await handler.send_message(container_id, message)
+
+            first_client.close.assert_called_once()
+            second_client.close.assert_called_once()
+            third_client.close.assert_called_once()
+            handler.logger.communication.assert_called_once_with(
+                container_id, "sent", message
+            )
 
     @pytest.mark.asyncio
     async def test_receive_message_success(self, handler):

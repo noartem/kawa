@@ -39,9 +39,11 @@ def _load_env_file(env_path: Path) -> None:
 
 _load_env_file(Path(__file__).with_name(".env"))
 
+DEFAULT_SOCKET_DIR = os.getenv("FLOW_MANAGER_SOCKET_DIR", "/tmp/kawaflow/sockets")
+
 
 class FlowManagerApp:
-    def __init__(self, socket_dir: str = "/tmp/kawaflow/sockets"):
+    def __init__(self, socket_dir: str = DEFAULT_SOCKET_DIR):
         self.socket_dir = socket_dir
         self.logger = SystemLogger("flow_manager")
         self._messaging_backend_env = os.getenv("MESSAGING_BACKEND")

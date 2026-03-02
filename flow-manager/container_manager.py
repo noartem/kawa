@@ -59,7 +59,7 @@ class ContainerManager:
         # Resource usage monitoring
         self._resource_usage_history: Dict[str, List[Dict[str, Any]]] = {}
         self._resource_thresholds = {
-            "cpu_percent": 80.0,
+            "cpu_percent": 200.0,
             "memory_percent": 85.0,
             "disk_read_bytes_per_sec": 100 * 1024 * 1024,  # 100MB/s
             "disk_write_bytes_per_sec": 100 * 1024 * 1024,  # 100MB/s
@@ -76,6 +76,15 @@ class ContainerManager:
 
         self.logger.debug(
             "ContainerManager initialized", {"socket_dir": self.socket_dir}
+        )
+
+    def _get_container_socket_dir(self, container_name: str) -> str:
+        return os.path.join(self.socket_dir, container_name)
+
+    def _get_container_socket_path(self, container_name: str) -> str:
+        return os.path.join(
+            self._get_container_socket_dir(container_name),
+            "kawaflow.sock",
         )
 
     def _build_labels(self, labels: Optional[Dict[str, str]]) -> Dict[str, str]:
@@ -108,7 +117,9 @@ class ContainerManager:
             container_name = (
                 config.name or f"flow-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
             )
-            socket_path = os.path.join(self.socket_dir, f"{container_name}.sock")
+            socket_mount_dir = self._get_container_socket_dir(container_name)
+            socket_path = self._get_container_socket_path(container_name)
+            os.makedirs(socket_mount_dir, exist_ok=True)
 
             # Prepare port bindings
             port_bindings = {}
@@ -123,8 +134,8 @@ class ContainerManager:
             for host_path, container_path in config.volumes.items():
                 volume_bindings[host_path] = {"bind": container_path, "mode": "rw"}
             # Add socket bind
-            volume_bindings[socket_path] = {
-                "bind": "/var/run/kawaflow.sock",
+            volume_bindings[socket_mount_dir] = {
+                "bind": "/run",
                 "mode": "rw",
             }
 
@@ -265,7 +276,7 @@ class ContainerManager:
             )
             raise
 
-    async def update_container(self, container_id: str, code_path: str) -> None:
+    async def update_container(self, container_id: str, code_path: str) -> str:
         """
         Update container code with proper volume mounting and rollback capability.
 
@@ -321,7 +332,12 @@ class ContainerManager:
             other_mounts = []
 
             for bind in binds:
-                if ":/var/run/kawaflow.sock" in bind:
+                if (
+                    ":/var/run/kawaflow.sock" in bind
+                    or bind.endswith(":/var/run")
+                    or ":/run:" in bind
+                    or bind.endswith(":/run")
+                ):
                     socket_volume_mount = bind
                 elif ":/app" in bind or ":/code" in bind:
                     code_volume_mount = bind
@@ -383,8 +399,9 @@ class ContainerManager:
                 new_binds.append(socket_volume_mount)
             else:
                 # Create socket mount if it doesn't exist
-                socket_path = os.path.join(self.socket_dir, f"{container.name}.sock")
-                new_binds.append(f"{socket_path}:/var/run/kawaflow.sock")
+                socket_mount_dir = self._get_container_socket_dir(container.name)
+                os.makedirs(socket_mount_dir, exist_ok=True)
+                new_binds.append(f"{socket_mount_dir}:/run")
 
             # Add updated code mount
             new_binds.append(f"{code_volume_dir}:/app")
@@ -393,7 +410,6 @@ class ContainerManager:
             image = container.image.id
             name = container.name
             environment = container_config.get("Env", [])
-            ports = container_config.get("ExposedPorts", {})
             command = container_config.get("Cmd")
             working_dir = container_config.get("WorkingDir")
 
@@ -404,6 +420,16 @@ class ContainerManager:
             for container_port, host_bindings in original_ports.items():
                 if host_bindings:
                     port_bindings[container_port] = host_bindings[0].get("HostPort")
+
+            volume_bindings: Dict[str, Dict[str, str]] = {}
+            for bind in new_binds:
+                bind_parts = bind.split(":")
+                if len(bind_parts) < 2:
+                    continue
+                host_path = bind_parts[0]
+                container_path = bind_parts[1]
+                mode = bind_parts[2] if len(bind_parts) >= 3 else "rw"
+                volume_bindings[host_path] = {"bind": container_path, "mode": mode}
 
             # Remove old container
             container.remove()
@@ -419,11 +445,8 @@ class ContainerManager:
                 name=name,
                 labels=labels or None,
                 environment=environment,
-                ports=ports,
-                host_config=self.docker_client.api.create_host_config(
-                    port_bindings=port_bindings,
-                    binds=new_binds,
-                ),
+                ports=port_bindings or None,
+                volumes=volume_bindings or None,
                 command=command,
                 working_dir=working_dir,
                 detach=True,
@@ -452,6 +475,8 @@ class ContainerManager:
                     "status": "updated",
                 },
             )
+
+            return new_container.id
 
         except Exception as e:
             # Rollback on failure
@@ -589,11 +614,16 @@ class ContainerManager:
             self._resource_usage_history.pop(container_id, None)
 
             # Clean up socket file
-            socket_path = os.path.join(self.socket_dir, f"{container_name}.sock")
-            if os.path.exists(socket_path):
-                os.remove(socket_path)
+            socket_path = self._get_container_socket_path(container_name)
+            socket_mount_dir = self._get_container_socket_dir(container_name)
+            if os.path.exists(socket_mount_dir):
+                shutil.rmtree(socket_mount_dir, ignore_errors=True)
                 self.logger.debug(
-                    "Cleaned up socket file", {"socket_path": socket_path}
+                    "Cleaned up socket directory",
+                    {
+                        "socket_path": socket_path,
+                        "socket_mount_dir": socket_mount_dir,
+                    },
                 )
 
             self.logger.container_operation(
@@ -700,7 +730,7 @@ class ContainerManager:
                     pass
 
             # Check socket connection
-            socket_path = os.path.join(self.socket_dir, f"{container.name}.sock")
+            socket_path = self._get_container_socket_path(container.name)
             socket_connected = os.path.exists(socket_path)
 
             # Get resource usage metrics
@@ -734,7 +764,7 @@ class ContainerManager:
             container_infos = []
 
             for container in containers:
-                socket_path = os.path.join(self.socket_dir, f"{container.name}.sock")
+                socket_path = self._get_container_socket_path(container.name)
                 container_info = self._build_container_info(container, socket_path)
                 container_infos.append(container_info)
 
@@ -1643,7 +1673,7 @@ class ContainerManager:
             Tuple of (success, error_message, details)
         """
         try:
-            socket_path = os.path.join(self.socket_dir, f"{container.name}.sock")
+            socket_path = self._get_container_socket_path(container.name)
 
             if not os.path.exists(socket_path):
                 return False, "Socket file not found", {"socket_path": socket_path}
