@@ -1,100 +1,101 @@
 services:
-    sandbox:
-        build:
-            context: .
-            dockerfile: .sandbox/Dockerfile
-            args:
-                APP_UID: 1000
-                APP_GID: 1000
-                USER: ${USER}
-                PWD: ${PWD}
-        user: "1000:1000"
-        group_add:
-            - "${DOCKER_GID}"
-        command: sleep infinity
-        env_file:
-            - .env
-        environment:
-            - HOME=/home/${USER}
-            - XDG_CONFIG_HOME=/home/${USER}/.config
-            - XDG_DATA_HOME=/home/${USER}/.local/share
-            - XDG_STATE_HOME=/home/${USER}/.local/state
-            - XDG_CACHE_HOME=/home/${USER}/.cache
-        volumes:
-            - tmp:/tmp
-            - composer-cache:/home/${USER}/.composer/cache
-            - npm-cache:/home/${USER}/.npm
-            - uv-cache:/home/${USER}/.cache/uv
-            - uv-data:/home/${USER}/.local/share/uv
-            - .:${PWD}
-            - ${PWD}/../${PROJECT}:${PWD}/../${PROJECT}
-            - .sandbox/zshrc:/home/${USER}/.zshrc
-            - zsh-history:/home/${USER}/.zsh_history.d
-            - .sandbox/vimrc:/home/${USER}/.vimrc
-            - ${HOME}/.gitconfig:/home/${USER}/.gitconfig:ro
-            - ${HOME}/.config/opencode/opencode.json:/home/${USER}/.config/opencode/opencode.json:ro
-            - ${HOME}/.config/opencode/antigravity-accounts.json:/home/${USER}/.config/opencode/antigravity-accounts.json:ro
-            - ${HOME}/.local/share/opencode/auth.json:/home/${USER}/.local/share/opencode/auth.json:ro
-            - /var/run/docker.sock:/var/run/docker.sock
-            - opencode-config:/home/${USER}/.config/opencode
-            - opencode-data:/home/${USER}/.local/share/opencode
-            - opencode-state:/home/${USER}/.local/state/opencode
-            - opencode-cache:/home/${USER}/.cache/opencode
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        ports:
-            - '${APP_PORT}:${APP_PORT}'
-            - '${VITE_PORT}:${VITE_PORT}'
-            - '${OPENCODE_PORT}:${OPENCODE_PORT}'
+  sandbox:
+    build:
+      context: .
+      dockerfile: .sandbox/Dockerfile
+      args:
+        APP_UID: 1000
+        APP_GID: 1000
+        USER: ${USER}
+        PWD: ${PWD}
+    user: "1000:1000"
+    group_add:
+      - "${DOCKER_GID}"
+    command: sleep infinity
+    env_file:
+      - .env
+    environment:
+      - HOME=/home/${USER}
+      - XDG_CONFIG_HOME=/home/${USER}/.config
+      - XDG_DATA_HOME=/home/${USER}/.local/share
+      - XDG_STATE_HOME=/home/${USER}/.local/state
+      - XDG_CACHE_HOME=/home/${USER}/.cache
+    volumes:
+      - tmp:/tmp
+      - composer-cache:/home/${USER}/.composer/cache
+      - npm-cache:/home/${USER}/.npm
+      - uv-cache:/home/${USER}/.cache/uv
+      - uv-data:/home/${USER}/.local/share/uv
+      - .:${PWD}
+      - ${PWD}/../${PROJECT}:${PWD}/../${PROJECT}
+      - .sandbox/zshrc:/home/${USER}/.zshrc
+      - zsh-history:/home/${USER}/.zsh_history.d
+      - .sandbox/vimrc:/home/${USER}/.vimrc
+      - ${HOME}/.gitconfig:/home/${USER}/.gitconfig:ro
+      - ${HOME}/.config/opencode/opencode.json:/home/${USER}/.config/opencode/opencode.json:ro
+      - ${HOME}/.config/opencode/antigravity-accounts.json:/home/${USER}/.config/opencode/antigravity-accounts.json:ro
+      - ${HOME}/.local/share/opencode/auth.json:/home/${USER}/.local/share/opencode/auth.json:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - opencode-config:/home/${USER}/.config/opencode
+      - opencode-data:/home/${USER}/.local/share/opencode
+      - opencode-state:/home/${USER}/.local/state/opencode
+      - opencode-cache:/home/${USER}/.cache/opencode
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+      - "${VITE_PORT}:${VITE_PORT}"
+      - "${OPENCODE_PORT}:${OPENCODE_PORT}"
 
-    postgres:
-        image: postgres:18-alpine
-        environment:
-            POSTGRES_DB: ui
-            POSTGRES_USER: kawa
-            POSTGRES_PASSWORD: secret
-        volumes:
-            - postgres-data:/var/lib/postgresql:rw
-        healthcheck:
-            test: pg_isready -d ui -U kawa
-            interval: 2s
-            timeout: 5s
-            start_period: 2s
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ui
+      POSTGRES_USER: kawa
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres-data:/var/lib/postgresql:rw
+      - .sandbox/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: pg_isready -d ui -U kawa
+      interval: 2s
+      timeout: 5s
+      start_period: 2s
 
-    redis:
-        image: redis:8-alpine
-        command: --requirepass secret
-        volumes:
-            - redis-data:/data:rw
-        healthcheck:
-            test: ['CMD', 'redis-cli', 'ping']
-            interval: 500ms
-            timeout: 1s
+  redis:
+    image: redis:8-alpine
+    command: --requirepass secret
+    volumes:
+      - redis-data:/data:rw
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 500ms
+      timeout: 1s
 
-    rabbitmq:
-        image: rabbitmq:3.13-management-alpine
-        environment:
-            RABBITMQ_DEFAULT_USER: kawa
-            RABBITMQ_DEFAULT_PASS: secret
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq:rw
-        healthcheck:
-            test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
-            interval: 2s
-            timeout: 5s
-            start_period: 5s
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: kawa
+      RABBITMQ_DEFAULT_PASS: secret
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq:rw
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 2s
+      timeout: 5s
+      start_period: 5s
 
 volumes:
-    tmp: {}
-    composer-cache: {}
-    npm-cache: {}
-    uv-cache: {}
-    uv-data: {}
-    zsh-history: {}
-    opencode-config: {}
-    opencode-data: {}
-    opencode-state: {}
-    opencode-cache: {}
-    postgres-data: {}
-    redis-data: {}
-    rabbitmq-data: {}
+  tmp: {}
+  composer-cache: {}
+  npm-cache: {}
+  uv-cache: {}
+  uv-data: {}
+  zsh-history: {}
+  opencode-config: {}
+  opencode-data: {}
+  opencode-state: {}
+  opencode-cache: {}
+  postgres-data: {}
+  redis-data: {}
+  rabbitmq-data: {}
