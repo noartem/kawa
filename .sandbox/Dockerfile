@@ -93,6 +93,7 @@ COPY .sandbox/vimrc /home/${USER}/.vimrc
 RUN mkdir -p \
     ${PWD} \
     /home/${USER}/.config/opencode \
+    /home/${USER}/.config/nnt \
     /home/${USER}/.config/pip \
     /home/${USER}/.local/share/uv \
     /home/${USER}/.local/share/opencode \
@@ -138,7 +139,8 @@ ENV UV_DEFAULT_INDEX=${PYPI_INDEX}
 ENV UV_INDEX=''
 ENV UV_NATIVE_TLS=true
 
-RUN npm install -g opencode-ai
+RUN npm install -g opencode-ai@1.2.15 \
+ && npm install -g nonotify@0.1.12
 
 RUN su -s /bin/zsh ${USER} -c "git config --global --add safe.directory '*'"
 

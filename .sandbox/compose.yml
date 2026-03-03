@@ -33,13 +33,13 @@ services:
       - .sandbox/vimrc:/home/${USER}/.vimrc
       - ${HOME}/.gitconfig:/home/${USER}/.gitconfig:ro
       - ${HOME}/.config/opencode/opencode.json:/home/${USER}/.config/opencode/opencode.json:ro
-      - ${HOME}/.config/opencode/antigravity-accounts.json:/home/${USER}/.config/opencode/antigravity-accounts.json:ro
       - ${HOME}/.local/share/opencode/auth.json:/home/${USER}/.local/share/opencode/auth.json:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - opencode-config:/home/${USER}/.config/opencode
       - opencode-data:/home/${USER}/.local/share/opencode
       - opencode-state:/home/${USER}/.local/state/opencode
       - opencode-cache:/home/${USER}/.cache/opencode
+      - ${HOME}/.config/nnt/nnt.json:/home/${USER}/.config/nnt/nnt.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
