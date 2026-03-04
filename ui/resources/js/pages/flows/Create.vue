@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -56,8 +56,8 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     <Head :title="t('flows.create.title')" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="mx-auto max-w-2xl space-y-8 px-4 pt-2 pb-12">
-            <div class="space-y-2">
+        <div class="mx-auto max-w-2xl space-y-8 pt-4 pb-12">
+            <div class="space-y-2 px-4">
                 <h1 class="text-3xl font-semibold">
                     {{ t('flows.create.title') }}
                 </h1>
@@ -66,18 +66,21 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                 </p>
             </div>
 
+            <Separator />
+
             <Form
                 v-bind="store.form()"
-                class="space-y-6"
+                class="space-y-6 px-4"
                 v-slot="{ errors, processing }"
             >
                 <div class="space-y-3">
                     <Label>{{ t('flows.create.template.label') }}</Label>
                     <div class="grid gap-3 md:grid-cols-3">
-                        <Card
+                        <button
+                            type="button"
                             v-for="tmpl in templates"
                             :key="tmpl.id"
-                            class="cursor-pointer transition-colors hover:border-primary"
+                            class="space-y-2 rounded-md border px-4 py-3 text-left transition-colors hover:border-primary"
                             :class="
                                 selectedTemplate === tmpl.id
                                     ? 'border-primary ring-2 ring-primary/20'
@@ -90,30 +93,28 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                                     | 'webhook'
                             "
                         >
-                            <CardContent class="flex flex-col gap-2 p-4">
-                                <div class="flex items-center gap-2">
-                                    <div
-                                        class="flex size-4 items-center justify-center rounded-full border-2"
-                                        :class="
-                                            selectedTemplate === tmpl.id
-                                                ? 'border-primary bg-primary'
-                                                : 'border-muted-foreground'
-                                        "
-                                    >
-                                        <Check
-                                            v-if="selectedTemplate === tmpl.id"
-                                            class="size-2.5 text-primary-foreground"
-                                        />
-                                    </div>
-                                    <span class="font-semibold">{{
-                                        tmpl.name
-                                    }}</span>
+                            <div class="flex items-center gap-2">
+                                <div
+                                    class="flex size-4 items-center justify-center rounded-full border-2"
+                                    :class="
+                                        selectedTemplate === tmpl.id
+                                            ? 'border-primary bg-primary'
+                                            : 'border-muted-foreground'
+                                    "
+                                >
+                                    <Check
+                                        v-if="selectedTemplate === tmpl.id"
+                                        class="size-2.5 text-primary-foreground"
+                                    />
                                 </div>
-                                <p class="text-sm text-muted-foreground">
-                                    {{ tmpl.description }}
-                                </p>
-                            </CardContent>
-                        </Card>
+                                <span class="font-semibold">{{
+                                    tmpl.name
+                                }}</span>
+                            </div>
+                            <p class="text-sm text-muted-foreground">
+                                {{ tmpl.description }}
+                            </p>
+                        </button>
                     </div>
                     <input
                         type="hidden"
@@ -124,6 +125,8 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                         {{ errors.template }}
                     </p>
                 </div>
+
+                <Separator />
 
                 <div class="grid gap-4">
                     <div class="space-y-2">
@@ -156,6 +159,8 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                         />
                     </div>
                 </div>
+
+                <Separator />
 
                 <Button type="submit" class="w-full" :disabled="processing">
                     <Spinner v-if="processing" />

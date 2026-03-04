@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessFlowManagerEvent;
 use App\Models\Flow;
 use App\Models\User;
 use App\Services\FlowManagerClient;
@@ -95,7 +96,7 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame($result['message'], $logEntry->message);
     }
 
-    public function test_flow_service_updates_flow_graph_from_runtime_after_successful_start(): void
+    public function test_flow_service_does_not_wait_for_runtime_graph_after_successful_start(): void
     {
         /** @var User $user */
         $user = User::factory()->createOne();
@@ -106,32 +107,18 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $runtimeGraph = [
-            'events' => [
-                ['id' => 'cron_event', 'name' => 'CronEvent'],
-            ],
-            'actors' => [
-                ['id' => 'prepare_actor', 'name' => 'PrepareMorningMessage'],
-                ['id' => 'morning_actor', 'name' => 'MorningActor'],
-            ],
-        ];
-
         $client = $this->mock(FlowManagerClient::class);
         $client
             ->shouldReceive('createContainer')
             ->once()
             ->andReturn([
                 'ok' => true,
-                'data' => [
-                    'container_id' => 'container-id-1',
-                ],
+                'correlation_id' => 'corr-id',
             ]);
 
         $client
             ->shouldReceive('containerGraph')
-            ->once()
-            ->with('container-id-1')
-            ->andReturn($runtimeGraph);
+            ->never();
 
         $service = app(FlowService::class);
         $result = $service->start($flow);
@@ -139,6 +126,48 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertTrue($result['ok']);
 
         $flow->refresh();
-        $this->assertSame($runtimeGraph, $flow->graph);
+        $this->assertSame(['nodes' => [], 'edges' => []], $flow->graph);
+    }
+
+    public function test_container_created_event_pulls_graph_from_runtime_async(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-1',
+            'code_updated_at' => now(),
+            'graph' => ['nodes' => [], 'edges' => []],
+            'graph_generated_at' => null,
+        ]);
+
+        $client = $this->mock(FlowManagerClient::class);
+        $client
+            ->shouldReceive('containerGraph')
+            ->once()
+            ->with('container-id-1')
+            ->andReturn([
+                'events' => [
+                    ['id' => 'CronEvent'],
+                ],
+                'actors' => [
+                    [
+                        'id' => 'StarterActor',
+                        'receives' => ['CronEvent'],
+                        'sends' => ['PreparedEvent'],
+                    ],
+                ],
+            ]);
+
+        $job = new ProcessFlowManagerEvent('container_created', [
+            'flow_id' => $flow->id,
+            'container_id' => 'container-id-1',
+        ]);
+        $job->handle();
+
+        $flow->refresh();
+
+        $this->assertNotNull($flow->graph_generated_at);
+        $this->assertNotEmpty($flow->graph['nodes'] ?? []);
+        $this->assertNotEmpty($flow->graph['edges'] ?? []);
     }
 }

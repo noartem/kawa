@@ -2,13 +2,6 @@
 import FlowLogsPanel from '@/components/FlowLogsPanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -68,7 +61,9 @@ interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
     slug?: string | null;
     description?: string | null;
     code?: string | null;
+    code_updated_at?: string | null;
     graph?: Record<string, unknown>;
+    graph_generated_at?: string | null;
     runs_count?: number;
     container_id?: string | null;
     entrypoint?: string | null;
@@ -120,44 +115,16 @@ const form = useForm({
     name: props.flow.name,
     description: props.flow.description || '',
     code: props.flow.code || '',
-    graph: props.flow.graph || emptyGraph,
 });
-const graphText = ref(normalizeGraphText(form.graph));
+const graphText = ref(normalizeGraphText(props.flow.graph));
 const editorTab = ref<'code' | 'chat'>('code');
-const graphOutdated = ref(false);
-const lastFlowCode = ref(props.flow.code || '');
-const lastFlowGraphText = ref(normalizeGraphText(props.flow.graph));
 
 watch(
-    graphText,
-    (value) => {
-        try {
-            form.graph = JSON.parse(value || '{}');
-        } catch {
-            // ignore parse errors in preview
-        }
+    () => props.flow.graph,
+    (nextGraph) => {
+        graphText.value = normalizeGraphText(nextGraph);
     },
-    { flush: 'post' },
-);
-
-watch(
-    () => [props.flow.code, props.flow.graph] as const,
-    ([nextCodeValue, nextGraph]) => {
-        const nextCode = nextCodeValue || '';
-        const nextGraphText = normalizeGraphText(nextGraph);
-        const codeChanged = nextCode !== lastFlowCode.value;
-        const graphChanged = nextGraphText !== lastFlowGraphText.value;
-
-        if (graphChanged) {
-            graphText.value = nextGraphText;
-            graphOutdated.value = false;
-        } else if (codeChanged) {
-            graphOutdated.value = true;
-        }
-
-        lastFlowCode.value = nextCode;
-        lastFlowGraphText.value = nextGraphText;
-    },
+    { immediate: true },
 );
 
 const statusTone = (status?: string | null) => {
@@ -277,9 +244,48 @@ const save = () => {
     });
 };
 
+const hasUnsavedFlowChanges = computed(() => {
+    const flowName = props.flow.name || '';
+    const flowDescription = props.flow.description || '';
+    const flowCode = props.flow.code || '';
+
+    return (
+        form.name !== flowName ||
+        form.description !== flowDescription ||
+        form.code !== flowCode
+    );
+});
+
+const saveBeforeAction = (onSuccess: () => void) => {
+    if (!hasUnsavedFlowChanges.value) {
+        onSuccess();
+
+        return;
+    }
+
+    if (!canSave.value) {
+        return;
+    }
+
+    saving.value = true;
+
+    form.put(`/flows/${props.flow.id}`, {
+        preserveScroll: true,
+        only: [...refreshOnlyProps],
+        onSuccess: () => {
+            onSuccess();
+        },
+        onFinish: () => {
+            saving.value = false;
+        },
+    });
+};
+
 const runFlow = () => {
-    if (!props.permissions.canRun) return;
-    submitAction('run', `/flows/${props.flow.id}/run`);
+    if (!props.permissions.canRun || form.processing || saving.value) return;
+    saveBeforeAction(() => {
+        submitAction('run', `/flows/${props.flow.id}/run`);
+    });
 };
 
 const stopFlow = () => {
@@ -288,8 +294,10 @@ const stopFlow = () => {
 };
 
 const deployProd = () => {
-    if (!props.permissions.canRun) return;
-    submitAction('deploy', `/flows/${props.flow.id}/deploy`);
+    if (!props.permissions.canRun || form.processing || saving.value) return;
+    saveBeforeAction(() => {
+        submitAction('deploy', `/flows/${props.flow.id}/deploy`);
+    });
 };
 
 const undeployProd = () => {
@@ -347,6 +355,70 @@ const formatDate = (value?: string | null) => {
     return date.toLocaleString();
 };
 
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+});
+const recentWindowMs = 24 * 60 * 60 * 1000;
+
+const parseDateMs = (value?: string | null): number | null => {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    return date.getTime();
+};
+
+const formatRelativeFromNow = (dateMs: number): string => {
+    const seconds = Math.round((dateMs - Date.now()) / 1000);
+    const absSeconds = Math.abs(seconds);
+
+    if (absSeconds < 60) {
+        return relativeTimeFormatter.format(seconds, 'second');
+    }
+
+    const minutes = Math.round(seconds / 60);
+    const absMinutes = Math.abs(minutes);
+
+    if (absMinutes < 60) {
+        return relativeTimeFormatter.format(minutes, 'minute');
+    }
+
+    const hours = Math.round(minutes / 60);
+    const absHours = Math.abs(hours);
+
+    if (absHours < 24) {
+        return relativeTimeFormatter.format(hours, 'hour');
+    }
+
+    const days = Math.round(hours / 24);
+
+    return relativeTimeFormatter.format(days, 'day');
+};
+
+const formatRecentDate = (value?: string | null): string => {
+    if (!value) {
+        return t('common.empty');
+    }
+
+    const dateMs = parseDateMs(value);
+
+    if (dateMs === null) {
+        return value;
+    }
+
+    if (Math.abs(Date.now() - dateMs) <= recentWindowMs) {
+        return formatRelativeFromNow(dateMs);
+    }
+
+    return new Date(dateMs).toLocaleString();
+};
+
 const formatDuration = (start?: string | null, end?: string | null) => {
     if (!start) return t('common.empty');
     const startDate = new Date(start);
@@ -367,6 +439,21 @@ const formatDuration = (start?: string | null, end?: string | null) => {
 const hasActiveDeploys = computed(() =>
     Boolean(props.productionRun?.active || props.developmentRun?.active),
 );
+const graphOutdated = computed(() => {
+    const codeUpdatedAt = parseDateMs(props.flow.code_updated_at);
+
+    if (codeUpdatedAt === null) {
+        return false;
+    }
+
+    const graphGeneratedAt = parseDateMs(props.flow.graph_generated_at);
+
+    if (graphGeneratedAt === null) {
+        return true;
+    }
+
+    return graphGeneratedAt < codeUpdatedAt;
+});
 const shouldPollForUpdates = computed(
     () =>
         (hasActiveDeploys.value || graphOutdated.value) &&
@@ -375,12 +462,6 @@ const shouldPollForUpdates = computed(
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.developmentRun);
 const isArchived = computed(() => Boolean(props.flow.archived_at));
-const currentModeLabel = computed(() =>
-    props.viewMode === 'development'
-        ? t('environments.devShort')
-        : t('environments.prodShort'),
-);
-
 const statusLabel = (status?: string | null) =>
     t(`statuses.${status ?? 'unknown'}`);
 const runTypeLabel = (type?: FlowRun['type'] | null) =>
@@ -407,39 +488,13 @@ watch(
     <Head :title="pageTitle" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="space-y-6 px-4 pt-2 pb-12">
-            <div
-                class="relative overflow-hidden rounded-2xl border border-border/80 bg-background p-6 shadow-sm"
-            >
+        <div class="pt-4 pb-12">
+            <section class="space-y-6 px-4 pb-6">
                 <div
-                    class="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
+                    class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
                 >
-                    <div class="space-y-3">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <Badge
-                                variant="outline"
-                                class="bg-muted/60 text-muted-foreground"
-                            >
-                                {{
-                                    t('flows.badges.flow_id', {
-                                        id: props.flow.id ?? t('common.empty'),
-                                    })
-                                }}
-                            </Badge>
-                            <Badge
-                                variant="outline"
-                                class="bg-muted/60 text-muted-foreground"
-                                >{{ currentModeLabel }}</Badge
-                            >
-                            <Badge
-                                v-if="isArchived"
-                                variant="outline"
-                                class="bg-amber-500/15 text-amber-300"
-                            >
-                                {{ t('flows.badges.archived') }}
-                            </Badge>
-                        </div>
-                        <h1 class="text-3xl leading-tight font-semibold">
+                    <div class="space-y-2">
+                        <h1 class="pt-1 text-3xl leading-tight font-semibold">
                             {{ form.name || t('flows.untitled') }}
                         </h1>
                         <p class="max-w-2xl text-sm text-muted-foreground">
@@ -480,20 +535,24 @@ watch(
                         </Button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="grid gap-4 xl:grid-cols-[2fr,1fr]">
-                <Card>
-                    <CardHeader class="pb-3">
-                        <CardTitle class="flex items-center gap-2">
+            <Separator />
+
+            <div class="grid gap-4 px-4 pt-6 pb-6 xl:grid-cols-[2fr,1fr]">
+                <section class="space-y-4">
+                    <div class="space-y-1">
+                        <h2
+                            class="flex items-center gap-2 text-lg font-semibold"
+                        >
                             <UploadCloud class="size-4 text-muted-foreground" />
                             {{ t('flows.current_deploy.title') }}
-                        </CardTitle>
-                        <CardDescription>{{
-                            t('flows.current_deploy.description')
-                        }}</CardDescription>
-                    </CardHeader>
-                    <CardContent class="space-y-4">
+                        </h2>
+                        <p class="text-sm text-muted-foreground">
+                            {{ t('flows.current_deploy.description') }}
+                        </p>
+                    </div>
+                    <div class="space-y-4">
                         <div v-if="currentProduction" class="space-y-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <Badge
@@ -532,9 +591,7 @@ watch(
                                 </Badge>
                             </div>
                             <div class="grid gap-3 md:grid-cols-3">
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <div
                                         class="flex items-center justify-between text-xs text-muted-foreground"
                                     >
@@ -553,9 +610,7 @@ watch(
                                         }}
                                     </p>
                                 </div>
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <div
                                         class="flex items-center justify-between text-xs text-muted-foreground"
                                     >
@@ -574,9 +629,7 @@ watch(
                                         }}
                                     </p>
                                 </div>
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <div
                                         class="flex items-center justify-between text-xs text-muted-foreground"
                                     >
@@ -601,28 +654,23 @@ watch(
                                 :empty-message="t('flows.logs.empty_current')"
                             />
                         </div>
-                        <div
-                            v-else
-                            class="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground"
-                        >
+                        <div v-else class="py-1 text-sm text-muted-foreground">
                             {{ t('flows.current_deploy.empty') }}
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </section>
 
                 <div class="space-y-4">
-                    <Card>
-                        <CardHeader class="pb-3">
-                            <CardTitle>{{
-                                t('flows.summary.title')
-                            }}</CardTitle>
-                            <CardDescription>{{
-                                t('flows.summary.description')
-                            }}</CardDescription>
-                        </CardHeader>
-                        <CardContent
-                            class="space-y-2 text-sm text-muted-foreground"
-                        >
+                    <section class="space-y-3">
+                        <div class="space-y-1">
+                            <h2 class="text-lg font-semibold">
+                                {{ t('flows.summary.title') }}
+                            </h2>
+                            <p class="text-sm text-muted-foreground">
+                                {{ t('flows.summary.description') }}
+                            </p>
+                        </div>
+                        <div class="space-y-2 text-sm text-muted-foreground">
                             <div class="flex items-center justify-between">
                                 <span
                                     class="inline-flex items-center gap-2 text-foreground"
@@ -662,7 +710,6 @@ watch(
                                     formatDate(props.flow.last_finished_at)
                                 }}</span>
                             </div>
-                            <Separator class="my-1" />
                             <div class="flex flex-wrap gap-2">
                                 <Badge
                                     v-for="stat in props.runStats"
@@ -680,23 +727,27 @@ watch(
                                     {{ t('flows.summary.empty_runs') }}
                                 </span>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </section>
                 </div>
             </div>
 
-            <div class="grid gap-4 xl:grid-cols-[1.3fr,1fr]">
-                <Card v-if="permissions.canUpdate">
-                    <CardHeader class="pb-3">
-                        <CardTitle class="flex items-center gap-2">
+            <Separator />
+
+            <div class="grid gap-4 px-4 pt-6 pb-6 xl:grid-cols-[1.3fr,1fr]">
+                <section v-if="permissions.canUpdate" class="space-y-4">
+                    <div class="space-y-1">
+                        <h2
+                            class="flex items-center gap-2 text-lg font-semibold"
+                        >
                             <Code class="size-4 text-muted-foreground" />
                             {{ t('flows.editor.title') }}
-                        </CardTitle>
-                        <CardDescription>{{
-                            t('flows.editor.description')
-                        }}</CardDescription>
-                    </CardHeader>
-                    <CardContent class="space-y-4">
+                        </h2>
+                        <p class="text-sm text-muted-foreground">
+                            {{ t('flows.editor.description') }}
+                        </p>
+                    </div>
+                    <div class="space-y-4">
                         <div class="flex flex-wrap items-center gap-2">
                             <Button
                                 variant="outline"
@@ -785,6 +836,26 @@ watch(
                                             rows="16"
                                         />
                                         <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            Code saved:
+                                            <span
+                                                :title="
+                                                    formatDate(
+                                                        props.flow
+                                                            .code_updated_at,
+                                                    )
+                                                "
+                                            >
+                                                {{
+                                                    formatRecentDate(
+                                                        props.flow
+                                                            .code_updated_at,
+                                                    )
+                                                }}
+                                            </span>
+                                        </p>
+                                        <p
                                             v-if="form.errors.code"
                                             class="text-sm text-destructive"
                                         >
@@ -798,6 +869,7 @@ watch(
                                         <Textarea
                                             id="flow-graph"
                                             v-model="graphText"
+                                            readonly
                                             :class="[
                                                 'font-mono text-xs transition-colors',
                                                 graphOutdated
@@ -807,17 +879,29 @@ watch(
                                             rows="10"
                                         />
                                         <p
-                                            v-if="form.errors.graph"
-                                            class="text-sm text-destructive"
+                                            class="text-xs text-muted-foreground"
                                         >
-                                            {{ form.errors.graph }}
+                                            Graph generated:
+                                            <span
+                                                :title="
+                                                    formatDate(
+                                                        props.flow
+                                                            .graph_generated_at,
+                                                    )
+                                                "
+                                            >
+                                                {{
+                                                    formatRecentDate(
+                                                        props.flow
+                                                            .graph_generated_at,
+                                                    )
+                                                }}
+                                            </span>
                                         </p>
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <div
-                                        class="rounded-lg border border-border/60 bg-muted/30 p-4"
-                                    >
+                                    <div class="py-4">
                                         <p
                                             class="text-sm font-semibold text-foreground"
                                         >
@@ -852,9 +936,7 @@ watch(
                                 </template>
                             </div>
                             <div class="space-y-4">
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <p class="text-xs text-muted-foreground">
                                         {{ t('flows.dev_deploy.title') }}
                                     </p>
@@ -896,37 +978,33 @@ watch(
                             :empty-message="t('flows.logs.empty_dev')"
                             compact
                         />
-                    </CardContent>
-                </Card>
-                <Card v-else>
-                    <CardHeader class="pb-3">
-                        <CardTitle class="flex items-center gap-2">
-                            <Code class="size-4 text-muted-foreground" />
-                            {{ t('flows.editor.readonly.title') }}
-                        </CardTitle>
-                        <CardDescription>{{
-                            t('flows.editor.readonly.description')
-                        }}</CardDescription>
-                    </CardHeader>
-                    <CardContent
-                        class="space-y-2 text-sm text-muted-foreground"
-                    >
+                    </div>
+                </section>
+                <section v-else class="space-y-3">
+                    <h2 class="flex items-center gap-2 text-lg font-semibold">
+                        <Code class="size-4 text-muted-foreground" />
+                        {{ t('flows.editor.readonly.title') }}
+                    </h2>
+                    <p class="text-sm text-muted-foreground">
+                        {{ t('flows.editor.readonly.description') }}
+                    </p>
+                    <div class="space-y-2 text-sm text-muted-foreground">
                         <p>{{ t('flows.editor.readonly.note_edit') }}</p>
                         <p>{{ t('flows.editor.readonly.note_production') }}</p>
-                    </CardContent>
-                </Card>
+                    </div>
+                </section>
 
                 <div class="space-y-4">
-                    <Card>
-                        <CardHeader class="pb-3">
-                            <CardTitle>{{
-                                t('flows.past_deploys.title')
-                            }}</CardTitle>
-                            <CardDescription>{{
-                                t('flows.past_deploys.description')
-                            }}</CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <section class="space-y-3">
+                        <div class="space-y-1">
+                            <h2 class="text-lg font-semibold">
+                                {{ t('flows.past_deploys.title') }}
+                            </h2>
+                            <p class="text-sm text-muted-foreground">
+                                {{ t('flows.past_deploys.description') }}
+                            </p>
+                        </div>
+                        <div class="space-y-4">
                             <div>
                                 <p
                                     class="text-xs tracking-wide text-muted-foreground uppercase"
@@ -940,7 +1018,7 @@ watch(
                                     <div
                                         v-for="run in productionRuns"
                                         :key="run.id"
-                                        class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                        class="py-3"
                                     >
                                         <div
                                             class="flex items-center justify-between"
@@ -971,7 +1049,7 @@ watch(
                                 </div>
                                 <div
                                     v-else
-                                    class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground"
+                                    class="mt-2 text-sm text-muted-foreground"
                                 >
                                     {{
                                         t('flows.past_deploys.empty_production')
@@ -991,7 +1069,7 @@ watch(
                                     <div
                                         v-for="run in developmentRuns"
                                         :key="run.id"
-                                        class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                                        class="py-3"
                                     >
                                         <div
                                             class="flex items-center justify-between"
@@ -1022,7 +1100,7 @@ watch(
                                 </div>
                                 <div
                                     v-else
-                                    class="mt-2 rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground"
+                                    class="mt-2 text-sm text-muted-foreground"
                                 >
                                     {{
                                         t(
@@ -1031,23 +1109,21 @@ watch(
                                     }}
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </section>
 
-                    <Card>
-                        <CardHeader class="pb-3">
-                            <CardTitle>{{
-                                t('flows.past_chats.title')
-                            }}</CardTitle>
-                            <CardDescription>{{
-                                t('flows.past_chats.description')
-                            }}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
+                    <section class="space-y-3">
+                        <div class="space-y-1">
+                            <h2 class="text-lg font-semibold">
+                                {{ t('flows.past_chats.title') }}
+                            </h2>
+                            <p class="text-sm text-muted-foreground">
+                                {{ t('flows.past_chats.description') }}
+                            </p>
+                        </div>
+                        <div>
                             <div class="space-y-3">
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <div
                                         class="flex items-center justify-between text-xs text-muted-foreground"
                                     >
@@ -1060,9 +1136,7 @@ watch(
                                         }}
                                     </p>
                                 </div>
-                                <div
-                                    class="rounded-lg border border-border/60 bg-muted/30 p-3"
-                                >
+                                <div class="py-3">
                                     <div
                                         class="flex items-center justify-between text-xs text-muted-foreground"
                                     >
@@ -1078,21 +1152,23 @@ watch(
                                     </p>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </section>
                 </div>
             </div>
 
-            <Card v-if="history.length">
-                <CardHeader class="pb-3">
-                    <CardTitle>{{ t('flows.history.title') }}</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Separator />
+
+            <section v-if="history.length" class="space-y-3 px-4 pt-6 pb-6">
+                <h2 class="text-lg font-semibold">
+                    {{ t('flows.history.title') }}
+                </h2>
+                <div>
                     <div class="max-h-72 space-y-3 overflow-y-auto pr-1">
                         <div
                             v-for="item in history"
                             :key="item.id"
-                            class="rounded-lg border border-border/60 bg-muted/30 p-3"
+                            class="py-3"
                         >
                             <div
                                 class="flex items-center justify-between text-xs text-muted-foreground"
@@ -1115,14 +1191,16 @@ watch(
                             >
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </section>
 
-            <Card>
-                <CardHeader class="pb-3">
-                    <CardTitle>{{ t('flows.settings.title') }}</CardTitle>
-                </CardHeader>
-                <CardContent class="space-y-4">
+            <Separator />
+
+            <section class="space-y-4 px-4 pt-6">
+                <h2 class="text-lg font-semibold">
+                    {{ t('flows.settings.title') }}
+                </h2>
+                <div class="space-y-4">
                     <div class="grid gap-4 lg:grid-cols-2">
                         <div class="space-y-2">
                             <Label for="flow-name">{{
@@ -1207,8 +1285,8 @@ watch(
                             {{ t('flows.settings.delete_hint') }}
                         </p>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </section>
         </div>
     </AppLayout>
 </template>

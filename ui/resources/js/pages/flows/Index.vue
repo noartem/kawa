@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     create as flowCreate,
@@ -81,13 +81,9 @@ const statusLabel = (status?: string | null) =>
     <Head :title="t('nav.flows')" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="space-y-6 px-4 pt-2 pb-12">
-            <div
-                class="relative overflow-hidden rounded-2xl border border-border/80 bg-background p-6 shadow-sm"
-            >
-                <div
-                    class="relative flex flex-col gap-8 lg:flex-row lg:items-center"
-                >
+        <div class="space-y-8 pt-4 pb-12">
+            <section class="space-y-6 px-4">
+                <div class="flex flex-col gap-8 lg:flex-row lg:items-center">
                     <div class="space-y-1">
                         <h1 class="text-3xl leading-tight font-semibold">
                             {{ t('flows.index.title') }}
@@ -146,18 +142,18 @@ const statusLabel = (status?: string | null) =>
                         </Button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <Card>
-                <CardContent>
-                    <div
-                        v-if="props.flows.length"
-                        class="divide-y divide-border"
+            <Separator />
+
+            <section class="px-4">
+                <div v-if="props.flows.length" class="space-y-0">
+                    <template
+                        v-for="(flow, index) in props.flows"
+                        :key="flow.id"
                     >
                         <div
-                            v-for="flow in props.flows"
-                            :key="flow.id"
-                            class="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between"
+                            class="flex flex-col gap-2 py-4 md:flex-row md:items-center md:justify-between"
                         >
                             <div class="space-y-1">
                                 <Link
@@ -221,15 +217,13 @@ const statusLabel = (status?: string | null) =>
                                 </Button>
                             </div>
                         </div>
-                    </div>
-                    <div
-                        v-else
-                        class="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground"
-                    >
-                        {{ t('flows.index.empty') }}
-                    </div>
-                </CardContent>
-            </Card>
+                        <Separator v-if="index < props.flows.length - 1" />
+                    </template>
+                </div>
+                <p v-else class="py-6 text-sm text-muted-foreground">
+                    {{ t('flows.index.empty') }}
+                </p>
+            </section>
         </div>
     </AppLayout>
 </template>

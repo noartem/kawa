@@ -46,7 +46,7 @@ class FlowManagerClient
 
     public function createContainer(array $payload): array
     {
-        return $this->run('create_container', $payload, waitForResponse: true);
+        return $this->run('create_container', $payload);
     }
 
     public function startContainer(string $containerId): array

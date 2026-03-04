@@ -88,6 +88,7 @@ PY
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'code' => $code,
+            'code_updated_at' => now(),
             'graph' => $this->defaultGraph(),
             'user_id' => $request->user()->id,
             'status' => 'draft',
@@ -138,15 +139,19 @@ PY
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'code' => ['nullable', 'string'],
-            'graph' => ['nullable', 'array'],
         ]);
 
-        if (array_key_exists('code', $data) && ($flow->code ?? '') !== ($data['code'] ?? '')) {
+        $codeChanged = array_key_exists('code', $data)
+            && ($flow->code ?? '') !== ($data['code'] ?? '');
+
+        if ($codeChanged) {
             FlowHistory::create([
                 'flow_id' => $flow->id,
                 'code' => $flow->code ?? '',
                 'diff' => $this->buildDiff($flow->code ?? '', $data['code'] ?? ''),
             ]);
+
+            $data['code_updated_at'] = now();
         }
 
         $flow->update($data);

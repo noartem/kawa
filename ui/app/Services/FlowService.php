@@ -194,28 +194,12 @@ final readonly class FlowService
         }
 
         $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
-        $containerId = is_string($responseData['container_id'] ?? null)
-            ? $responseData['container_id']
-            : null;
-
-        if ($containerId !== null && $containerId !== '') {
-            $run->update([
-                'container_id' => $containerId,
-                'meta' => $responseData,
-            ]);
-
-            $flow->update([
-                'container_id' => $containerId,
-            ]);
-
-            $this->syncFlowGraphFromRuntime($flow, $containerId);
-        }
 
         $run->logs()->create([
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'level' => 'info',
-            'message' => 'Development deployment started.',
+            'message' => 'Development deployment requested.',
             'context' => $responseData,
         ]);
 
@@ -324,25 +308,6 @@ final readonly class FlowService
     private function deploymentRoot(Flow $flow, FlowRun $run): string
     {
         return storage_path(sprintf('app/flows/%d/%s/%d', $flow->id, $run->type, $run->id));
-    }
-
-    private function syncFlowGraphFromRuntime(Flow $flow, string $containerId): void
-    {
-        $maxAttempts = 10;
-
-        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
-            $graph = $this->client->containerGraph($containerId);
-
-            if (is_array($graph) && $graph !== []) {
-                $flow->update([
-                    'graph' => $graph,
-                ]);
-
-                return;
-            }
-
-            usleep(500000);
-        }
     }
 
     private function developmentRuntimeScript(): string

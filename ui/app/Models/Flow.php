@@ -19,7 +19,9 @@ class Flow extends Model
         'slug',
         'description',
         'code',
+        'code_updated_at',
         'graph',
+        'graph_generated_at',
         'status',
         'container_id',
         'entrypoint',
@@ -31,6 +33,8 @@ class Flow extends Model
 
     protected $casts = [
         'graph' => 'array',
+        'code_updated_at' => 'datetime',
+        'graph_generated_at' => 'datetime',
         'last_started_at' => 'datetime',
         'last_finished_at' => 'datetime',
         'archived_at' => 'datetime',
@@ -84,7 +88,8 @@ class Flow extends Model
         return $this->runs()->where('type', 'production')->exists();
     }
 
-    public function scopeForUser(Builder $query, User $user): void {
+    public function scopeForUser(Builder $query, User $user): void
+    {
         if ($user->can('view-all', self::class)) {
             return;
         }
