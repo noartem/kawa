@@ -16,7 +16,9 @@ class FlowActionController extends Controller
             ->route('flows.show', $flow)
             ->with(
                 $result['ok'] ? 'success' : 'error',
-                $result['ok'] ? __('flows.run.success') : __('flows.run.error')
+                $result['ok']
+                    ? __('flows.run.success')
+                    : ($result['message'] ?? __('flows.run.error'))
             );
     }
 
@@ -28,7 +30,9 @@ class FlowActionController extends Controller
             ->route('flows.show', $flow)
             ->with(
                 $result['ok'] ? 'success' : 'error',
-                $result['ok'] ? __('flows.stop.success') : __('flows.stop.error')
+                $result['ok']
+                    ? __('flows.stop.success')
+                    : ($result['message'] ?? __('flows.stop.error'))
             );
     }
 
@@ -40,7 +44,9 @@ class FlowActionController extends Controller
             ->route('flows.show', $flow)
             ->with(
                 $result['ok'] ? 'success' : 'error',
-                $result['ok'] ? __('flows.deploy.success') : __('flows.deploy.error')
+                $result['ok']
+                    ? __('flows.deploy.success')
+                    : ($result['message'] ?? __('flows.deploy.error'))
             );
     }
 
@@ -52,7 +58,9 @@ class FlowActionController extends Controller
             ->route('flows.show', $flow)
             ->with(
                 $result['ok'] ? 'success' : 'error',
-                $result['ok'] ? __('flows.undeploy.success') : __('flows.undeploy.error')
+                $result['ok']
+                    ? __('flows.undeploy.success')
+                    : ($result['message'] ?? __('flows.undeploy.error'))
             );
     }
 

@@ -3,7 +3,12 @@ import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { BreadcrumbItemType } from '@/types';
+import { usePage } from '@inertiajs/vue3';
+import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 interface Props {
     breadcrumbs?: BreadcrumbItemType[];
@@ -12,6 +17,23 @@ interface Props {
 withDefaults(defineProps<Props>(), {
     breadcrumbs: () => [],
 });
+
+const page = usePage();
+const { t } = useI18n();
+
+interface FlashPayload {
+    success?: string | null;
+    error?: string | null;
+}
+
+const flash = computed<FlashPayload>(() => {
+    const payload = page.props.flash as FlashPayload | undefined;
+
+    return payload ?? {};
+});
+
+const successMessage = computed(() => flash.value.success ?? null);
+const errorMessage = computed(() => flash.value.error ?? null);
 </script>
 
 <template>
@@ -19,6 +41,23 @@ withDefaults(defineProps<Props>(), {
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
+            <div v-if="successMessage || errorMessage" class="px-4 pt-4">
+                <div class="mx-auto max-w-7xl space-y-2">
+                    <Alert v-if="successMessage">
+                        <CheckCircle2 class="size-4" />
+                        <AlertTitle>{{ t('statuses.success') }}</AlertTitle>
+                        <AlertDescription>{{
+                            successMessage
+                        }}</AlertDescription>
+                    </Alert>
+
+                    <Alert v-if="errorMessage" variant="destructive">
+                        <AlertCircle class="size-4" />
+                        <AlertTitle>{{ t('statuses.error') }}</AlertTitle>
+                        <AlertDescription>{{ errorMessage }}</AlertDescription>
+                    </Alert>
+                </div>
+            </div>
             <slot />
         </AppContent>
     </AppShell>

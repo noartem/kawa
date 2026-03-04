@@ -7,6 +7,7 @@ and cleanup with Unix socket integration.
 """
 
 import asyncio
+import json
 import os
 import shutil
 import tempfile
@@ -774,6 +775,181 @@ class ContainerManager:
 
         except APIError as e:
             self.logger.error(e, {"operation": "list_containers"})
+            raise
+
+    async def get_container_graph(self, container_id: str) -> Dict[str, Any]:
+        """Extract runtime graph information from a flow container."""
+        try:
+            container = self.docker_client.containers.get(container_id)
+
+            script = """
+import ast
+import json
+
+FLOW_PATH = '/flow/flow.py'
+
+
+def normalize(node):
+    if isinstance(node, ast.Tuple):
+        result = []
+        for item in node.elts:
+            normalized = normalize(item)
+            if isinstance(normalized, list):
+                result.extend(normalized)
+            else:
+                result.append(normalized)
+        return result
+
+    if isinstance(node, ast.Name):
+        return node.id
+
+    if isinstance(node, ast.Attribute):
+        base = normalize(node.value)
+        if isinstance(base, str) and base:
+            return f"{base}.{node.attr}"
+
+        return node.attr
+
+    if isinstance(node, ast.Call):
+        base = normalize(node.func)
+        args = []
+        for arg in node.args:
+            if isinstance(arg, ast.Constant):
+                args.append(str(arg.value))
+            else:
+                args.append(ast.unparse(arg))
+        return f"{base}({', '.join(args)})"
+
+    return ast.unparse(node)
+
+
+def is_event_decorator(node):
+    return isinstance(node, ast.Name) and node.id == 'event'
+
+
+def is_actor_decorator(node):
+    if isinstance(node, ast.Name):
+        return node.id == 'actor'
+
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == 'actor'
+    )
+
+
+with open(FLOW_PATH, 'r', encoding='utf-8') as file_handle:
+    tree = ast.parse(file_handle.read(), FLOW_PATH)
+
+events = []
+actors = []
+nodes = []
+edges = []
+event_ids = set()
+
+for node in tree.body:
+    if isinstance(node, ast.ClassDef):
+        if any(is_event_decorator(d) for d in node.decorator_list):
+            events.append({'id': node.name, 'name': node.name})
+            nodes.append({'id': node.name, 'type': 'event', 'label': node.name})
+            event_ids.add(node.name)
+
+    if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+        actor_decorators = [d for d in node.decorator_list if is_actor_decorator(d)]
+        if not actor_decorators:
+            continue
+
+        receives = []
+        sends = []
+
+        for decorator in actor_decorators:
+            if not isinstance(decorator, ast.Call):
+                continue
+
+            for keyword in decorator.keywords:
+                if keyword.arg in ('receivs', 'receives'):
+                    normalized = normalize(keyword.value)
+                    if isinstance(normalized, list):
+                        receives.extend(normalized)
+                    else:
+                        receives.append(normalized)
+                elif keyword.arg == 'sends':
+                    normalized = normalize(keyword.value)
+                    if isinstance(normalized, list):
+                        sends.extend(normalized)
+                    else:
+                        sends.append(normalized)
+
+        actors.append(
+            {
+                'id': node.name,
+                'name': node.name,
+                'receives': receives,
+                'sends': sends,
+            }
+        )
+        nodes.append({'id': node.name, 'type': 'actor', 'label': node.name})
+
+        for receive in receives:
+            receive_name = str(receive)
+
+            if receive_name not in event_ids:
+                events.append({'id': receive_name, 'name': receive_name})
+                nodes.append(
+                    {
+                        'id': receive_name,
+                        'type': 'event',
+                        'label': receive_name,
+                    }
+                )
+                event_ids.add(receive_name)
+
+            edges.append({'from': receive_name, 'to': node.name})
+
+print(
+    json.dumps(
+        {
+            'events': events,
+            'actors': actors,
+            'nodes': nodes,
+            'edges': edges,
+        }
+    )
+)
+"""
+
+            result = container.exec_run(["python", "-c", script])
+            output = (result.output or b"").decode("utf-8", errors="ignore").strip()
+
+            if result.exit_code != 0:
+                raise RuntimeError(
+                    f"Graph extraction failed with exit code {result.exit_code}: {output}"
+                )
+
+            payload = json.loads(output)
+            if not isinstance(payload, dict):
+                raise RuntimeError("Graph extraction returned invalid payload")
+
+            self.logger.debug(
+                "Container graph extracted",
+                {
+                    "container_id": container_id,
+                    "actors": len(payload.get("actors", [])),
+                    "events": len(payload.get("events", [])),
+                },
+            )
+
+            return payload
+
+        except NotFound as e:
+            self.logger.error(
+                e, {"operation": "get_container_graph", "container_id": container_id}
+            )
+            raise
+        except (APIError, RuntimeError, json.JSONDecodeError) as e:
+            self.logger.error(
+                e, {"operation": "get_container_graph", "container_id": container_id}
+            )
             raise
 
     def _build_container_info(self, container, socket_path: str) -> ContainerInfo:

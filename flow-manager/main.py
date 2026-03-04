@@ -4,6 +4,7 @@ import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from docker.errors import NotFound
 from fastapi import FastAPI, HTTPException
 
 from container_manager import ContainerManager
@@ -11,10 +12,7 @@ from messaging import create_messaging
 from event_handler import EventHandler
 from sensivity_filter import SensivityFilter
 from socket_communication_handler import (
-    SocketCommunicationError,
     SocketCommunicationHandler,
-    SocketConnectionError,
-    SocketTimeoutError,
 )
 from system_logger import SystemLogger
 from user_activity_logger import UserActivityLogger
@@ -244,16 +242,14 @@ async def health_check():
 
 @app.get("/containers/{container_id}/graph")
 async def container_graph(container_id: str):
-    """Request the runtime actor graph from a running flow container."""
+    """Request the runtime actor graph from a flow container."""
     try:
-        await app_instance.socket_handler.send_message(
-            container_id, {"command": "dump", "data": {}}
-        )
-        graph = await app_instance.socket_handler.receive_message(
-            container_id, timeout=10
-        )
-    except (SocketConnectionError, SocketTimeoutError, SocketCommunicationError) as exc:
+        graph = await app_instance.container_manager.get_container_graph(container_id)
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     return {"container_id": container_id, "graph": graph}
 
 

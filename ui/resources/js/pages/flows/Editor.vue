@@ -32,7 +32,7 @@ import {
     Trash2,
     UploadCloud,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 interface FlowLog {
@@ -100,7 +100,7 @@ const props = defineProps<{
     developmentRuns: FlowRun[];
     productionLogs: FlowLog[];
     developmentLogs: FlowLog[];
-    status?: Record<string, any> | null;
+    status?: string | null;
     runStats: RunStat[];
     history: FlowHistory[];
     permissions: Permissions;
@@ -111,14 +111,22 @@ const props = defineProps<{
 const { t } = useI18n();
 
 const saving = ref(false);
+const emptyGraph = { nodes: [], edges: [] };
+
+const normalizeGraphText = (graph?: Record<string, unknown>) =>
+    JSON.stringify(graph ?? emptyGraph, null, 2);
+
 const form = useForm({
     name: props.flow.name,
     description: props.flow.description || '',
     code: props.flow.code || '',
-    graph: props.flow.graph || { nodes: [], edges: [] },
+    graph: props.flow.graph || emptyGraph,
 });
-const graphText = ref(JSON.stringify(form.graph, null, 2));
+const graphText = ref(normalizeGraphText(form.graph));
 const editorTab = ref<'code' | 'chat'>('code');
+const graphOutdated = ref(false);
+const lastFlowCode = ref(props.flow.code || '');
+const lastFlowGraphText = ref(normalizeGraphText(props.flow.graph));
 
 watch(
     graphText,
@@ -130,6 +138,26 @@ watch(
         }
     },
     { flush: 'post' },
+);
+
+watch(
+    () => [props.flow.code, props.flow.graph] as const,
+    ([nextCodeValue, nextGraph]) => {
+        const nextCode = nextCodeValue || '';
+        const nextGraphText = normalizeGraphText(nextGraph);
+        const codeChanged = nextCode !== lastFlowCode.value;
+        const graphChanged = nextGraphText !== lastFlowGraphText.value;
+
+        if (graphChanged) {
+            graphText.value = nextGraphText;
+            graphOutdated.value = false;
+        } else if (codeChanged) {
+            graphOutdated.value = true;
+        }
+
+        lastFlowCode.value = nextCode;
+        lastFlowGraphText.value = nextGraphText;
+    },
 );
 
 const statusTone = (status?: string | null) => {
@@ -154,6 +182,88 @@ const statusTone = (status?: string | null) => {
 
 const saveLabel = computed(() => t('flows.actions.save'));
 const canSave = computed(() => props.permissions.canUpdate);
+const actionInProgress = ref<
+    'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
+>(null);
+const refreshInFlight = ref(false);
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+const refreshOnlyProps = [
+    'flow',
+    'productionRun',
+    'developmentRun',
+    'productionRuns',
+    'developmentRuns',
+    'productionLogs',
+    'developmentLogs',
+    'runStats',
+    'recentFlows',
+    'flash',
+] as const;
+
+const refreshFlowView = () => {
+    if (refreshInFlight.value) {
+        return;
+    }
+
+    refreshInFlight.value = true;
+
+    router.reload({
+        preserveState: true,
+        preserveScroll: true,
+        only: [...refreshOnlyProps],
+        onFinish: () => {
+            refreshInFlight.value = false;
+        },
+    });
+};
+
+const startRefreshPolling = () => {
+    if (refreshTimer !== null) {
+        return;
+    }
+
+    refreshTimer = setInterval(() => {
+        refreshFlowView();
+    }, 3000);
+};
+
+const stopRefreshPolling = () => {
+    if (refreshTimer === null) {
+        return;
+    }
+
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+};
+
+const submitAction = (
+    action: NonNullable<typeof actionInProgress.value>,
+    url: string,
+) => {
+    if (actionInProgress.value !== null) {
+        return;
+    }
+
+    actionInProgress.value = action;
+
+    router.post(
+        url,
+        {},
+        {
+            preserveState: true,
+            preserveScroll: true,
+            only: [...refreshOnlyProps],
+            onFinish: () => {
+                actionInProgress.value = null;
+            },
+        },
+    );
+};
+
+onBeforeUnmount(() => {
+    stopRefreshPolling();
+});
 
 const save = () => {
     if (!canSave.value) return;
@@ -169,32 +279,32 @@ const save = () => {
 
 const runFlow = () => {
     if (!props.permissions.canRun) return;
-    router.post(`/flows/${props.flow.id}/run`);
+    submitAction('run', `/flows/${props.flow.id}/run`);
 };
 
 const stopFlow = () => {
     if (!props.permissions.canRun) return;
-    router.post(`/flows/${props.flow.id}/stop`);
+    submitAction('stop', `/flows/${props.flow.id}/stop`);
 };
 
 const deployProd = () => {
     if (!props.permissions.canRun) return;
-    router.post(`/flows/${props.flow.id}/deploy`);
+    submitAction('deploy', `/flows/${props.flow.id}/deploy`);
 };
 
 const undeployProd = () => {
     if (!props.permissions.canRun) return;
-    router.post(`/flows/${props.flow.id}/undeploy`);
+    submitAction('undeploy', `/flows/${props.flow.id}/undeploy`);
 };
 
 const archiveFlow = () => {
     if (!props.permissions.canUpdate) return;
-    router.post(`/flows/${props.flow.id}/archive`);
+    submitAction('archive', `/flows/${props.flow.id}/archive`);
 };
 
 const restoreFlow = () => {
     if (!props.permissions.canUpdate) return;
-    router.post(`/flows/${props.flow.id}/restore`);
+    submitAction('restore', `/flows/${props.flow.id}/restore`);
 };
 
 const breadcrumbs = computed<BreadcrumbItem[]>(() => [
@@ -257,6 +367,11 @@ const formatDuration = (start?: string | null, end?: string | null) => {
 const hasActiveDeploys = computed(() =>
     Boolean(props.productionRun?.active || props.developmentRun?.active),
 );
+const shouldPollForUpdates = computed(
+    () =>
+        (hasActiveDeploys.value || graphOutdated.value) &&
+        actionInProgress.value === null,
+);
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.developmentRun);
 const isArchived = computed(() => Boolean(props.flow.archived_at));
@@ -272,6 +387,20 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
     type === 'production'
         ? t('environments.production')
         : t('environments.development');
+
+watch(
+    shouldPollForUpdates,
+    (shouldPoll) => {
+        if (shouldPoll) {
+            startRefreshPolling();
+
+            return;
+        }
+
+        stopRefreshPolling();
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -324,7 +453,9 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                         <Button
                             v-if="currentProduction?.active"
                             variant="outline"
-                            :disabled="!permissions.canRun"
+                            :disabled="
+                                !permissions.canRun || actionInProgress !== null
+                            "
                             @click="undeployProd"
                         >
                             <Square class="size-4" />
@@ -332,7 +463,9 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                         </Button>
                         <Button
                             v-else
-                            :disabled="!permissions.canRun"
+                            :disabled="
+                                !permissions.canRun || actionInProgress !== null
+                            "
                             @click="deployProd"
                         >
                             <UploadCloud class="size-4" />
@@ -567,14 +700,20 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                         <div class="flex flex-wrap items-center gap-2">
                             <Button
                                 variant="outline"
-                                :disabled="!permissions.canRun"
+                                :disabled="
+                                    !permissions.canRun ||
+                                    actionInProgress !== null
+                                "
                                 @click="stopFlow"
                             >
                                 <Square class="size-4" />
                                 {{ t('actions.stop') }}
                             </Button>
                             <Button
-                                :disabled="!permissions.canRun"
+                                :disabled="
+                                    !permissions.canRun ||
+                                    actionInProgress !== null
+                                "
                                 @click="runFlow"
                             >
                                 <Play class="size-4" />
@@ -659,7 +798,12 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                                         <Textarea
                                             id="flow-graph"
                                             v-model="graphText"
-                                            class="font-mono text-xs"
+                                            :class="[
+                                                'font-mono text-xs transition-colors',
+                                                graphOutdated
+                                                    ? 'border-muted-foreground/40 bg-muted/60 text-muted-foreground'
+                                                    : '',
+                                            ]"
                                             rows="10"
                                         />
                                         <p
@@ -1027,7 +1171,9 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                             v-if="!isArchived"
                             variant="outline"
                             :disabled="
-                                !permissions.canUpdate || hasActiveDeploys
+                                !permissions.canUpdate ||
+                                hasActiveDeploys ||
+                                actionInProgress !== null
                             "
                             @click="archiveFlow"
                         >
@@ -1037,7 +1183,10 @@ const runTypeLabel = (type?: FlowRun['type'] | null) =>
                         <Button
                             v-else
                             variant="outline"
-                            :disabled="!permissions.canUpdate"
+                            :disabled="
+                                !permissions.canUpdate ||
+                                actionInProgress !== null
+                            "
                             @click="restoreFlow"
                         >
                             <Archive class="size-4" />

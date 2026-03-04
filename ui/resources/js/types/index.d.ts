@@ -63,6 +63,10 @@ export type AppPageProps<
     locale: string;
     locales: string[];
     sidebarOpen: boolean;
+    flash?: {
+        success?: string | null;
+        error?: string | null;
+    };
     recentFlows?: FlowSidebarItem[];
 };
 

@@ -49,6 +49,7 @@ class EventHandler:
             "delete_container": self.handle_delete_container,
             "send_message": self.handle_send_message,
             "get_container_status": self.handle_get_status,
+            "get_container_graph": self.handle_get_container_graph,
             "list_containers": self.handle_list_containers,
             "generate_lock": self.handle_generate_lock,
         }
@@ -269,6 +270,13 @@ class EventHandler:
             event_data.container_id
         )
         return self._serialize_status(status)
+
+    async def handle_get_container_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        event_data = ContainerOperationEvent(**data)
+        graph = await self.container_manager.get_container_graph(
+            event_data.container_id
+        )
+        return {"container_id": event_data.container_id, "graph": graph}
 
     async def handle_list_containers(self, data: Dict[str, Any]) -> Dict[str, Any]:
         containers = await self.container_manager.list_containers()

@@ -51,6 +51,8 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
+- All integration between `ui/` and `flow-manager/` must go through RabbitMQ (message-broker).
+- Direct HTTP calls from `ui/` to `flow-manager/` are not allowed.
 
 ## Frontend Bundling
 

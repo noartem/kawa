@@ -6,6 +6,7 @@ including creation, start/stop operations, and cleanup.
 """
 
 import os
+import json
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -119,6 +120,27 @@ class TestContainerManager:
         # Execute & Assert
         with pytest.raises(ImageNotFound):
             await container_manager.create_container(sample_container_config)
+
+    @pytest.mark.asyncio
+    async def test_get_container_graph_success(self, container_manager, mock_container):
+        """Test extracting graph payload from container exec output."""
+        container_manager.docker_client.containers.get.return_value = mock_container
+
+        graph_payload = {
+            "events": [{"id": "CronEvent", "name": "CronEvent"}],
+            "actors": [{"id": "Starter", "name": "Starter", "receives": []}],
+            "nodes": [{"id": "Starter", "type": "actor", "label": "Starter"}],
+            "edges": [],
+        }
+        mock_container.exec_run.return_value = MagicMock(
+            exit_code=0,
+            output=json.dumps(graph_payload).encode("utf-8"),
+        )
+
+        result = await container_manager.get_container_graph("test-container-id")
+
+        assert result == graph_payload
+        mock_container.exec_run.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_start_container_success(self, container_manager, mock_container):

@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
+use RuntimeException;
 use Throwable;
 
 class FlowManagerClient
@@ -21,8 +22,7 @@ class FlowManagerClient
         private readonly ?string $responseQueue = null,
         private readonly ?string $eventExchange = null,
         private readonly ?int $timeoutMs = null,
-    ) {
-    }
+    ) {}
 
     public function __destruct()
     {
@@ -46,7 +46,7 @@ class FlowManagerClient
 
     public function createContainer(array $payload): array
     {
-        return $this->run('create_container', $payload);
+        return $this->run('create_container', $payload, waitForResponse: true);
     }
 
     public function startContainer(string $containerId): array
@@ -79,12 +79,47 @@ class FlowManagerClient
         return $this->run('generate_lock', $payload);
     }
 
-    protected function run(string $action, array $payload = []): array
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function containerGraph(string $containerId): ?array
     {
+        $response = $this->run(
+            'get_container_graph',
+            ['container_id' => $containerId],
+            waitForResponse: true,
+        );
+
+        if (($response['ok'] ?? false) !== true) {
+            Log::debug('flow-manager graph request failed', [
+                'container_id' => $containerId,
+                'message' => $response['message'] ?? 'Unknown error',
+            ]);
+
+            return null;
+        }
+
+        $payload = $response['data'] ?? null;
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $graph = $payload['graph'] ?? null;
+
+        return is_array($graph) ? $graph : null;
+    }
+
+    protected function run(string $action, array $payload = [], bool $waitForResponse = false): array
+    {
+        $replyQueue = null;
+
         try {
             $this->connect();
 
             $correlationId = (string) Str::uuid();
+            if ($waitForResponse) {
+                $replyQueue = $this->declareReplyQueue();
+            }
 
             $messagePayload = [
                 'action' => $action,
@@ -92,13 +127,23 @@ class FlowManagerClient
                 'correlation_id' => $correlationId,
             ];
 
+            if ($replyQueue !== null) {
+                $messagePayload['reply_to'] = $replyQueue;
+            }
+
+            $properties = [
+                'content_type' => 'application/json',
+                'delivery_mode' => 2,
+                'correlation_id' => $correlationId,
+            ];
+
+            if ($replyQueue !== null) {
+                $properties['reply_to'] = $replyQueue;
+            }
+
             $message = new AMQPMessage(
                 json_encode($messagePayload, JSON_THROW_ON_ERROR),
-                [
-                    'content_type' => 'application/json',
-                    'delivery_mode' => 2,
-                    'correlation_id' => $correlationId,
-                ],
+                $properties,
             );
 
             $this->channel?->basic_publish(
@@ -107,11 +152,17 @@ class FlowManagerClient
                 'command.'.$action,
             );
 
-            return [
-                'ok' => true,
-                'message' => 'Command published to RabbitMQ',
-                'correlation_id' => $correlationId,
-            ];
+            if (! $waitForResponse) {
+                return [
+                    'ok' => true,
+                    'message' => 'Command published to RabbitMQ',
+                    'correlation_id' => $correlationId,
+                ];
+            }
+
+            $responsePayload = $this->awaitResponse($replyQueue, $correlationId, $action);
+
+            return $this->normalizeResponse($responsePayload, $correlationId);
         } catch (Throwable $exception) {
             Log::error('flow-manager command failed', [
                 'action' => $action,
@@ -123,6 +174,102 @@ class FlowManagerClient
                 'ok' => false,
                 'message' => $exception->getMessage(),
             ];
+        } finally {
+            if ($replyQueue !== null) {
+                $this->deleteReplyQueue($replyQueue);
+            }
+        }
+    }
+
+    private function declareReplyQueue(): string
+    {
+        if (! $this->channel) {
+            throw new RuntimeException('AMQP channel is not initialized');
+        }
+
+        [$queueName] = $this->channel->queue_declare(
+            '',
+            false,
+            false,
+            true,
+            true,
+        );
+
+        return (string) $queueName;
+    }
+
+    private function awaitResponse(string $replyQueue, string $correlationId, string $action): array
+    {
+        if (! $this->channel) {
+            throw new RuntimeException('AMQP channel is not initialized');
+        }
+
+        $deadline = microtime(true) + $this->responseTimeoutSeconds();
+
+        while (microtime(true) < $deadline) {
+            $response = $this->channel->basic_get($replyQueue, true);
+
+            if (! $response) {
+                usleep(50000);
+
+                continue;
+            }
+
+            $messageCorrelationId = (string) ($response->get('correlation_id') ?? '');
+            if ($messageCorrelationId !== '' && $messageCorrelationId !== $correlationId) {
+                continue;
+            }
+
+            $decoded = json_decode($response->getBody(), true);
+            if (! is_array($decoded)) {
+                throw new RuntimeException('Invalid response from flow-manager');
+            }
+
+            return $decoded;
+        }
+
+        throw new RuntimeException("Flow-manager response timeout for action '{$action}'");
+    }
+
+    /**
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    private function normalizeResponse(array $response, string $correlationId): array
+    {
+        if (($response['error'] ?? false) === true || ($response['ok'] ?? true) === false) {
+            $message = $response['message'] ?? 'Flow-manager command failed';
+
+            return [
+                'ok' => false,
+                'message' => is_string($message) ? $message : 'Flow-manager command failed',
+                'error_type' => $response['error_type'] ?? null,
+                'details' => $response['details'] ?? [],
+                'correlation_id' => $correlationId,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'Command processed by flow-manager',
+            'correlation_id' => $correlationId,
+            'data' => $response['data'] ?? null,
+        ];
+    }
+
+    private function deleteReplyQueue(string $replyQueue): void
+    {
+        if (! $this->channel) {
+            return;
+        }
+
+        try {
+            $this->channel->queue_delete($replyQueue);
+        } catch (Throwable $exception) {
+            Log::debug('failed to delete temporary flow-manager queue', [
+                'queue' => $replyQueue,
+                'exception' => $exception->getMessage(),
+            ]);
         }
     }
 
@@ -184,6 +331,13 @@ class FlowManagerClient
     private function timeoutSeconds(): float
     {
         return ($this->timeoutMs ?? (int) config('services.flow_manager.timeout', 8000)) / 1000;
+    }
+
+    private function responseTimeoutSeconds(): float
+    {
+        $configured = (int) config('services.flow_manager.response_timeout', 45000);
+
+        return max($configured, 1000) / 1000;
     }
 
     private function eventExchangeName(): string

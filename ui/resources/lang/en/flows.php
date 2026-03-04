@@ -10,6 +10,7 @@ return [
     'run' => [
         'success' => 'Flow started.',
         'error' => 'Failed to start flow.',
+        'image_not_found' => 'Docker image ":image" not found. Build it with: docker build -t :image -f flow/Dockerfile .',
     ],
     'stop' => [
         'success' => 'Flow stopped.',

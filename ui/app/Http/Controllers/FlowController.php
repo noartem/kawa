@@ -17,13 +17,23 @@ class FlowController extends Controller
     private const TEMPLATES = [
         'blank' => '',
         'cron' => <<<'PY'
-from kawa import actor, event, NotSupportedEvent, Context
+from kawa import actor, event, Context
 from kawa.cron import CronEvent
 
 
-@actor(receivs=CronEvent.by("0 8 * * *"))
+@event
+class MorningMessageEvent:
+    message: str
+
+
+@actor(receivs=CronEvent.by("0 8 * * *"), sends=MorningMessageEvent)
+def PrepareMorningMessage(ctx: Context, event):
+    ctx.dispatch(MorningMessageEvent(message="Good morning!"))
+
+
+@actor(receivs=MorningMessageEvent)
 def MorningActor(ctx: Context, event):
-    print("Good morning!")
+    print(event.message)
 PY
         ,
         'webhook' => <<<'PY'
@@ -201,7 +211,7 @@ PY
     private function buildDiff(string $from, string $to): string
     {
         if (function_exists('xdiff_string_diff')) {
-            $diff = xdiff_string_diff($from, $to, 1);
+            $diff = call_user_func('xdiff_string_diff', $from, $to, 1);
             if (is_string($diff)) {
                 return $diff;
             }

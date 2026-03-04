@@ -10,6 +10,7 @@ return [
     'run' => [
         'success' => 'Поток запущен.',
         'error' => 'Не удалось запустить поток.',
+        'image_not_found' => 'Docker-образ ":image" не найден. Соберите его командой: docker build -t :image -f flow/Dockerfile .',
     ],
     'stop' => [
         'success' => 'Поток остановлен.',

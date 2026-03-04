@@ -96,3 +96,27 @@ async def test_handle_send_message_error():
     error_response = messaging.published_responses[0]["payload"]
     assert error_response["error"] is True
     assert error_response["error_type"] == "system_error"
+
+
+@pytest.mark.asyncio
+async def test_handle_get_container_graph_success():
+    handler, messaging, container_manager, _, _ = _make_handler()
+    container_manager.get_container_graph = AsyncMock(
+        return_value={"actors": [{"id": "a1"}], "events": []}
+    )
+
+    payload = {
+        "action": "get_container_graph",
+        "data": {"container_id": "cid"},
+    }
+
+    await handler._dispatch_command(payload, message=None)
+
+    container_manager.get_container_graph.assert_awaited_once_with("cid")
+    assert messaging.published_responses
+    response = messaging.published_responses[0]["payload"]
+    assert response["ok"] is True
+    assert response["data"] == {
+        "container_id": "cid",
+        "graph": {"actors": [{"id": "a1"}], "events": []},
+    }

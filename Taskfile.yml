@@ -51,3 +51,4 @@ tasks:
       - task: compose-exec
         vars:
           COMMAND: /bin/zsh -c "{{.CLI_ARGS}}"
+

@@ -58,6 +58,7 @@ Follow existing conventions and keep changes minimal.
 - Do not change dependencies without approval.
 - Keep commits and diffs minimal; avoid drive-by refactors.
 - For system wide issues, fix `.sandbox/compose.yml` and `.sandbox/Dockerfile` first.
+- All communication between `ui/` and `flow-manager/` must go through RabbitMQ (message-broker). Direct HTTP calls between these services are not allowed.
 
 ### PHP/Laravel (applies in `ui/`)
 
