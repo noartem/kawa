@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Flow;
 use App\Models\FlowHistory;
+use App\Models\FlowRun;
 use App\Services\FlowService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -109,6 +111,7 @@ PY
         $productionLogs = $productionRun?->logs()->latest()->limit(50)->get() ?? collect();
         $developmentLogs = $developmentRun?->logs()->latest()->limit(50)->get() ?? collect();
         $history = $flow->histories()->latest()->limit(10)->get();
+        $deployments = $this->buildDeployments($flow);
         $viewMode = $request->user()->can('update', $flow) ? 'development' : 'production';
 
         return Inertia::render('flows/Editor', [
@@ -123,6 +126,7 @@ PY
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
+            'deployments' => $deployments,
             'permissions' => [
                 'canRun' => $request->user()->can('run', $flow),
                 'canUpdate' => $request->user()->can('update', $flow),
@@ -211,6 +215,230 @@ PY
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDeployments(Flow $flow): array
+    {
+        $runs = $flow->runs()
+            ->latest('created_at')
+            ->orderByDesc('id')
+            ->limit(12)
+            ->get();
+
+        if ($runs->isEmpty()) {
+            return [];
+        }
+
+        $historyTimeline = $flow->histories()
+            ->orderBy('created_at')
+            ->get();
+
+        $runIds = $runs->pluck('id')->all();
+        $logsByRunId = $flow->logs()
+            ->whereIn('flow_run_id', $runIds)
+            ->latest()
+            ->get()
+            ->groupBy('flow_run_id');
+
+        return $runs->map(function (FlowRun $run) use ($flow, $historyTimeline, $logsByRunId): array {
+            $runLogs = ($logsByRunId->get($run->id) ?? collect())
+                ->take(50)
+                ->values();
+
+            return [
+                'id' => $run->id,
+                'type' => $run->type,
+                'active' => (bool) $run->active,
+                'status' => $run->status,
+                'container_id' => $run->container_id,
+                'lock' => $run->lock,
+                'actors' => $run->actors,
+                'events' => $run->events,
+                'meta' => $run->meta,
+                'started_at' => $run->started_at,
+                'finished_at' => $run->finished_at,
+                'created_at' => $run->created_at,
+                'updated_at' => $run->updated_at,
+                'code' => $this->resolveRunCodeSnapshot($run, $flow, $historyTimeline),
+                'graph' => $this->resolveRunGraphSnapshot($run),
+                'logs' => $runLogs
+                    ->map(static fn ($log) => [
+                        'id' => $log->id,
+                        'level' => $log->level,
+                        'message' => $log->message,
+                        'node_key' => $log->node_key,
+                        'context' => $log->context,
+                        'created_at' => $log->created_at,
+                    ])
+                    ->all(),
+            ];
+        })->values()->all();
+    }
+
+    private function resolveRunCodeSnapshot(FlowRun $run, Flow $flow, Collection $historyTimeline): string
+    {
+        if (is_string($run->code_snapshot) && $run->code_snapshot !== '') {
+            return $run->code_snapshot;
+        }
+
+        $runMoment = $run->started_at ?? $run->created_at;
+
+        if (! $runMoment) {
+            return $flow->code ?? '';
+        }
+
+        $nextHistory = $historyTimeline->first(
+            static fn (FlowHistory $history): bool => $history->created_at !== null
+                && $history->created_at->greaterThan($runMoment),
+        );
+
+        if ($nextHistory instanceof FlowHistory) {
+            return $nextHistory->code ?? '';
+        }
+
+        return $flow->code ?? '';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveRunGraphSnapshot(FlowRun $run): ?array
+    {
+        if (is_array($run->graph_snapshot) && $run->graph_snapshot !== []) {
+            return $run->graph_snapshot;
+        }
+
+        return $this->buildGraphFromRuntimeData($run->events, $run->actors);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function buildGraphFromRuntimeData(mixed $events, mixed $actors): ?array
+    {
+        if (! is_array($events) && ! is_array($actors)) {
+            return null;
+        }
+
+        $graphEvents = is_array($events) ? $events : [];
+        $graphActors = is_array($actors) ? $actors : [];
+        $nodesById = [];
+        $edgesById = [];
+
+        foreach ($graphEvents as $event) {
+            $eventId = $this->resolveEntityId($event);
+
+            if ($eventId === null) {
+                continue;
+            }
+
+            $nodesById[$eventId] = [
+                'id' => $eventId,
+                'type' => 'event',
+                'label' => $eventId,
+            ];
+        }
+
+        foreach ($graphActors as $actor) {
+            if (! is_array($actor)) {
+                continue;
+            }
+
+            $actorId = $this->resolveEntityId($actor);
+
+            if ($actorId === null) {
+                continue;
+            }
+
+            $nodesById[$actorId] = [
+                'id' => $actorId,
+                'type' => 'actor',
+                'label' => $actorId,
+            ];
+
+            $receives = $actor['receives'] ?? [];
+            if (is_string($receives)) {
+                $receives = [$receives];
+            }
+
+            foreach ($receives as $receive) {
+                $eventId = $this->resolveEntityId($receive);
+
+                if ($eventId === null) {
+                    continue;
+                }
+
+                $nodesById[$eventId] = [
+                    'id' => $eventId,
+                    'type' => 'event',
+                    'label' => $eventId,
+                ];
+
+                $edgeKey = $eventId.'->'.$actorId;
+                $edgesById[$edgeKey] = [
+                    'from' => $eventId,
+                    'to' => $actorId,
+                ];
+            }
+
+            $sends = $actor['sends'] ?? [];
+            if (is_string($sends)) {
+                $sends = [$sends];
+            }
+
+            foreach ($sends as $send) {
+                $eventId = $this->resolveEntityId($send);
+
+                if ($eventId === null) {
+                    continue;
+                }
+
+                $nodesById[$eventId] = [
+                    'id' => $eventId,
+                    'type' => 'event',
+                    'label' => $eventId,
+                ];
+
+                $edgeKey = $actorId.'->'.$eventId;
+                $edgesById[$edgeKey] = [
+                    'from' => $actorId,
+                    'to' => $eventId,
+                ];
+            }
+        }
+
+        if ($nodesById === [] && $edgesById === []) {
+            return null;
+        }
+
+        return [
+            'events' => $graphEvents,
+            'actors' => $graphActors,
+            'nodes' => array_values($nodesById),
+            'edges' => array_values($edgesById),
+        ];
+    }
+
+    private function resolveEntityId(mixed $value): ?string
+    {
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $id = $value['id'] ?? $value['name'] ?? null;
+
+        if (! is_string($id) || $id === '') {
+            return null;
+        }
+
+        return $id;
     }
 
     private function buildDiff(string $from, string $to): string

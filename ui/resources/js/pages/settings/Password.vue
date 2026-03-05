@@ -5,8 +5,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { edit } from '@/routes/user-password';
 import { Form, Head } from '@inertiajs/vue3';
-import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 import HeadingSmall from '@/components/HeadingSmall.vue';
 import { Button } from '@/components/ui/button';
@@ -50,20 +50,26 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
                     v-slot="{ errors, processing, recentlySuccessful }"
                 >
                     <div class="grid gap-2">
-                        <Label for="current_password">{{ t('forms.current_password') }}</Label>
+                        <Label for="current_password">{{
+                            t('forms.current_password')
+                        }}</Label>
                         <Input
                             id="current_password"
                             name="current_password"
                             type="password"
                             class="mt-1 block w-full"
                             autocomplete="current-password"
-                            :placeholder="t('forms.current_password_placeholder')"
+                            :placeholder="
+                                t('forms.current_password_placeholder')
+                            "
                         />
                         <InputError :message="errors.current_password" />
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="password">{{ t('forms.new_password') }}</Label>
+                        <Label for="password">{{
+                            t('forms.new_password')
+                        }}</Label>
                         <Input
                             id="password"
                             name="password"
@@ -76,14 +82,18 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => [
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="password_confirmation">{{ t('forms.confirm_password') }}</Label>
+                        <Label for="password_confirmation">{{
+                            t('forms.confirm_password')
+                        }}</Label>
                         <Input
                             id="password_confirmation"
                             name="password_confirmation"
                             type="password"
                             class="mt-1 block w-full"
                             autocomplete="new-password"
-                            :placeholder="t('forms.confirm_password_placeholder')"
+                            :placeholder="
+                                t('forms.confirm_password_placeholder')
+                            "
                         />
                         <InputError :message="errors.password_confirmation" />
                     </div>

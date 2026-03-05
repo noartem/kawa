@@ -44,7 +44,9 @@ onMounted(async () => {
     <Card class="w-full">
         <CardHeader>
             <CardTitle class="flex gap-3">
-                <LockKeyhole class="size-4" />{{ t('settings.two_factor.recovery.title') }}
+                <LockKeyhole class="size-4" />{{
+                    t('settings.two_factor.recovery.title')
+                }}
             </CardTitle>
             <CardDescription>
                 {{ t('settings.two_factor.recovery.description') }}
@@ -79,7 +81,8 @@ onMounted(async () => {
                         type="submit"
                         :disabled="processing"
                     >
-                        <RefreshCw /> {{ t('settings.two_factor.recovery.regenerate') }}
+                        <RefreshCw />
+                        {{ t('settings.two_factor.recovery.regenerate') }}
                     </Button>
                 </Form>
             </div>
@@ -116,7 +119,9 @@ onMounted(async () => {
                     </div>
                     <p class="text-xs text-muted-foreground select-none">
                         {{ t('settings.two_factor.recovery.note_prefix') }}
-                        <span class="font-bold">{{ t('settings.two_factor.recovery.regenerate') }}</span>
+                        <span class="font-bold">{{
+                            t('settings.two_factor.recovery.regenerate')
+                        }}</span>
                         {{ t('settings.two_factor.recovery.note_suffix') }}
                     </p>
                 </div>

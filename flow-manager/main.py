@@ -3,6 +3,7 @@ import os
 import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from docker.errors import NotFound
 from fastapi import FastAPI, HTTPException
@@ -72,6 +73,7 @@ class FlowManagerApp:
         self._background_tasks = []
         self._shutdown_lock = asyncio.Lock()
         self._started = False
+        self._last_published_container_status: dict[str, dict[str, Any]] = {}
 
         self.logger.debug(
             "FlowManagerApp initialized",
@@ -159,6 +161,9 @@ class FlowManagerApp:
                     break
 
                 containers = await self.container_manager.list_containers()
+                active_container_ids = {container.id for container in containers}
+                self._prune_status_cache(active_container_ids)
+
                 for container in containers:
                     try:
                         status = await self.container_manager.get_container_status(
@@ -166,6 +171,15 @@ class FlowManagerApp:
                         )
                         state = getattr(status.state, "value", status.state)
                         health = getattr(status.health, "value", status.health)
+
+                        if not self._should_publish_container_status(
+                            container.id,
+                            state,
+                            health,
+                            status.socket_connected,
+                        ):
+                            continue
+
                         await self.messaging.publish_event(
                             "container_status_update",
                             {
@@ -194,6 +208,33 @@ class FlowManagerApp:
             except Exception as exc:
                 self.logger.error(exc, {"operation": "health_check_loop"})
                 await asyncio.sleep(5)
+
+    def _should_publish_container_status(
+        self,
+        container_id: str,
+        state: str,
+        health: str,
+        socket_connected: bool,
+    ) -> bool:
+        status_snapshot = {
+            "state": state,
+            "health": health,
+            "socket_connected": socket_connected,
+        }
+        if self._last_published_container_status.get(container_id) == status_snapshot:
+            return False
+
+        self._last_published_container_status[container_id] = status_snapshot
+        return True
+
+    def _prune_status_cache(self, container_ids: set[str]) -> None:
+        stale_ids = [
+            container_id
+            for container_id in self._last_published_container_status
+            if container_id not in container_ids
+        ]
+        for container_id in stale_ids:
+            self._last_published_container_status.pop(container_id, None)
 
 
 app_instance = FlowManagerApp()

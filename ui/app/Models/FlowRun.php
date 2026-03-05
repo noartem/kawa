@@ -21,6 +21,8 @@ class FlowRun extends Model
         'lock',
         'actors',
         'events',
+        'code_snapshot',
+        'graph_snapshot',
         'started_at',
         'finished_at',
     ];
@@ -31,6 +33,8 @@ class FlowRun extends Model
         'lock' => 'string',
         'actors' => 'array',
         'events' => 'array',
+        'code_snapshot' => 'string',
+        'graph_snapshot' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];

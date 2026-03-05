@@ -125,6 +125,11 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $this->assertTrue($result['ok']);
 
+        $run = $flow->runs()->latest('id')->first();
+        $this->assertNotNull($run);
+        $this->assertSame($flow->code, $run->code_snapshot);
+        $this->assertSame($flow->graph, $run->graph_snapshot);
+
         $flow->refresh();
         $this->assertSame(['nodes' => [], 'edges' => []], $flow->graph);
     }
@@ -138,6 +143,15 @@ class FlowRunErrorHandlingTest extends TestCase
             'code_updated_at' => now(),
             'graph' => ['nodes' => [], 'edges' => []],
             'graph_generated_at' => null,
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now(),
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
         $client = $this->mock(FlowManagerClient::class);
@@ -160,14 +174,18 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $job = new ProcessFlowManagerEvent('container_created', [
             'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
             'container_id' => 'container-id-1',
         ]);
         $job->handle();
 
         $flow->refresh();
+        $run->refresh();
 
         $this->assertNotNull($flow->graph_generated_at);
         $this->assertNotEmpty($flow->graph['nodes'] ?? []);
         $this->assertNotEmpty($flow->graph['edges'] ?? []);
+        $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
+        $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
     }
 }

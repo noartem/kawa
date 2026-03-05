@@ -62,7 +62,9 @@ const { t } = useI18n();
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">{{ t('forms.confirm_password') }}</Label>
+                    <Label for="password_confirmation">{{
+                        t('forms.confirm_password')
+                    }}</Label>
                     <Input
                         id="password_confirmation"
                         type="password"

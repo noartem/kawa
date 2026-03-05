@@ -35,9 +35,12 @@ export const messages = {
             stop: 'Stop',
         },
         common: {
-            empty: '—',
+            empty: '-',
             unknown: 'unknown',
+            status: 'Status',
+            outdated: 'Outdated',
             logs: 'Logs',
+            updated_at: 'Updated',
             started: 'Started',
             finished: 'Finished',
             today: 'Today',
@@ -63,6 +66,7 @@ export const messages = {
             failed: 'failed',
             locking: 'locking',
             locked: 'locked',
+            deploying: 'deploying',
             ready: 'ready',
             success: 'success',
             lock_failed: 'lock failed',
@@ -327,10 +331,17 @@ export const messages = {
                 events: 'Events',
                 duration: 'Duration',
             },
+            graph: {
+                open_fullscreen: 'Open fullscreen',
+                fullscreen_title: 'Flow graph',
+                interaction_hint: 'Drag to move, use wheel to zoom.',
+                zoom_in: 'Zoom in',
+                zoom_out: 'Zoom out',
+                reset_view: 'Reset view',
+            },
             logs: {
-                empty_current: 'No logs for the current deployment.',
                 empty_dev: 'Logs will appear after the test deployment starts.',
-                empty: 'Message is empty.',
+                empty: 'No logs for the deployment.',
                 node: 'Node: {node}',
             },
             summary: {
@@ -352,6 +363,7 @@ export const messages = {
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
+                    changes: 'Changes',
                     hint: 'Write code or chat to update it.',
                 },
                 code_label: 'Code editor',
@@ -363,6 +375,11 @@ export const messages = {
                         'Last question: “How do I optimize the actor?”',
                     example_answer:
                         'Answer: “Try moving IO into a separate step.”',
+                },
+                changes: {
+                    empty_title: 'No changes yet',
+                    empty_description:
+                        'Save code updates to build a change history for this flow.',
                 },
                 readonly: {
                     title: 'Editor unavailable',
@@ -391,6 +408,16 @@ export const messages = {
                 description: 'History of discussions and hints',
                 example_today: 'How do I add a webhook to prod?',
                 example_yesterday: 'Cron schedule optimization',
+            },
+            health: {
+                title: 'Health',
+                errors: 'Errors: {count}',
+            },
+            deployments: {
+                title: 'Deployments',
+                description:
+                    'Complete deployment snapshots with runtime details.',
+                logs: 'Logs',
             },
             settings: {
                 title: 'Settings',
@@ -459,7 +486,10 @@ export const messages = {
         common: {
             empty: '—',
             unknown: 'неизвестно',
+            status: 'Статус',
+            outdated: 'Outdated',
             logs: 'Логи',
+            updated_at: 'Обновлено',
             started: 'Старт',
             finished: 'Финиш',
             today: 'Сегодня',
@@ -485,6 +515,7 @@ export const messages = {
             failed: 'ошибка',
             locking: 'блокировка',
             locked: 'заблокирован',
+            deploying: 'деплой',
             ready: 'готов',
             success: 'успешно',
             lock_failed: 'ошибка блокировки',
@@ -747,10 +778,18 @@ export const messages = {
                 events: 'События',
                 duration: 'Длительность',
             },
+            graph: {
+                open_fullscreen: 'Открыть на весь экран',
+                fullscreen_title: 'Граф потока',
+                interaction_hint:
+                    'Перетаскивайте для перемещения, колесо мыши для зума.',
+                zoom_in: 'Увеличить',
+                zoom_out: 'Уменьшить',
+                reset_view: 'Сбросить вид',
+            },
             logs: {
-                empty_current: 'Нет логов для текущего деплоя.',
                 empty_dev: 'Логи появятся после старта тестового деплоя.',
-                empty: 'Сообщение пустое.',
+                empty: 'У деплоя нет логов.',
                 node: 'Нода: {node}',
             },
             summary: {
@@ -772,6 +811,7 @@ export const messages = {
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',
+                    changes: 'Изменения',
                     hint: 'Пишите код или общайтесь с чатом, который его изменит.',
                 },
                 code_label: 'Редактор кода',
@@ -783,6 +823,11 @@ export const messages = {
                         'Последний вопрос: «Как оптимизировать актор?»',
                     example_answer:
                         'Ответ: «Попробуйте вынести IO в отдельный шаг»',
+                },
+                changes: {
+                    empty_title: 'Пока нет изменений',
+                    empty_description:
+                        'Сохраняйте изменения кода, чтобы здесь появилась история этого потока.',
                 },
                 readonly: {
                     title: 'Редактор недоступен',
@@ -811,6 +856,15 @@ export const messages = {
                 description: 'История обсуждений и подсказок',
                 example_today: 'Как добавить webhook в прод?',
                 example_yesterday: 'Оптимизация cron расписаний',
+            },
+            health: {
+                title: 'Состояние',
+                errors: 'Ошибки: {count}',
+            },
+            deployments: {
+                title: 'Деплои',
+                description: 'Полные снимки деплоев с runtime-деталями.',
+                logs: 'Логи',
             },
             settings: {
                 title: 'Настройки',

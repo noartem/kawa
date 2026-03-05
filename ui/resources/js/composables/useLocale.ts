@@ -1,4 +1,4 @@
-import { usePage, router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -7,7 +7,9 @@ export const useLocale = () => {
     const { locale } = useI18n();
 
     const currentLocale = computed(() => locale.value);
-    const supportedLocales = computed(() => (page.props.locales as string[] | undefined) ?? []);
+    const supportedLocales = computed(
+        () => (page.props.locales as string[] | undefined) ?? [],
+    );
 
     const setLocale = (nextLocale: string) => {
         if (!nextLocale || nextLocale === locale.value) return;

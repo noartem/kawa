@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { useLocale } from '@/composables/useLocale';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useLocale } from '@/composables/useLocale';
 
 const { t } = useI18n();
 const { currentLocale, supportedLocales, setLocale } = useLocale();
@@ -15,7 +15,9 @@ const localeOptions = computed(() =>
 </script>
 
 <template>
-    <div class="inline-flex gap-1 rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800">
+    <div
+        class="inline-flex gap-1 rounded-lg bg-neutral-100 p-1 dark:bg-neutral-800"
+    >
         <button
             v-for="option in localeOptions"
             :key="option.value"

@@ -1,91 +1,25 @@
 <script setup lang="ts">
-import FlowLogsPanel from '@/components/FlowLogsPanel.vue';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
+import FlowEditorDeployments from '@/components/flows/editor/FlowEditorDeployments.vue';
+import FlowEditorHeader from '@/components/flows/editor/FlowEditorHeader.vue';
+import FlowEditorSettings from '@/components/flows/editor/FlowEditorSettings.vue';
+import FlowEditorSummary from '@/components/flows/editor/FlowEditorSummary.vue';
+import FlowEditorWorkspace from '@/components/flows/editor/FlowEditorWorkspace.vue';
+import type {
+    DeploymentCard,
+    FlowDeployment,
+    FlowDetail,
+    FlowHistory,
+    FlowLog,
+    FlowRun,
+    Permissions,
+    RunStat,
+} from '@/components/flows/editor/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { show as flowShow, index as flowsIndex } from '@/routes/flows';
-import type { BreadcrumbItem, FlowSidebarItem } from '@/types';
+import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import {
-    Activity,
-    AlarmClock,
-    Archive,
-    Boxes,
-    Code,
-    ExternalLink,
-    History,
-    Play,
-    Save,
-    Share2,
-    Square,
-    Trash2,
-    UploadCloud,
-} from 'lucide-vue-next';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-interface FlowLog {
-    id: number;
-    level?: string | null;
-    message?: string | null;
-    node_key?: string | null;
-    created_at: string;
-}
-
-interface FlowRun {
-    id: number;
-    type: 'development' | 'production';
-    active: boolean;
-    status?: string | null;
-    lock?: string | null;
-    actors?: string[] | null;
-    events?: string[] | null;
-    started_at?: string | null;
-    finished_at?: string | null;
-    created_at?: string | null;
-}
-
-interface FlowHistory {
-    id: number;
-    code?: string | null;
-    diff?: string | null;
-    created_at: string;
-}
-
-interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
-    id?: number | null;
-    slug?: string | null;
-    description?: string | null;
-    code?: string | null;
-    code_updated_at?: string | null;
-    graph?: Record<string, unknown>;
-    graph_generated_at?: string | null;
-    runs_count?: number;
-    container_id?: string | null;
-    entrypoint?: string | null;
-    image?: string | null;
-    last_started_at?: string | null;
-    last_finished_at?: string | null;
-    archived_at?: string | null;
-    user?: {
-        name?: string | null;
-    };
-}
-
-interface Permissions {
-    canRun: boolean;
-    canUpdate: boolean;
-    canDelete: boolean;
-}
-
-interface RunStat {
-    status: string;
-    total: number;
-}
 
 const props = defineProps<{
     flow: FlowDetail;
@@ -95,6 +29,7 @@ const props = defineProps<{
     developmentRuns: FlowRun[];
     productionLogs: FlowLog[];
     developmentLogs: FlowLog[];
+    deployments?: FlowDeployment[];
     status?: string | null;
     runStats: RunStat[];
     history: FlowHistory[];
@@ -103,57 +38,99 @@ const props = defineProps<{
     requiresDeletePassword: boolean;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
+const actionInProgress = ref<
+    'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
+>(null);
 const saving = ref(false);
-const emptyGraph = { nodes: [], edges: [] };
-
-const normalizeGraphText = (graph?: Record<string, unknown>) =>
-    JSON.stringify(graph ?? emptyGraph, null, 2);
+const refreshInFlight = ref(false);
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const form = useForm({
     name: props.flow.name,
     description: props.flow.description || '',
     code: props.flow.code || '',
 });
-const graphText = ref(normalizeGraphText(props.flow.graph));
-const editorTab = ref<'code' | 'chat'>('code');
 
-watch(
-    () => props.flow.graph,
-    (nextGraph) => {
-        graphText.value = normalizeGraphText(nextGraph);
-    },
-    { immediate: true },
-);
-
-const statusTone = (status?: string | null) => {
-    switch (status) {
-        case 'running':
-        case 'ready':
-        case 'locked':
-            return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
-        case 'error':
-        case 'failed':
-        case 'lock_failed':
-            return 'bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30';
-        case 'stopped':
-        case 'success':
-            return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
-        case 'locking':
-            return 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30';
-        default:
-            return 'bg-muted text-muted-foreground ring-1 ring-border';
+const resolveGraphId = (value: unknown): string | null => {
+    if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
     }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+    }
+
+    return null;
 };
 
-const saveLabel = computed(() => t('flows.actions.save'));
-const canSave = computed(() => props.permissions.canUpdate);
-const actionInProgress = ref<
-    'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
->(null);
-const refreshInFlight = ref(false);
-let refreshTimer: ReturnType<typeof setInterval> | null = null;
+const buildGraphSnapshotSignature = (
+    graph: Record<string, unknown> | null | undefined,
+): string => {
+    const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+    const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+
+    const nodes = rawNodes
+        .flatMap((rawNode) => {
+            if (!rawNode || typeof rawNode !== 'object') {
+                return [];
+            }
+
+            const node = rawNode as Record<string, unknown>;
+            const id = resolveGraphId(node.id ?? node.name);
+            if (!id) {
+                return [];
+            }
+
+            const nodeType =
+                typeof node.type === 'string'
+                    ? node.type.toLowerCase()
+                    : 'other';
+            const label =
+                resolveGraphId(node.label ?? node.id ?? node.name) ?? id;
+
+            return [`${id}:${nodeType}:${label}`];
+        })
+        .sort();
+
+    const edges = rawEdges
+        .flatMap((rawEdge) => {
+            if (!rawEdge || typeof rawEdge !== 'object') {
+                return [];
+            }
+
+            const edge = rawEdge as Record<string, unknown>;
+            const from = resolveGraphId(edge.from);
+            const to = resolveGraphId(edge.to);
+            if (!from || !to) {
+                return [];
+            }
+
+            return [`${from}->${to}`];
+        })
+        .sort();
+
+    return `n:${nodes.join('|')}|e:${edges.join('|')}`;
+};
+
+const buildHistorySnapshotSignature = (history: FlowHistory[]): string => {
+    return history
+        .map((historyItem) => `${historyItem.id}:${historyItem.created_at}`)
+        .join('|');
+};
+
+const stableFlowGraph = shallowRef<Record<string, unknown> | null>(
+    props.flow.graph ?? null,
+);
+const stableFlowGraphSignature = ref(
+    buildGraphSnapshotSignature(props.flow.graph),
+);
+
+const stableHistory = shallowRef<FlowHistory[]>(props.history);
+const stableHistorySignature = ref(
+    buildHistorySnapshotSignature(props.history),
+);
 
 const refreshOnlyProps = [
     'flow',
@@ -163,12 +140,314 @@ const refreshOnlyProps = [
     'developmentRuns',
     'productionLogs',
     'developmentLogs',
+    'deployments',
     'runStats',
+    'history',
     'recentFlows',
     'flash',
 ] as const;
 
-const refreshFlowView = () => {
+const currentProduction = computed(() => props.productionRun);
+const currentDevelopment = computed(() => props.developmentRun);
+const deployments = computed(() => props.deployments ?? []);
+const canSave = computed(() => props.permissions.canUpdate);
+const pageTitle = computed(() => form.name || t('flows.untitled'));
+const isArchived = computed(() => Boolean(props.flow.archived_at));
+const hasActiveDeploys = computed(() =>
+    Boolean(
+        currentProduction.value?.active || currentDevelopment.value?.active,
+    ),
+);
+
+const hasUnsavedFlowChanges = computed(() => {
+    return (
+        form.name !== (props.flow.name || '') ||
+        form.description !== (props.flow.description || '') ||
+        form.code !== (props.flow.code || '')
+    );
+});
+
+const codeErrorMessages = computed(() => {
+    if (!form.errors.code) {
+        return [];
+    }
+
+    return form.errors.code
+        .split('\n')
+        .map((message) => message.trim())
+        .filter((message) => message.length > 0);
+});
+
+const breadcrumbs = computed<BreadcrumbItem[]>(() => [
+    {
+        title: t('nav.flows'),
+        href: flowsIndex().url,
+    },
+    {
+        title: t('flows.breadcrumbs.flow', { id: props.flow.id }),
+        href: flowShow({ flow: props.flow.id }).url,
+    },
+]);
+
+const statusLabel = (status?: string | null): string => {
+    return t(`statuses.${status ?? 'unknown'}`);
+};
+
+const runTypeLabel = (type?: FlowRun['type'] | null): string => {
+    return type === 'production'
+        ? t('environments.production')
+        : t('environments.development');
+};
+
+const statusTone = (status?: string | null): string => {
+    switch (status) {
+        case 'running':
+        case 'ready':
+        case 'locked':
+            return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300';
+        case 'error':
+        case 'failed':
+        case 'lock_failed':
+            return 'border-rose-500/40 bg-rose-500/10 text-rose-300';
+        case 'stopped':
+        case 'success':
+            return 'border-amber-500/40 bg-amber-500/10 text-amber-300';
+        default:
+            return 'border-border bg-muted/40 text-muted-foreground';
+    }
+};
+
+const parseDateMs = (value?: string | null): number | null => {
+    if (!value) {
+        return null;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return null;
+    }
+
+    return parsed.getTime();
+};
+
+const formatDate = (value?: string | null): string => {
+    if (!value) {
+        return t('common.empty');
+    }
+
+    const parsed = parseDateMs(value);
+    if (parsed === null) {
+        return value;
+    }
+
+    return new Date(parsed).toLocaleString();
+};
+
+const relativeTimeFormatter = computed(() => {
+    return new Intl.RelativeTimeFormat(locale.value, {
+        numeric: 'auto',
+    });
+});
+
+const formatRecentDate = (value?: string | null): string => {
+    const parsed = parseDateMs(value);
+    if (parsed === null) {
+        return formatDate(value);
+    }
+
+    const deltaSeconds = Math.round((parsed - Date.now()) / 1000);
+    const absSeconds = Math.abs(deltaSeconds);
+
+    if (absSeconds < 60) {
+        return relativeTimeFormatter.value.format(deltaSeconds, 'second');
+    }
+
+    const deltaMinutes = Math.round(deltaSeconds / 60);
+    if (Math.abs(deltaMinutes) < 60) {
+        return relativeTimeFormatter.value.format(deltaMinutes, 'minute');
+    }
+
+    const deltaHours = Math.round(deltaMinutes / 60);
+    if (Math.abs(deltaHours) < 24) {
+        return relativeTimeFormatter.value.format(deltaHours, 'hour');
+    }
+
+    const deltaDays = Math.round(deltaHours / 24);
+    return relativeTimeFormatter.value.format(deltaDays, 'day');
+};
+
+const formatDuration = (start?: string | null, end?: string | null): string => {
+    if (!start) {
+        return t('common.empty');
+    }
+
+    const startAt = parseDateMs(start);
+    const endAt = parseDateMs(end) ?? Date.now();
+
+    if (startAt === null) {
+        return t('common.empty');
+    }
+
+    const totalSeconds = Math.max(Math.floor((endAt - startAt) / 1000), 0);
+    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours > 0) {
+        return t('common.duration.hours', { hours, minutes: minutes % 60 });
+    }
+
+    if (minutes > 0) {
+        return t('common.duration.minutes', {
+            minutes,
+            seconds: totalSeconds % 60,
+        });
+    }
+
+    return t('common.duration.seconds', { seconds: totalSeconds });
+};
+
+const countGraphNodesByType = (
+    graph: Record<string, unknown> | null | undefined,
+    expectedType: 'actor' | 'event',
+): number => {
+    const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+    let count = 0;
+
+    for (const rawNode of rawNodes) {
+        if (!rawNode || typeof rawNode !== 'object') {
+            continue;
+        }
+
+        const node = rawNode as Record<string, unknown>;
+        const nodeType =
+            typeof node.type === 'string' ? node.type.toLowerCase() : null;
+
+        if (nodeType === expectedType) {
+            count += 1;
+        }
+    }
+
+    return count;
+};
+
+const graphIsOutdated = computed(() => {
+    const codeUpdated = parseDateMs(props.flow.code_updated_at);
+    const graphGenerated = parseDateMs(props.flow.graph_generated_at);
+
+    return (
+        codeUpdated !== null &&
+        (graphGenerated === null || graphGenerated < codeUpdated)
+    );
+});
+
+const graphMeta = computed(() => {
+    return {
+        actors: countGraphNodesByType(stableFlowGraph.value, 'actor'),
+        events: countGraphNodesByType(stableFlowGraph.value, 'event'),
+        status: statusLabel(currentDevelopment.value?.status),
+        freshnessLabel: graphIsOutdated.value
+            ? t('common.outdated')
+            : t('common.updated_at'),
+        updatedAt: formatRecentDate(props.flow.graph_generated_at),
+    };
+});
+
+const countHistoryDiffChanges = (
+    diff?: string | null,
+): { added: number; removed: number } => {
+    if (!diff) {
+        return { added: 0, removed: 0 };
+    }
+
+    let added = 0;
+    let removed = 0;
+
+    for (const line of diff.split('\n')) {
+        if (
+            line.startsWith('+++') ||
+            line.startsWith('---') ||
+            line.startsWith('@@')
+        ) {
+            continue;
+        }
+
+        if (line.startsWith('+')) {
+            added += 1;
+            continue;
+        }
+
+        if (line.startsWith('-')) {
+            removed += 1;
+        }
+    }
+
+    return { added, removed };
+};
+
+const historyCards = computed(() => {
+    return stableHistory.value.map((item, index) => {
+        const previousVersion = stableHistory.value[index - 1];
+        const originalCode = item.code ?? '';
+        const modifiedCode =
+            index === 0 ? (form.code ?? '') : (previousVersion?.code ?? '');
+
+        return {
+            item,
+            diffChanges: countHistoryDiffChanges(item.diff),
+            originalCode,
+            modifiedCode,
+        };
+    });
+});
+
+const deploymentCards = computed<DeploymentCard[]>(() => {
+    return deployments.value.map((deployment) => {
+        return {
+            deployment,
+            graphMeta: {
+                actors: countGraphNodesByType(deployment.graph, 'actor'),
+                events: countGraphNodesByType(deployment.graph, 'event'),
+                status: statusLabel(deployment.status),
+                freshnessLabel: t('common.updated_at'),
+                updatedAt: formatRecentDate(
+                    deployment.finished_at ??
+                        deployment.started_at ??
+                        deployment.created_at,
+                ),
+            },
+        };
+    });
+});
+
+watch(
+    () => props.flow.graph,
+    (nextGraph) => {
+        const nextSignature = buildGraphSnapshotSignature(nextGraph);
+        if (nextSignature === stableFlowGraphSignature.value) {
+            return;
+        }
+
+        stableFlowGraphSignature.value = nextSignature;
+        stableFlowGraph.value = nextGraph ?? null;
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.history,
+    (nextHistory) => {
+        const nextSignature = buildHistorySnapshotSignature(nextHistory);
+        if (nextSignature === stableHistorySignature.value) {
+            return;
+        }
+
+        stableHistorySignature.value = nextSignature;
+        stableHistory.value = nextHistory;
+    },
+    { deep: true },
+);
+
+const refreshFlowView = (): void => {
     if (refreshInFlight.value) {
         return;
     }
@@ -185,29 +464,10 @@ const refreshFlowView = () => {
     });
 };
 
-const startRefreshPolling = () => {
-    if (refreshTimer !== null) {
-        return;
-    }
-
-    refreshTimer = setInterval(() => {
-        refreshFlowView();
-    }, 3000);
-};
-
-const stopRefreshPolling = () => {
-    if (refreshTimer === null) {
-        return;
-    }
-
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-};
-
 const submitAction = (
     action: NonNullable<typeof actionInProgress.value>,
     url: string,
-) => {
+): void => {
     if (actionInProgress.value !== null) {
         return;
     }
@@ -228,15 +488,14 @@ const submitAction = (
     );
 };
 
-onBeforeUnmount(() => {
-    stopRefreshPolling();
-});
+const save = (): void => {
+    if (!canSave.value) {
+        return;
+    }
 
-const save = () => {
-    if (!canSave.value) return;
     saving.value = true;
 
-    return form.put(`/flows/${props.flow.id}`, {
+    form.put(`/flows/${props.flow.id}`, {
         preserveScroll: true,
         onFinish: () => {
             saving.value = false;
@@ -244,19 +503,7 @@ const save = () => {
     });
 };
 
-const hasUnsavedFlowChanges = computed(() => {
-    const flowName = props.flow.name || '';
-    const flowDescription = props.flow.description || '';
-    const flowCode = props.flow.code || '';
-
-    return (
-        form.name !== flowName ||
-        form.description !== flowDescription ||
-        form.code !== flowCode
-    );
-});
-
-const saveBeforeAction = (onSuccess: () => void) => {
+const saveBeforeAction = (onSuccess: () => void): void => {
     if (!hasUnsavedFlowChanges.value) {
         onSuccess();
 
@@ -281,55 +528,62 @@ const saveBeforeAction = (onSuccess: () => void) => {
     });
 };
 
-const runFlow = () => {
-    if (!props.permissions.canRun || form.processing || saving.value) return;
+const runFlow = (): void => {
+    if (!props.permissions.canRun || form.processing || saving.value) {
+        return;
+    }
+
     saveBeforeAction(() => {
         submitAction('run', `/flows/${props.flow.id}/run`);
     });
 };
 
-const stopFlow = () => {
-    if (!props.permissions.canRun) return;
+const stopFlow = (): void => {
+    if (!props.permissions.canRun) {
+        return;
+    }
+
     submitAction('stop', `/flows/${props.flow.id}/stop`);
 };
 
-const deployProd = () => {
-    if (!props.permissions.canRun || form.processing || saving.value) return;
+const deployProd = (): void => {
+    if (!props.permissions.canRun || form.processing || saving.value) {
+        return;
+    }
+
     saveBeforeAction(() => {
         submitAction('deploy', `/flows/${props.flow.id}/deploy`);
     });
 };
 
-const undeployProd = () => {
-    if (!props.permissions.canRun) return;
+const undeployProd = (): void => {
+    if (!props.permissions.canRun) {
+        return;
+    }
+
     submitAction('undeploy', `/flows/${props.flow.id}/undeploy`);
 };
 
-const archiveFlow = () => {
-    if (!props.permissions.canUpdate) return;
+const archiveFlow = (): void => {
+    if (!props.permissions.canUpdate) {
+        return;
+    }
+
     submitAction('archive', `/flows/${props.flow.id}/archive`);
 };
 
-const restoreFlow = () => {
-    if (!props.permissions.canUpdate) return;
+const restoreFlow = (): void => {
+    if (!props.permissions.canUpdate) {
+        return;
+    }
+
     submitAction('restore', `/flows/${props.flow.id}/restore`);
 };
 
-const breadcrumbs = computed<BreadcrumbItem[]>(() => [
-    {
-        title: t('nav.flows'),
-        href: flowsIndex().url,
-    },
-    {
-        title: t('flows.breadcrumbs.flow', { id: props.flow.id }),
-        href: flowShow({ flow: props.flow.id }).url,
-    },
-]);
-
-const pageTitle = computed(() => form.name || t('flows.untitled'));
-
-const deleteFlow = () => {
-    if (!props.permissions.canDelete) return;
+const deleteFlow = (): void => {
+    if (!props.permissions.canDelete) {
+        return;
+    }
 
     if (!confirm(t('flows.delete.confirm'))) {
         return;
@@ -338,6 +592,7 @@ const deleteFlow = () => {
     const password = props.requiresDeletePassword
         ? prompt(t('flows.delete.password_prompt'))
         : null;
+
     if (props.requiresDeletePassword && !password) {
         return;
     }
@@ -348,945 +603,124 @@ const deleteFlow = () => {
     });
 };
 
-const formatDate = (value?: string | null) => {
-    if (!value) return t('common.empty');
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
-};
-
-const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
-    numeric: 'auto',
+const shouldPollForUpdates = computed(() => {
+    return (
+        actionInProgress.value === null &&
+        (hasActiveDeploys.value || graphIsOutdated.value)
+    );
 });
-const recentWindowMs = 24 * 60 * 60 * 1000;
-
-const parseDateMs = (value?: string | null): number | null => {
-    if (!value) {
-        return null;
-    }
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-        return null;
-    }
-
-    return date.getTime();
-};
-
-const formatRelativeFromNow = (dateMs: number): string => {
-    const seconds = Math.round((dateMs - Date.now()) / 1000);
-    const absSeconds = Math.abs(seconds);
-
-    if (absSeconds < 60) {
-        return relativeTimeFormatter.format(seconds, 'second');
-    }
-
-    const minutes = Math.round(seconds / 60);
-    const absMinutes = Math.abs(minutes);
-
-    if (absMinutes < 60) {
-        return relativeTimeFormatter.format(minutes, 'minute');
-    }
-
-    const hours = Math.round(minutes / 60);
-    const absHours = Math.abs(hours);
-
-    if (absHours < 24) {
-        return relativeTimeFormatter.format(hours, 'hour');
-    }
-
-    const days = Math.round(hours / 24);
-
-    return relativeTimeFormatter.format(days, 'day');
-};
-
-const formatRecentDate = (value?: string | null): string => {
-    if (!value) {
-        return t('common.empty');
-    }
-
-    const dateMs = parseDateMs(value);
-
-    if (dateMs === null) {
-        return value;
-    }
-
-    if (Math.abs(Date.now() - dateMs) <= recentWindowMs) {
-        return formatRelativeFromNow(dateMs);
-    }
-
-    return new Date(dateMs).toLocaleString();
-};
-
-const formatDuration = (start?: string | null, end?: string | null) => {
-    if (!start) return t('common.empty');
-    const startDate = new Date(start);
-    const endDate = end ? new Date(end) : new Date();
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
-        return t('common.empty');
-    const diffMs = Math.max(endDate.getTime() - startDate.getTime(), 0);
-    const seconds = Math.floor(diffMs / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    if (hours > 0)
-        return t('common.duration.hours', { hours, minutes: minutes % 60 });
-    if (minutes > 0)
-        return t('common.duration.minutes', { minutes, seconds: seconds % 60 });
-    return t('common.duration.seconds', { seconds });
-};
-
-const hasActiveDeploys = computed(() =>
-    Boolean(props.productionRun?.active || props.developmentRun?.active),
-);
-const graphOutdated = computed(() => {
-    const codeUpdatedAt = parseDateMs(props.flow.code_updated_at);
-
-    if (codeUpdatedAt === null) {
-        return false;
-    }
-
-    const graphGeneratedAt = parseDateMs(props.flow.graph_generated_at);
-
-    if (graphGeneratedAt === null) {
-        return true;
-    }
-
-    return graphGeneratedAt < codeUpdatedAt;
-});
-const shouldPollForUpdates = computed(
-    () =>
-        (hasActiveDeploys.value || graphOutdated.value) &&
-        actionInProgress.value === null,
-);
-const currentProduction = computed(() => props.productionRun);
-const currentDevelopment = computed(() => props.developmentRun);
-const isArchived = computed(() => Boolean(props.flow.archived_at));
-const statusLabel = (status?: string | null) =>
-    t(`statuses.${status ?? 'unknown'}`);
-const runTypeLabel = (type?: FlowRun['type'] | null) =>
-    type === 'production'
-        ? t('environments.production')
-        : t('environments.development');
 
 watch(
     shouldPollForUpdates,
-    (shouldPoll) => {
-        if (shouldPoll) {
-            startRefreshPolling();
+    (poll) => {
+        if (poll) {
+            if (refreshTimer === null) {
+                refreshTimer = setInterval(() => {
+                    refreshFlowView();
+                }, 3000);
+            }
 
             return;
         }
 
-        stopRefreshPolling();
+        if (refreshTimer !== null) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
     },
     { immediate: true },
 );
+
+onBeforeUnmount(() => {
+    if (refreshTimer !== null) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+    }
+});
 </script>
 
 <template>
     <Head :title="pageTitle" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="pt-4 pb-12">
-            <section class="space-y-6 px-4 pb-6">
-                <div
-                    class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
-                >
-                    <div class="space-y-2">
-                        <h1 class="pt-1 text-3xl leading-tight font-semibold">
-                            {{ form.name || t('flows.untitled') }}
-                        </h1>
-                        <p class="max-w-2xl text-sm text-muted-foreground">
-                            {{
-                                form.description ||
-                                t('flows.description.placeholder')
-                            }}
-                        </p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <Button
-                            v-if="currentProduction?.active"
-                            variant="outline"
-                            :disabled="
-                                !permissions.canRun || actionInProgress !== null
-                            "
-                            @click="undeployProd"
-                        >
-                            <Square class="size-4" />
-                            {{ t('actions.stop') }}
-                        </Button>
-                        <Button
-                            v-else
-                            :disabled="
-                                !permissions.canRun || actionInProgress !== null
-                            "
-                            @click="deployProd"
-                        >
-                            <UploadCloud class="size-4" />
-                            {{ t('actions.deploy') }}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            :disabled="!permissions.canRun"
-                        >
-                            <Share2 class="size-4" />
-                            {{ t('actions.share') }}
-                        </Button>
-                    </div>
-                </div>
-            </section>
+        <div class="mx-auto w-full max-w-[1600px] divide-y pt-3 pb-8">
+            <FlowEditorHeader
+                :name="form.name"
+                :description="form.description"
+                :current-production-active="Boolean(currentProduction?.active)"
+                :can-run="props.permissions.canRun"
+                :action-in-progress="actionInProgress"
+                @deploy-prod="deployProd"
+                @undeploy-prod="undeployProd"
+            />
 
-            <Separator />
+            <FlowEditorSummary
+                :flow-runs-count="props.flow.runs_count"
+                :last-started-at="props.flow.last_started_at"
+                :last-finished-at="props.flow.last_finished_at"
+                :has-current-production="Boolean(currentProduction)"
+                :current-production-status="currentProduction?.status"
+                :current-production-started-at="currentProduction?.started_at"
+                :current-production-finished-at="currentProduction?.finished_at"
+                :current-production-events-count="
+                    currentProduction?.events?.length ?? 0
+                "
+                :production-logs-count="props.productionLogs.length"
+                :run-stats="props.runStats"
+                :status-tone="statusTone"
+                :status-label="statusLabel"
+                :format-recent-date="formatRecentDate"
+                :format-duration="formatDuration"
+            />
 
-            <div class="grid gap-4 px-4 pt-6 pb-6 xl:grid-cols-[2fr,1fr]">
-                <section class="space-y-4">
-                    <div class="space-y-1">
-                        <h2
-                            class="flex items-center gap-2 text-lg font-semibold"
-                        >
-                            <UploadCloud class="size-4 text-muted-foreground" />
-                            {{ t('flows.current_deploy.title') }}
-                        </h2>
-                        <p class="text-sm text-muted-foreground">
-                            {{ t('flows.current_deploy.description') }}
-                        </p>
-                    </div>
-                    <div class="space-y-4">
-                        <div v-if="currentProduction" class="space-y-4">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <Badge
-                                    :class="
-                                        statusTone(currentProduction.status)
-                                    "
-                                    variant="outline"
-                                >
-                                    {{ statusLabel(currentProduction.status) }}
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    class="bg-muted/60 text-muted-foreground"
-                                >
-                                    {{ runTypeLabel(currentProduction.type) }}
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    class="bg-muted/60 text-muted-foreground"
-                                >
-                                    {{ t('common.started') }}:
-                                    {{
-                                        formatDate(currentProduction.started_at)
-                                    }}
-                                </Badge>
-                                <Badge
-                                    variant="outline"
-                                    class="bg-muted/60 text-muted-foreground"
-                                >
-                                    {{ t('common.finished') }}:
-                                    {{
-                                        formatDate(
-                                            currentProduction.finished_at,
-                                        )
-                                    }}
-                                </Badge>
-                            </div>
-                            <div class="grid gap-3 md:grid-cols-3">
-                                <div class="py-3">
-                                    <div
-                                        class="flex items-center justify-between text-xs text-muted-foreground"
-                                    >
-                                        <span>{{
-                                            t('flows.metrics.actors')
-                                        }}</span>
-                                        <Activity class="size-4" />
-                                    </div>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            currentProduction.actors?.length
-                                                ? currentProduction.actors.join(
-                                                      ', ',
-                                                  )
-                                                : t('common.empty')
-                                        }}
-                                    </p>
-                                </div>
-                                <div class="py-3">
-                                    <div
-                                        class="flex items-center justify-between text-xs text-muted-foreground"
-                                    >
-                                        <span>{{
-                                            t('flows.metrics.events')
-                                        }}</span>
-                                        <Boxes class="size-4" />
-                                    </div>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            currentProduction.events?.length
-                                                ? currentProduction.events.join(
-                                                      ', ',
-                                                  )
-                                                : t('common.empty')
-                                        }}
-                                    </p>
-                                </div>
-                                <div class="py-3">
-                                    <div
-                                        class="flex items-center justify-between text-xs text-muted-foreground"
-                                    >
-                                        <span>{{
-                                            t('flows.metrics.duration')
-                                        }}</span>
-                                        <AlarmClock class="size-4" />
-                                    </div>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            formatDuration(
-                                                currentProduction.started_at,
-                                                currentProduction.finished_at,
-                                            )
-                                        }}
-                                    </p>
-                                </div>
-                            </div>
-                            <FlowLogsPanel
-                                :title="t('common.logs')"
-                                :logs="productionLogs"
-                                :empty-message="t('flows.logs.empty_current')"
-                            />
-                        </div>
-                        <div v-else class="py-1 text-sm text-muted-foreground">
-                            {{ t('flows.current_deploy.empty') }}
-                        </div>
-                    </div>
-                </section>
+            <FlowEditorWorkspace
+                v-model:code="form.code"
+                :can-update="props.permissions.canUpdate"
+                :can-run="props.permissions.canRun"
+                :action-in-progress="actionInProgress"
+                :current-development-active="
+                    Boolean(currentDevelopment?.active)
+                "
+                :code-updated-at="props.flow.code_updated_at"
+                :code-error-messages="codeErrorMessages"
+                :history-cards="historyCards"
+                :graph="stableFlowGraph"
+                :graph-meta="graphMeta"
+                :graph-is-outdated="graphIsOutdated"
+                :development-logs="props.developmentLogs"
+                :format-recent-date="formatRecentDate"
+                :format-date="formatDate"
+                @run-flow="runFlow"
+                @stop-flow="stopFlow"
+            />
 
-                <div class="space-y-4">
-                    <section class="space-y-3">
-                        <div class="space-y-1">
-                            <h2 class="text-lg font-semibold">
-                                {{ t('flows.summary.title') }}
-                            </h2>
-                            <p class="text-sm text-muted-foreground">
-                                {{ t('flows.summary.description') }}
-                            </p>
-                        </div>
-                        <div class="space-y-2 text-sm text-muted-foreground">
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="inline-flex items-center gap-2 text-foreground"
-                                >
-                                    <Activity
-                                        class="size-4 text-muted-foreground"
-                                    />
-                                    {{ t('flows.summary.runs') }}
-                                </span>
-                                <span class="font-semibold text-foreground">{{
-                                    props.flow.runs_count ?? 0
-                                }}</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="inline-flex items-center gap-2 text-foreground"
-                                >
-                                    <AlarmClock
-                                        class="size-4 text-muted-foreground"
-                                    />
-                                    {{ t('flows.summary.last_start') }}
-                                </span>
-                                <span class="font-semibold text-foreground">{{
-                                    formatDate(props.flow.last_started_at)
-                                }}</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="inline-flex items-center gap-2 text-foreground"
-                                >
-                                    <Square
-                                        class="size-4 text-muted-foreground"
-                                    />
-                                    {{ t('flows.summary.last_finish') }}
-                                </span>
-                                <span class="font-semibold text-foreground">{{
-                                    formatDate(props.flow.last_finished_at)
-                                }}</span>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <Badge
-                                    v-for="stat in props.runStats"
-                                    :key="stat.status"
-                                    variant="outline"
-                                    class="bg-muted/50 text-muted-foreground"
-                                >
-                                    {{ statusLabel(stat.status) }} •
-                                    {{ stat.total }}
-                                </Badge>
-                                <span
-                                    v-if="!props.runStats.length"
-                                    class="text-sm text-muted-foreground"
-                                >
-                                    {{ t('flows.summary.empty_runs') }}
-                                </span>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            </div>
+            <FlowEditorDeployments
+                v-if="deploymentCards.length"
+                :deployment-cards="deploymentCards"
+                :status-tone="statusTone"
+                :status-label="statusLabel"
+                :run-type-label="runTypeLabel"
+                :format-date="formatDate"
+                :format-duration="formatDuration"
+            />
 
-            <Separator />
-
-            <div class="grid gap-4 px-4 pt-6 pb-6 xl:grid-cols-[1.3fr,1fr]">
-                <section v-if="permissions.canUpdate" class="space-y-4">
-                    <div class="space-y-1">
-                        <h2
-                            class="flex items-center gap-2 text-lg font-semibold"
-                        >
-                            <Code class="size-4 text-muted-foreground" />
-                            {{ t('flows.editor.title') }}
-                        </h2>
-                        <p class="text-sm text-muted-foreground">
-                            {{ t('flows.editor.description') }}
-                        </p>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <Button
-                                variant="outline"
-                                :disabled="
-                                    !permissions.canRun ||
-                                    actionInProgress !== null
-                                "
-                                @click="stopFlow"
-                            >
-                                <Square class="size-4" />
-                                {{ t('actions.stop') }}
-                            </Button>
-                            <Button
-                                :disabled="
-                                    !permissions.canRun ||
-                                    actionInProgress !== null
-                                "
-                                @click="runFlow"
-                            >
-                                <Play class="size-4" />
-                                {{ t('actions.start') }}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                :disabled="!permissions.canRun"
-                            >
-                                <Share2 class="size-4" />
-                                {{ t('actions.share') }}
-                            </Button>
-                            <Badge
-                                v-if="currentDevelopment"
-                                :class="statusTone(currentDevelopment.status)"
-                                variant="outline"
-                            >
-                                {{ statusLabel(currentDevelopment.status) }}
-                            </Badge>
-                        </div>
-                        <div
-                            class="flex flex-wrap items-center justify-between gap-3"
-                        >
-                            <div
-                                class="inline-flex items-center gap-1 rounded-lg bg-muted/50 p-1"
-                            >
-                                <button
-                                    type="button"
-                                    class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition"
-                                    :class="
-                                        editorTab === 'code'
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground'
-                                    "
-                                    @click="editorTab = 'code'"
-                                >
-                                    <Code class="size-4" />
-                                    {{ t('flows.editor.tabs.code') }}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition"
-                                    :class="
-                                        editorTab === 'chat'
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground'
-                                    "
-                                    @click="editorTab = 'chat'"
-                                >
-                                    <Share2 class="size-4" />
-                                    {{ t('flows.editor.tabs.chat') }}
-                                </button>
-                            </div>
-                            <p class="text-xs text-muted-foreground">
-                                {{ t('flows.editor.tabs.hint') }}
-                            </p>
-                        </div>
-                        <div class="grid gap-4 lg:grid-cols-[2fr,1fr]">
-                            <div class="space-y-4">
-                                <template v-if="editorTab === 'code'">
-                                    <div class="space-y-2">
-                                        <Label for="flow-code">{{
-                                            t('flows.editor.code_label')
-                                        }}</Label>
-                                        <Textarea
-                                            id="flow-code"
-                                            v-model="form.code"
-                                            class="font-mono"
-                                            rows="16"
-                                        />
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            Code saved:
-                                            <span
-                                                :title="
-                                                    formatDate(
-                                                        props.flow
-                                                            .code_updated_at,
-                                                    )
-                                                "
-                                            >
-                                                {{
-                                                    formatRecentDate(
-                                                        props.flow
-                                                            .code_updated_at,
-                                                    )
-                                                }}
-                                            </span>
-                                        </p>
-                                        <p
-                                            v-if="form.errors.code"
-                                            class="text-sm text-destructive"
-                                        >
-                                            {{ form.errors.code }}
-                                        </p>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <Label for="flow-graph">{{
-                                            t('flows.editor.graph_label')
-                                        }}</Label>
-                                        <Textarea
-                                            id="flow-graph"
-                                            v-model="graphText"
-                                            readonly
-                                            :class="[
-                                                'font-mono text-xs transition-colors',
-                                                graphOutdated
-                                                    ? 'border-muted-foreground/40 bg-muted/60 text-muted-foreground'
-                                                    : '',
-                                            ]"
-                                            rows="10"
-                                        />
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            Graph generated:
-                                            <span
-                                                :title="
-                                                    formatDate(
-                                                        props.flow
-                                                            .graph_generated_at,
-                                                    )
-                                                "
-                                            >
-                                                {{
-                                                    formatRecentDate(
-                                                        props.flow
-                                                            .graph_generated_at,
-                                                    )
-                                                }}
-                                            </span>
-                                        </p>
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <div class="py-4">
-                                        <p
-                                            class="text-sm font-semibold text-foreground"
-                                        >
-                                            {{ t('flows.editor.chat.title') }}
-                                        </p>
-                                        <p
-                                            class="mt-1 text-xs text-muted-foreground"
-                                        >
-                                            {{
-                                                t('flows.editor.chat.subtitle')
-                                            }}
-                                        </p>
-                                        <div
-                                            class="mt-3 space-y-2 text-sm text-muted-foreground"
-                                        >
-                                            <p>
-                                                {{
-                                                    t(
-                                                        'flows.editor.chat.example_question',
-                                                    )
-                                                }}
-                                            </p>
-                                            <p>
-                                                {{
-                                                    t(
-                                                        'flows.editor.chat.example_answer',
-                                                    )
-                                                }}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                            <div class="space-y-4">
-                                <div class="py-3">
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ t('flows.dev_deploy.title') }}
-                                    </p>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            currentDevelopment?.status
-                                                ? statusLabel(
-                                                      currentDevelopment.status,
-                                                  )
-                                                : t('flows.dev_deploy.empty')
-                                        }}
-                                    </p>
-                                    <p
-                                        class="mt-2 text-xs text-muted-foreground"
-                                    >
-                                        {{ t('common.started') }}:
-                                        {{
-                                            formatDate(
-                                                currentDevelopment?.started_at,
-                                            )
-                                        }}
-                                    </p>
-                                    <p
-                                        class="mt-1 text-xs text-muted-foreground"
-                                    >
-                                        {{ t('common.finished') }}:
-                                        {{
-                                            formatDate(
-                                                currentDevelopment?.finished_at,
-                                            )
-                                        }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <FlowLogsPanel
-                            :title="t('common.logs')"
-                            :logs="developmentLogs"
-                            :empty-message="t('flows.logs.empty_dev')"
-                            compact
-                        />
-                    </div>
-                </section>
-                <section v-else class="space-y-3">
-                    <h2 class="flex items-center gap-2 text-lg font-semibold">
-                        <Code class="size-4 text-muted-foreground" />
-                        {{ t('flows.editor.readonly.title') }}
-                    </h2>
-                    <p class="text-sm text-muted-foreground">
-                        {{ t('flows.editor.readonly.description') }}
-                    </p>
-                    <div class="space-y-2 text-sm text-muted-foreground">
-                        <p>{{ t('flows.editor.readonly.note_edit') }}</p>
-                        <p>{{ t('flows.editor.readonly.note_production') }}</p>
-                    </div>
-                </section>
-
-                <div class="space-y-4">
-                    <section class="space-y-3">
-                        <div class="space-y-1">
-                            <h2 class="text-lg font-semibold">
-                                {{ t('flows.past_deploys.title') }}
-                            </h2>
-                            <p class="text-sm text-muted-foreground">
-                                {{ t('flows.past_deploys.description') }}
-                            </p>
-                        </div>
-                        <div class="space-y-4">
-                            <div>
-                                <p
-                                    class="text-xs tracking-wide text-muted-foreground uppercase"
-                                >
-                                    {{ t('environments.production') }}
-                                </p>
-                                <div
-                                    v-if="productionRuns.length"
-                                    class="mt-2 space-y-2"
-                                >
-                                    <div
-                                        v-for="run in productionRuns"
-                                        :key="run.id"
-                                        class="py-3"
-                                    >
-                                        <div
-                                            class="flex items-center justify-between"
-                                        >
-                                            <span
-                                                class="text-sm font-semibold"
-                                                >{{
-                                                    t('flows.deploy.label', {
-                                                        id: run.id,
-                                                    })
-                                                }}</span
-                                            >
-                                            <Badge
-                                                :class="statusTone(run.status)"
-                                                variant="outline"
-                                                >{{
-                                                    statusLabel(run.status)
-                                                }}</Badge
-                                            >
-                                        </div>
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {{ formatDate(run.started_at) }} →
-                                            {{ formatDate(run.finished_at) }}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div
-                                    v-else
-                                    class="mt-2 text-sm text-muted-foreground"
-                                >
-                                    {{
-                                        t('flows.past_deploys.empty_production')
-                                    }}
-                                </div>
-                            </div>
-                            <div>
-                                <p
-                                    class="text-xs tracking-wide text-muted-foreground uppercase"
-                                >
-                                    {{ t('environments.development') }}
-                                </p>
-                                <div
-                                    v-if="developmentRuns.length"
-                                    class="mt-2 space-y-2"
-                                >
-                                    <div
-                                        v-for="run in developmentRuns"
-                                        :key="run.id"
-                                        class="py-3"
-                                    >
-                                        <div
-                                            class="flex items-center justify-between"
-                                        >
-                                            <span
-                                                class="text-sm font-semibold"
-                                                >{{
-                                                    t('flows.deploy.label', {
-                                                        id: run.id,
-                                                    })
-                                                }}</span
-                                            >
-                                            <Badge
-                                                :class="statusTone(run.status)"
-                                                variant="outline"
-                                                >{{
-                                                    statusLabel(run.status)
-                                                }}</Badge
-                                            >
-                                        </div>
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {{ formatDate(run.started_at) }} →
-                                            {{ formatDate(run.finished_at) }}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div
-                                    v-else
-                                    class="mt-2 text-sm text-muted-foreground"
-                                >
-                                    {{
-                                        t(
-                                            'flows.past_deploys.empty_development',
-                                        )
-                                    }}
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <section class="space-y-3">
-                        <div class="space-y-1">
-                            <h2 class="text-lg font-semibold">
-                                {{ t('flows.past_chats.title') }}
-                            </h2>
-                            <p class="text-sm text-muted-foreground">
-                                {{ t('flows.past_chats.description') }}
-                            </p>
-                        </div>
-                        <div>
-                            <div class="space-y-3">
-                                <div class="py-3">
-                                    <div
-                                        class="flex items-center justify-between text-xs text-muted-foreground"
-                                    >
-                                        <span>{{ t('common.today') }}</span>
-                                        <ExternalLink class="size-4" />
-                                    </div>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            t('flows.past_chats.example_today')
-                                        }}
-                                    </p>
-                                </div>
-                                <div class="py-3">
-                                    <div
-                                        class="flex items-center justify-between text-xs text-muted-foreground"
-                                    >
-                                        <span>{{ t('common.yesterday') }}</span>
-                                        <ExternalLink class="size-4" />
-                                    </div>
-                                    <p class="mt-2 text-sm">
-                                        {{
-                                            t(
-                                                'flows.past_chats.example_yesterday',
-                                            )
-                                        }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            </div>
-
-            <Separator />
-
-            <section v-if="history.length" class="space-y-3 px-4 pt-6 pb-6">
-                <h2 class="text-lg font-semibold">
-                    {{ t('flows.history.title') }}
-                </h2>
-                <div>
-                    <div class="max-h-72 space-y-3 overflow-y-auto pr-1">
-                        <div
-                            v-for="item in history"
-                            :key="item.id"
-                            class="py-3"
-                        >
-                            <div
-                                class="flex items-center justify-between text-xs text-muted-foreground"
-                            >
-                                <span class="inline-flex items-center gap-2">
-                                    <History class="size-4" />
-                                    {{
-                                        t('flows.history.version', {
-                                            id: item.id,
-                                        })
-                                    }}
-                                </span>
-                                <span>{{ formatDate(item.created_at) }}</span>
-                            </div>
-                            <pre
-                                class="mt-2 max-h-28 overflow-auto rounded-md bg-background px-3 py-2 text-xs text-muted-foreground"
-                                >{{
-                                    item.diff || t('flows.history.empty_diff')
-                                }}</pre
-                            >
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <Separator />
-
-            <section class="space-y-4 px-4 pt-6">
-                <h2 class="text-lg font-semibold">
-                    {{ t('flows.settings.title') }}
-                </h2>
-                <div class="space-y-4">
-                    <div class="grid gap-4 lg:grid-cols-2">
-                        <div class="space-y-2">
-                            <Label for="flow-name">{{
-                                t('flows.settings.name')
-                            }}</Label>
-                            <Input
-                                id="flow-name"
-                                v-model="form.name"
-                                required
-                                :placeholder="
-                                    t('flows.settings.name_placeholder')
-                                "
-                            />
-                            <p
-                                v-if="form.errors.name"
-                                class="text-sm text-destructive"
-                            >
-                                {{ form.errors.name }}
-                            </p>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="flow-description">{{
-                                t('flows.settings.description')
-                            }}</Label>
-                            <Textarea
-                                id="flow-description"
-                                v-model="form.description"
-                                :placeholder="
-                                    t('flows.settings.description_placeholder')
-                                "
-                                class="min-h-[90px]"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <Button
-                            type="button"
-                            :disabled="form.processing || !canSave"
-                            @click="save"
-                        >
-                            <Save class="size-4" />
-                            {{ saveLabel }}
-                        </Button>
-                        <Button
-                            v-if="!isArchived"
-                            variant="outline"
-                            :disabled="
-                                !permissions.canUpdate ||
-                                hasActiveDeploys ||
-                                actionInProgress !== null
-                            "
-                            @click="archiveFlow"
-                        >
-                            <Archive class="size-4" />
-                            {{ t('actions.archive') }}
-                        </Button>
-                        <Button
-                            v-else
-                            variant="outline"
-                            :disabled="
-                                !permissions.canUpdate ||
-                                actionInProgress !== null
-                            "
-                            @click="restoreFlow"
-                        >
-                            <Archive class="size-4" />
-                            {{ t('actions.restore') }}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            class="text-destructive"
-                            :disabled="
-                                !permissions.canDelete || hasActiveDeploys
-                            "
-                            @click="deleteFlow"
-                        >
-                            <Trash2 class="size-4" />
-                            {{ t('actions.delete') }}
-                        </Button>
-                        <p class="text-xs text-muted-foreground">
-                            {{ t('flows.settings.delete_hint') }}
-                        </p>
-                    </div>
-                </div>
-            </section>
+            <FlowEditorSettings
+                v-if="props.permissions.canUpdate"
+                v-model:name="form.name"
+                v-model:description="form.description"
+                :processing="form.processing"
+                :can-save="canSave"
+                :is-archived="isArchived"
+                :can-update="props.permissions.canUpdate"
+                :can-delete="props.permissions.canDelete"
+                :has-active-deploys="hasActiveDeploys"
+                :action-in-progress="actionInProgress"
+                :name-error="form.errors.name"
+                @save="save"
+                @archive="archiveFlow"
+                @restore="restoreFlow"
+                @delete="deleteFlow"
+            />
         </div>
     </AppLayout>
 </template>

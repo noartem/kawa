@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { login, register } from '@/routes';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { Button } from '@/components/ui/button';
 import { useI18n } from 'vue-i18n';
 
 withDefaults(
@@ -19,14 +19,16 @@ const { t } = useI18n();
 <template>
     <Head :title="t('nav.welcome')" />
 
-    <main class="flex flex-col min-h-screen items-center justify-center gap-4">
+    <main class="flex min-h-screen flex-col items-center justify-center gap-4">
         <h1 class="text-6xl font-bold">
             {{ t('app.name') }}
         </h1>
 
         <div class="flex gap-4">
             <Link :href="login()">
-                <Button @click="router.visit(login)">{{ t('auth.login.short') }}</Button>
+                <Button @click="router.visit(login)">{{
+                    t('auth.login.short')
+                }}</Button>
             </Link>
 
             <Link v-if="canRegister" :href="register()">

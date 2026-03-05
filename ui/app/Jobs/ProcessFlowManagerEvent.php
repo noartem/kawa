@@ -39,7 +39,7 @@ class ProcessFlowManagerEvent implements ShouldQueue
         }
 
         $this->updateFlowStatus($flow, $flowRun);
-        $this->syncFlowGraphFromPayload($flow);
+        $this->syncFlowGraphFromPayload($flow, $flowRun);
         $this->recordLog($flow, $flowRun);
         broadcast(new FlowEventBroadcast($flow->id, $this->event, $this->payload));
     }
@@ -199,14 +199,14 @@ class ProcessFlowManagerEvent implements ShouldQueue
         }
     }
 
-    private function syncFlowGraphFromPayload(Flow $flow): void
+    private function syncFlowGraphFromPayload(Flow $flow, ?FlowRun $flowRun): void
     {
         $events = $this->payload['events'] ?? null;
         $actors = $this->payload['actors'] ?? null;
 
         if (! is_array($events) && ! is_array($actors)) {
             if ($this->event === 'container_created') {
-                $this->syncFlowGraphFromRuntime($flow);
+                $this->syncFlowGraphFromRuntime($flow, $flowRun);
             }
 
             return;
@@ -216,10 +216,10 @@ class ProcessFlowManagerEvent implements ShouldQueue
         $graphEvents = is_array($events) ? $events : ($existingGraph['events'] ?? []);
         $graphActors = is_array($actors) ? $actors : ($existingGraph['actors'] ?? []);
 
-        $this->updateFlowGraph($flow, $graphEvents, $graphActors);
+        $this->updateFlowGraph($flow, $flowRun, $graphEvents, $graphActors);
     }
 
-    private function syncFlowGraphFromRuntime(Flow $flow): void
+    private function syncFlowGraphFromRuntime(Flow $flow, ?FlowRun $flowRun): void
     {
         $containerId = $this->payload['container_id'] ?? $flow->container_id;
 
@@ -236,14 +236,14 @@ class ProcessFlowManagerEvent implements ShouldQueue
         $graphEvents = is_array($graph['events'] ?? null) ? $graph['events'] : [];
         $graphActors = is_array($graph['actors'] ?? null) ? $graph['actors'] : [];
 
-        $this->updateFlowGraph($flow, $graphEvents, $graphActors);
+        $this->updateFlowGraph($flow, $flowRun, $graphEvents, $graphActors);
     }
 
     /**
      * @param  list<mixed>  $graphEvents
      * @param  list<mixed>  $graphActors
      */
-    private function updateFlowGraph(Flow $flow, array $graphEvents, array $graphActors): void
+    private function updateFlowGraph(Flow $flow, ?FlowRun $flowRun, array $graphEvents, array $graphActors): void
     {
 
         $nodesById = [];
@@ -311,15 +311,23 @@ class ProcessFlowManagerEvent implements ShouldQueue
             return;
         }
 
+        $graph = [
+            'events' => $graphEvents,
+            'actors' => $graphActors,
+            'nodes' => array_values($nodesById),
+            'edges' => array_values($edgesById),
+        ];
+
         $flow->update([
-            'graph' => [
-                'events' => $graphEvents,
-                'actors' => $graphActors,
-                'nodes' => array_values($nodesById),
-                'edges' => array_values($edgesById),
-            ],
+            'graph' => $graph,
             'graph_generated_at' => now(),
         ]);
+
+        if ($flowRun) {
+            $flowRun->update([
+                'graph_snapshot' => $graph,
+            ]);
+        }
     }
 
     private function resolveEntityId(mixed $value): ?string

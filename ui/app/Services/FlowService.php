@@ -271,6 +271,8 @@ final readonly class FlowService
             'type' => $type,
             'active' => true,
             'status' => $status,
+            'code_snapshot' => $flow->code ?? '',
+            'graph_snapshot' => $flow->graph,
             'started_at' => now(),
         ]);
 

@@ -2,7 +2,6 @@
 import AlertError from '@/components/AlertError.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import {
     Dialog,
     DialogContent,
@@ -15,6 +14,7 @@ import {
     PinInputGroup,
     PinInputSlot,
 } from '@/components/ui/pin-input';
+import { Spinner } from '@/components/ui/spinner';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
 import { confirm } from '@/routes/two-factor';
 import { Form } from '@inertiajs/vue3';
@@ -190,7 +190,9 @@ watch(
                             <div
                                 class="absolute inset-0 top-1/2 h-px w-full bg-border"
                             />
-                            <span class="relative bg-card px-2 py-1">{{ t('settings.two_factor.modal.manual') }}</span>
+                            <span class="relative bg-card px-2 py-1">{{
+                                t('settings.two_factor.modal.manual')
+                            }}</span>
                         </div>
 
                         <div
@@ -246,7 +248,9 @@ watch(
                             >
                                 <PinInput
                                     id="otp"
-                                    :placeholder="t('auth.two_factor.placeholder')"
+                                    :placeholder="
+                                        t('auth.two_factor.placeholder')
+                                    "
                                     v-model="code"
                                     type="number"
                                     otp

@@ -54,7 +54,9 @@ onUnmounted(() => {
                     v-if="!twoFactorEnabled"
                     class="flex flex-col items-start justify-start space-y-4"
                 >
-                    <Badge variant="destructive">{{ t('settings.two_factor.disabled') }}</Badge>
+                    <Badge variant="destructive">{{
+                        t('settings.two_factor.disabled')
+                    }}</Badge>
 
                     <p class="text-muted-foreground">
                         {{ t('settings.two_factor.disabled_help') }}
@@ -65,7 +67,9 @@ onUnmounted(() => {
                             v-if="hasSetupData"
                             @click="showSetupModal = true"
                         >
-                            <ShieldCheck />{{ t('settings.two_factor.continue') }}
+                            <ShieldCheck />{{
+                                t('settings.two_factor.continue')
+                            }}
                         </Button>
                         <Form
                             v-else
@@ -74,7 +78,9 @@ onUnmounted(() => {
                             #default="{ processing }"
                         >
                             <Button type="submit" :disabled="processing">
-                                <ShieldCheck />{{ t('settings.two_factor.enable') }}</Button
+                                <ShieldCheck />{{
+                                    t('settings.two_factor.enable')
+                                }}</Button
                             ></Form
                         >
                     </div>
@@ -84,7 +90,9 @@ onUnmounted(() => {
                     v-else
                     class="flex flex-col items-start justify-start space-y-4"
                 >
-                    <Badge variant="default">{{ t('settings.two_factor.enabled') }}</Badge>
+                    <Badge variant="default">{{
+                        t('settings.two_factor.enabled')
+                    }}</Badge>
 
                     <p class="text-muted-foreground">
                         {{ t('settings.two_factor.enabled_help') }}

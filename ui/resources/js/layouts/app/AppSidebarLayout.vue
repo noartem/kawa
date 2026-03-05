@@ -41,24 +41,31 @@ const errorMessage = computed(() => flash.value.error ?? null);
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <div v-if="successMessage || errorMessage" class="px-4 pt-4">
-                <div class="mx-auto max-w-7xl space-y-2">
-                    <Alert v-if="successMessage">
-                        <CheckCircle2 class="size-4" />
-                        <AlertTitle>{{ t('statuses.success') }}</AlertTitle>
-                        <AlertDescription>{{
-                            successMessage
-                        }}</AlertDescription>
-                    </Alert>
-
-                    <Alert v-if="errorMessage" variant="destructive">
-                        <AlertCircle class="size-4" />
-                        <AlertTitle>{{ t('statuses.error') }}</AlertTitle>
-                        <AlertDescription>{{ errorMessage }}</AlertDescription>
-                    </Alert>
-                </div>
-            </div>
             <slot />
+
+            <div
+                v-if="successMessage || errorMessage"
+                class="pointer-events-none fixed right-4 bottom-4 z-50 flex w-[24rem] max-w-[calc(100vw-2rem)] flex-col gap-2"
+            >
+                <Alert
+                    v-if="successMessage"
+                    class="pointer-events-auto border-border bg-background shadow-lg"
+                >
+                    <CheckCircle2 class="size-4" />
+                    <AlertTitle>{{ t('statuses.success') }}</AlertTitle>
+                    <AlertDescription>{{ successMessage }}</AlertDescription>
+                </Alert>
+
+                <Alert
+                    v-if="errorMessage"
+                    variant="destructive"
+                    class="pointer-events-auto shadow-lg"
+                >
+                    <AlertCircle class="size-4" />
+                    <AlertTitle>{{ t('statuses.error') }}</AlertTitle>
+                    <AlertDescription>{{ errorMessage }}</AlertDescription>
+                </Alert>
+            </div>
         </AppContent>
     </AppShell>
 </template>

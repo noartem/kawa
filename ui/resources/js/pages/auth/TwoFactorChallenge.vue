@@ -90,7 +90,12 @@ const codeValue = computed<string>(() => code.value.join(''));
                         </div>
                         <InputError :message="errors.code" />
                     </div>
-                    <Button type="submit" class="w-full" :disabled="processing">{{ t('actions.continue') }}</Button>
+                    <Button
+                        type="submit"
+                        class="w-full"
+                        :disabled="processing"
+                        >{{ t('actions.continue') }}</Button
+                    >
                     <div class="text-center text-sm text-muted-foreground">
                         <span>{{ t('auth.two_factor.or') }}</span>
                         <button
@@ -119,7 +124,12 @@ const codeValue = computed<string>(() => code.value.join(''));
                         required
                     />
                     <InputError :message="errors.recovery_code" />
-                    <Button type="submit" class="w-full" :disabled="processing">{{ t('actions.continue') }}</Button>
+                    <Button
+                        type="submit"
+                        class="w-full"
+                        :disabled="processing"
+                        >{{ t('actions.continue') }}</Button
+                    >
 
                     <div class="text-center text-sm text-muted-foreground">
                         <span>{{ t('auth.two_factor.or') }}</span>
