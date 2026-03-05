@@ -68,3 +68,60 @@ def test_prune_status_cache_removes_stale_containers(monkeypatch):
 
     assert "container-1" in app._last_published_container_status
     assert "container-2" not in app._last_published_container_status
+
+
+@pytest.mark.asyncio
+async def test_handle_runtime_socket_message_publishes_actor_message(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app.messaging.publish_event = AsyncMock()
+
+    await app._handle_runtime_socket_message(
+        "container-1",
+        {
+            "type": "kawa_message",
+            "message": "hello from actor",
+        },
+    )
+
+    app.messaging.publish_event.assert_called_once_with(
+        "actor_message",
+        {
+            "container_id": "container-1",
+            "message": "hello from actor",
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_drain_container_messages_reads_and_publishes(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app.socket_handler.has_pending_connection = Mock(side_effect=[True, False])
+    app.socket_handler.receive_message = AsyncMock(
+        return_value={
+            "type": "kawa_message",
+            "message": "runtime log",
+        }
+    )
+    app.messaging.publish_event = AsyncMock()
+
+    await app._drain_container_messages("container-1")
+
+    app.socket_handler.receive_message.assert_called_once_with(
+        "container-1",
+        timeout=1,
+    )
+    app.messaging.publish_event.assert_called_once_with(
+        "actor_message",
+        {
+            "container_id": "container-1",
+            "message": "runtime log",
+        },
+    )

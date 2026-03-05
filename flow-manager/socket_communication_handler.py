@@ -187,6 +187,21 @@ class SocketCommunicationHandler:
         """
         return self._connection_status.get(container_id, False)
 
+    def has_pending_connection(self, container_id: str) -> bool:
+        if not self.is_socket_connected(container_id):
+            return False
+
+        sock = self._connections.get(container_id)
+        if not sock:
+            return False
+
+        try:
+            ready, _, _ = select.select([sock], [], [], 0)
+        except (OSError, ValueError):
+            return False
+
+        return bool(ready)
+
     def _is_stale_client_connection(self, client_sock: socket.socket) -> bool:
         """Check whether an accepted client socket is stale response traffic."""
         try:

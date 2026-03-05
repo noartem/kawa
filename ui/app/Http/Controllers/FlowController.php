@@ -6,6 +6,7 @@ use App\Models\Flow;
 use App\Models\FlowHistory;
 use App\Models\FlowRun;
 use App\Services\FlowService;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,6 +17,12 @@ use Inertia\Response;
 
 class FlowController extends Controller
 {
+    private const EDITOR_DEPLOYMENTS_LIMIT = 5;
+
+    private const DEFAULT_DEPLOYMENTS_LIMIT = 12;
+
+    private const DEPLOYMENTS_PER_PAGE = 15;
+
     private const TEMPLATES = [
         'blank' => '',
         'cron' => <<<'PY'
@@ -111,7 +118,7 @@ PY
         $productionLogs = $productionRun?->logs()->latest()->limit(50)->get() ?? collect();
         $developmentLogs = $developmentRun?->logs()->latest()->limit(50)->get() ?? collect();
         $history = $flow->histories()->latest()->limit(10)->get();
-        $deployments = $this->buildDeployments($flow);
+        $deployments = $this->buildDeployments($flow, self::EDITOR_DEPLOYMENTS_LIMIT);
         $viewMode = $request->user()->can('update', $flow) ? 'development' : 'production';
 
         return Inertia::render('flows/Editor', [
@@ -134,6 +141,16 @@ PY
             ],
             'viewMode' => $viewMode,
             'requiresDeletePassword' => $flow->hadProductionDeploy(),
+        ]);
+    }
+
+    public function deployments(Flow $flow): Response
+    {
+        $flow->load('user')->loadCount('runs');
+
+        return Inertia::render('flows/Deployments', [
+            'flow' => $flow,
+            'deployments' => $this->buildPaginatedDeployments($flow, self::DEPLOYMENTS_PER_PAGE),
         ]);
     }
 
@@ -220,14 +237,36 @@ PY
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function buildDeployments(Flow $flow): array
+    private function buildDeployments(Flow $flow, int $limit = self::DEFAULT_DEPLOYMENTS_LIMIT): array
     {
         $runs = $flow->runs()
             ->latest('created_at')
             ->orderByDesc('id')
-            ->limit(12)
+            ->limit($limit)
             ->get();
 
+        return $this->buildDeploymentsFromRuns($flow, $runs);
+    }
+
+    private function buildPaginatedDeployments(Flow $flow, int $perPage): LengthAwarePaginator
+    {
+        $runs = $flow->runs()
+            ->latest('created_at')
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $runs->setCollection(collect($this->buildDeploymentsFromRuns($flow, $runs->getCollection())));
+
+        return $runs;
+    }
+
+    /**
+     * @param  Collection<int, FlowRun>  $runs
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDeploymentsFromRuns(Flow $flow, Collection $runs): array
+    {
         if ($runs->isEmpty()) {
             return [];
         }

@@ -418,6 +418,17 @@ export const messages = {
                 description:
                     'Complete deployment snapshots with runtime details.',
                 logs: 'Logs',
+                all: 'All deployments',
+                details_title: 'Deployment details',
+            },
+            deployments_page: {
+                title: 'All deployments',
+                description: 'Complete history of deployments for this flow.',
+                empty: 'No deployments yet.',
+                pagination: {
+                    previous: 'Previous',
+                    next: 'Next',
+                },
             },
             settings: {
                 title: 'Settings',
@@ -865,6 +876,17 @@ export const messages = {
                 title: 'Деплои',
                 description: 'Полные снимки деплоев с runtime-деталями.',
                 logs: 'Логи',
+                all: 'Все деплои',
+                details_title: 'Детали деплоя',
+            },
+            deployments_page: {
+                title: 'Все деплои',
+                description: 'Полная история деплоев этого потока.',
+                empty: 'Пока нет деплоев.',
+                pagination: {
+                    previous: 'Назад',
+                    next: 'Вперёд',
+                },
             },
             settings: {
                 title: 'Настройки',

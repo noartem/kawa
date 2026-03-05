@@ -83,4 +83,29 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->where('deployments.1.logs.0.message', 'Old deployment log')
         );
     }
+
+    public function test_editor_payload_contains_only_five_latest_deployments(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        $runs = FlowRun::factory()->count(7)->forFlow($flow)->sequence(
+            fn ($sequence) => [
+                'created_at' => now()->subMinutes(7 - $sequence->index),
+                'updated_at' => now()->subMinutes(7 - $sequence->index),
+            ],
+        )->create();
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->has('deployments', 5)
+            ->where('deployments.0.id', $runs[6]->id)
+            ->where('deployments.4.id', $runs[2]->id)
+        );
+    }
 }

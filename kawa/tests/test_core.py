@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
+from kawa import Message
 from kawa.core import (
     Context,
     EventFilter,
@@ -50,6 +51,30 @@ def test_context_dispatch():
         event = MyEvent()
         ctx.dispatch(event)
         mock_dispatch.assert_called_once_with(event)
+
+
+def test_context_dispatch_message_event_to_socket():
+    with patch("kawa.core.socket.socket") as mock_socket:
+        client = MagicMock()
+        mock_socket.return_value.__enter__.return_value = client
+
+        ctx = Context()
+        message = Message("hello")
+        ctx.dispatch(message)
+
+    client.connect.assert_called_once_with("/run/kawaflow.sock")
+    assert client.sendall.call_count == 2
+
+
+def test_context_dispatch_message_event_ignores_socket_errors():
+    with patch("kawa.core.socket.socket") as mock_socket:
+        client = MagicMock()
+        client.connect.side_effect = OSError("socket unavailable")
+        mock_socket.return_value.__enter__.return_value = client
+
+        ctx = Context()
+        message = Message("hello")
+        ctx.dispatch(message)
 
 
 def test_event_filter():

@@ -225,6 +225,24 @@ class TestSocketCommunicationHandler:
 
         assert result is False
 
+    def test_has_pending_connection_false_when_disconnected(self, handler):
+        container_id = "unknown_container"
+
+        result = handler.has_pending_connection(container_id)
+
+        assert result is False
+
+    def test_has_pending_connection_true_when_socket_is_ready(self, handler):
+        container_id = "test_container_123"
+        mock_socket = Mock()
+        handler._connections[container_id] = mock_socket
+        handler._connection_status[container_id] = True
+
+        with patch("select.select", return_value=([mock_socket], [], [])):
+            result = handler.has_pending_connection(container_id)
+
+        assert result is True
+
     @pytest.mark.asyncio
     async def test_send_message_success(self, handler):
         """Test successful message sending."""

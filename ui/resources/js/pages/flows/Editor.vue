@@ -15,7 +15,11 @@ import type {
     RunStat,
 } from '@/components/flows/editor/types';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { show as flowShow, index as flowsIndex } from '@/routes/flows';
+import {
+    deployments as flowDeployments,
+    show as flowShow,
+    index as flowsIndex,
+} from '@/routes/flows';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
@@ -150,6 +154,10 @@ const refreshOnlyProps = [
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.developmentRun);
 const deployments = computed(() => props.deployments ?? []);
+const recentDeployments = computed(() => deployments.value.slice(0, 5));
+const allDeploymentsUrl = computed(() => {
+    return flowDeployments({ flow: props.flow.id ?? 0 }).url;
+});
 const canSave = computed(() => props.permissions.canUpdate);
 const pageTitle = computed(() => form.name || t('flows.untitled'));
 const isArchived = computed(() => Boolean(props.flow.archived_at));
@@ -401,7 +409,7 @@ const historyCards = computed(() => {
 });
 
 const deploymentCards = computed<DeploymentCard[]>(() => {
-    return deployments.value.map((deployment) => {
+    return recentDeployments.value.map((deployment) => {
         return {
             deployment,
             graphMeta: {
@@ -697,6 +705,7 @@ onBeforeUnmount(() => {
             <FlowEditorDeployments
                 v-if="deploymentCards.length"
                 :deployment-cards="deploymentCards"
+                :all-deployments-url="allDeploymentsUrl"
                 :status-tone="statusTone"
                 :status-label="statusLabel"
                 :run-type-label="runTypeLabel"

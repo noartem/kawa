@@ -169,32 +169,34 @@ class FlowManagerApp:
                         status = await self.container_manager.get_container_status(
                             container.id
                         )
-                        state = getattr(status.state, "value", status.state)
-                        health = getattr(status.health, "value", status.health)
+                        state = str(getattr(status.state, "value", status.state))
+                        health = str(getattr(status.health, "value", status.health))
 
-                        if not self._should_publish_container_status(
+                        should_publish_status = self._should_publish_container_status(
                             container.id,
                             state,
                             health,
                             status.socket_connected,
-                        ):
-                            continue
-
-                        await self.messaging.publish_event(
-                            "container_status_update",
-                            {
-                                "container_id": container.id,
-                                "status": {
-                                    "state": state,
-                                    "health": health,
-                                    "socket_connected": status.socket_connected,
-                                    "uptime": str(status.uptime)
-                                    if status.uptime
-                                    else None,
-                                    "resource_usage": status.resource_usage,
-                                },
-                            },
                         )
+
+                        if should_publish_status:
+                            await self.messaging.publish_event(
+                                "container_status_update",
+                                {
+                                    "container_id": container.id,
+                                    "status": {
+                                        "state": state,
+                                        "health": health,
+                                        "socket_connected": status.socket_connected,
+                                        "uptime": str(status.uptime)
+                                        if status.uptime
+                                        else None,
+                                        "resource_usage": status.resource_usage,
+                                    },
+                                },
+                            )
+
+                        await self._drain_container_messages(container.id)
                     except Exception as exc:
                         self.logger.error(
                             exc,
@@ -235,6 +237,45 @@ class FlowManagerApp:
         ]
         for container_id in stale_ids:
             self._last_published_container_status.pop(container_id, None)
+
+    async def _drain_container_messages(self, container_id: str) -> None:
+        while self.socket_handler.has_pending_connection(container_id):
+            try:
+                message = await self.socket_handler.receive_message(
+                    container_id,
+                    timeout=1,
+                )
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "receive_runtime_message",
+                        "container_id": container_id,
+                    },
+                )
+                return
+
+            await self._handle_runtime_socket_message(container_id, message)
+
+    async def _handle_runtime_socket_message(
+        self,
+        container_id: str,
+        message: dict[str, Any],
+    ) -> None:
+        if message.get("type") != "kawa_message":
+            return
+
+        message_text = str(message.get("message", "")).strip()
+        if not message_text:
+            return
+
+        await self.messaging.publish_event(
+            "actor_message",
+            {
+                "container_id": container_id,
+                "message": message_text,
+            },
+        )
 
 
 app_instance = FlowManagerApp()

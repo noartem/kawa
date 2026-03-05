@@ -89,3 +89,11 @@ export interface DeploymentCard {
     deployment: FlowDeployment;
     graphMeta: GraphMeta;
 }
+
+export interface FlowDeploymentsPaginator {
+    data: FlowDeployment[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+}

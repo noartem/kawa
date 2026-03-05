@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, Union
 from dataclasses import dataclass
 
 from .core import ActorDefinition, EventDefinition, EventClassOrFilter, ActorFuncOrClass
@@ -16,23 +16,31 @@ def event(cls):
 
 def actor(
     receivs: Optional[Union[tuple[EventClassOrFilter, ...], EventClassOrFilter]] = None,
-    sends: Optional[Union[tuple[type[object], ...], type[object]] = None,
+    sends: Optional[Union[tuple[type[object], ...], type[object]]] = None,
     min_instances: Optional[int] = None,
     max_instances: Optional[int] = None,
     keep_instance: Optional[timedelta] = None,
 ):
-    if not isinstance(receivs, tuple):
-        receivs = (receivs,)
+    normalized_receivs: tuple[EventClassOrFilter, ...] = ()
+    if receivs is not None:
+        if isinstance(receivs, tuple):
+            normalized_receivs = receivs
+        else:
+            normalized_receivs = (receivs,)
 
-    if not isinstance(sends, tuple):
-        sends = (sends,)
+    normalized_sends: tuple[type[object], ...] = ()
+    if sends is not None:
+        if isinstance(sends, tuple):
+            normalized_sends = sends
+        else:
+            normalized_sends = (sends,)
 
     def decorator(actorFuncOrClass: ActorFuncOrClass):
         registry.register_actor(
             ActorDefinition(
                 actorFuncOrClass=actorFuncOrClass,
-                receivs=receivs,
-                sends=sends,
+                receivs=normalized_receivs,
+                sends=normalized_sends,
                 min_instances=min_instances,
                 max_instances=max_instances,
                 keep_instance=keep_instance,

@@ -1,3 +1,6 @@
+import json
+import os
+import socket
 from datetime import timedelta
 from typing import (
     Callable,
@@ -24,8 +27,30 @@ class NotSupportedEvent:
 
 @final
 class Context:
-    def dispatch(self, event: object):
-        pass
+    def dispatch(self, event: object) -> None:
+        from .message import Message
+
+        if isinstance(event, Message):
+            self._dispatch_message_event(event.message)
+
+    def _dispatch_message_event(self, message: str) -> None:
+        socket_path = os.getenv("KAWAFLOW_SOCKET_PATH", "/run/kawaflow.sock")
+        payload = {
+            "type": "kawa_message",
+            "message": str(message),
+        }
+
+        try:
+            payload_bytes = json.dumps(payload).encode("utf-8")
+            payload_size = len(payload_bytes).to_bytes(4, byteorder="big")
+
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1.0)
+                client.connect(socket_path)
+                client.sendall(payload_size)
+                client.sendall(payload_bytes)
+        except OSError:
+            return
 
 
 EventFilterT = TypeVar("EventFilterT", bound=object)
