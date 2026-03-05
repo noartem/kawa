@@ -166,6 +166,11 @@
       "sourceType": "github",
       "computedHash": "cb120821c275a351b6e3c154d82cf62a9277b6260c2c30b3101f688928a3428b"
     },
+    "vue3-component-decomposition": {
+      "source": "noartem/skills",
+      "sourceType": "github",
+      "computedHash": "db159e33451193841a5bdad35187a487798ab41739f45297c3f8c85b50abfec8"
+    },
     "vueuse": {
       "source": "onmax/nuxt-skills",
       "sourceType": "github",
