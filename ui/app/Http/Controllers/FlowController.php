@@ -10,7 +10,6 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -107,40 +106,33 @@ PY
         return redirect()->route('flows.show', $flow)->with('success', __('flows.created'));
     }
 
-    public function show(Request $request, Flow $flow, FlowService $flows): Response
+    public function show(Request $request, Flow $flow): Response
     {
         $flow->load('user')->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
         $developmentRun = $flow->activeRun('development');
-        $productionRuns = $flow->runs()->where('type', 'production')->latest()->limit(6)->get();
-        $developmentRuns = $flow->runs()->where('type', 'development')->latest()->limit(6)->get();
-        $productionLogs = $productionRun?->logs()->latest()->limit(50)->get() ?? collect();
+        $productionLogsCount = $productionRun?->logs()->count() ?? 0;
         $developmentLogs = $developmentRun?->logs()->latest()->limit(50)->get() ?? collect();
         $history = $flow->histories()->latest()->limit(10)->get();
         $deployments = $this->buildDeployments($flow, self::EDITOR_DEPLOYMENTS_LIMIT);
-        $viewMode = $request->user()->can('update', $flow) ? 'development' : 'production';
 
         return Inertia::render('flows/Editor', [
             'mode' => 'edit',
             'flow' => $flow,
+            'deployments' => $deployments,
             'productionRun' => $productionRun,
             'developmentRun' => $developmentRun,
-            'productionRuns' => $productionRuns,
-            'developmentRuns' => $developmentRuns,
-            'productionLogs' => $productionLogs,
+            'productionLogsCount' => $productionLogsCount,
             'developmentLogs' => $developmentLogs,
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
-            'deployments' => $deployments,
             'permissions' => [
                 'canRun' => $request->user()->can('run', $flow),
                 'canUpdate' => $request->user()->can('update', $flow),
                 'canDelete' => $request->user()->can('delete', $flow),
             ],
-            'viewMode' => $viewMode,
-            'requiresDeletePassword' => $flow->hadProductionDeploy(),
         ]);
     }
 
@@ -154,7 +146,7 @@ PY
         ]);
     }
 
-    public function update(Request $request, Flow $flow, FlowService $flows): RedirectResponse
+    public function update(Request $request, Flow $flow): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -186,18 +178,6 @@ PY
             return redirect()
                 ->route('flows.show', $flow)
                 ->with('error', __('flows.delete.error_active'));
-        }
-
-        if ($flow->hadProductionDeploy()) {
-            $request->validate([
-                'password' => ['required', 'string'],
-            ]);
-
-            if (! Hash::check((string) $request->input('password'), (string) $request->user()->password)) {
-                return redirect()
-                    ->route('flows.show', $flow)
-                    ->with('error', __('flows.delete.error_password'));
-            }
         }
 
         $flows->delete($flow);

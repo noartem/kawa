@@ -73,6 +73,7 @@ class FlowDeploymentsPayloadTest extends TestCase
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Editor')
             ->has('deployments', 2)
+            ->where('productionLogsCount', 0)
             ->where('deployments.0.id', $newRun->id)
             ->where('deployments.0.code', 'print("snapshot")')
             ->where('deployments.0.graph.nodes.0.id', 'node.snapshot')
@@ -81,6 +82,11 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->where('deployments.1.code', 'print("legacy")')
             ->where('deployments.1.graph.nodes.0.id', 'event.old')
             ->where('deployments.1.logs.0.message', 'Old deployment log')
+            ->missing('productionLogs')
+            ->missing('productionRuns')
+            ->missing('developmentRuns')
+            ->missing('viewMode')
+            ->missing('requiresDeletePassword')
         );
     }
 

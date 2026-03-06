@@ -198,9 +198,6 @@ const buildPageUrl = (page: number): string => {
                 <h1 class="text-xl font-semibold">
                     {{ t('flows.deployments_page.title') }}
                 </h1>
-                <p class="text-sm text-muted-foreground">
-                    {{ t('flows.deployments_page.description') }}
-                </p>
             </section>
 
             <FlowEditorDeployments

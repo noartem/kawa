@@ -29,17 +29,13 @@ const props = defineProps<{
     flow: FlowDetail;
     productionRun: FlowRun | null;
     developmentRun: FlowRun | null;
-    productionRuns: FlowRun[];
-    developmentRuns: FlowRun[];
-    productionLogs: FlowLog[];
+    productionLogsCount: number;
     developmentLogs: FlowLog[];
     deployments?: FlowDeployment[];
     status?: string | null;
     runStats: RunStat[];
     history: FlowHistory[];
     permissions: Permissions;
-    viewMode: 'development' | 'production';
-    requiresDeletePassword: boolean;
 }>();
 
 const { t, locale } = useI18n();
@@ -140,9 +136,7 @@ const refreshOnlyProps = [
     'flow',
     'productionRun',
     'developmentRun',
-    'productionRuns',
-    'developmentRuns',
-    'productionLogs',
+    'productionLogsCount',
     'developmentLogs',
     'deployments',
     'runStats',
@@ -597,16 +591,7 @@ const deleteFlow = (): void => {
         return;
     }
 
-    const password = props.requiresDeletePassword
-        ? prompt(t('flows.delete.password_prompt'))
-        : null;
-
-    if (props.requiresDeletePassword && !password) {
-        return;
-    }
-
     router.delete(`/flows/${props.flow.id}`, {
-        data: password ? { password } : {},
         preserveScroll: true,
     });
 };
@@ -673,7 +658,7 @@ onBeforeUnmount(() => {
                 :current-production-events-count="
                     currentProduction?.events?.length ?? 0
                 "
-                :production-logs-count="props.productionLogs.length"
+                :production-logs-count="props.productionLogsCount"
                 :run-stats="props.runStats"
                 :status-tone="statusTone"
                 :status-label="statusLabel"

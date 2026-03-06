@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
+    DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useI18n } from 'vue-i18n';
@@ -28,25 +28,19 @@ const { t } = useI18n();
 
 <template>
     <Dialog v-model:open="open">
-        <DialogContent
-            class="max-h-[90vh] w-[95vw] max-w-[1200px] overflow-y-auto"
-        >
-            <DialogTitle class="sr-only">
-                {{ t('flows.deployments.details_title') }}
-            </DialogTitle>
-            <DialogDescription class="sr-only">
-                {{ t('flows.deployments.description') }}
-            </DialogDescription>
-
-            <div v-if="deploymentCard" class="space-y-4">
-                <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-base font-semibold">
+        <DialogContent class="overflow-hidden xl:max-w-[1400px]">
+            <DialogHeader class="space-y-1 pb-1">
+                <DialogTitle
+                    v-if="deploymentCard"
+                    class="flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                    <span class="text-base font-semibold text-foreground">
                         {{
                             t('flows.deploy.label', {
                                 id: deploymentCard.deployment.id,
                             })
                         }}
-                    </p>
+                    </span>
                     <Badge
                         variant="outline"
                         :class="statusTone(deploymentCard.deployment.status)"
@@ -59,40 +53,52 @@ const { t } = useI18n();
                     >
                         {{ runTypeLabel(deploymentCard.deployment.type) }}
                     </Badge>
-                </div>
-
-                <div
-                    class="grid gap-3 text-xs text-muted-foreground md:grid-cols-4"
-                >
-                    <p>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
                         {{ t('common.started') }}:
-                        <span class="font-medium text-foreground">{{
+                        <span class="ml-1 font-medium text-foreground">{{
                             formatDate(deploymentCard.deployment.started_at)
                         }}</span>
-                    </p>
-                    <p>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
                         {{ t('common.finished') }}:
-                        <span class="font-medium text-foreground">{{
+                        <span class="ml-1 font-medium text-foreground">{{
                             formatDate(deploymentCard.deployment.finished_at)
                         }}</span>
-                    </p>
-                    <p>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
                         {{ t('flows.metrics.duration') }}:
-                        <span class="font-medium text-foreground">{{
+                        <span class="ml-1 font-medium text-foreground">{{
                             formatDuration(
                                 deploymentCard.deployment.started_at,
                                 deploymentCard.deployment.finished_at,
                             )
                         }}</span>
-                    </p>
-                    <p>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
                         {{ t('flows.deployments.logs') }}:
-                        <span class="font-medium text-foreground">{{
+                        <span class="ml-1 font-medium text-foreground">{{
                             deploymentCard.deployment.logs.length
                         }}</span>
-                    </p>
-                </div>
+                    </Badge>
+                </DialogTitle>
+                <DialogTitle v-else>
+                    {{ t('flows.deployments.details_title') }}
+                </DialogTitle>
+            </DialogHeader>
 
+            <div v-if="deploymentCard" class="space-y-4">
                 <div
                     class="grid h-[40vh] min-h-[280px] gap-3 lg:grid-cols-[2fr_1fr]"
                 >

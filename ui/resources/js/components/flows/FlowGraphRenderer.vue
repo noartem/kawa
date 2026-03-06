@@ -62,6 +62,13 @@ interface CameraStateSnapshot {
 const ZOOM_STEP = 1.2;
 const MIN_RATIO = 0.2;
 const MAX_RATIO = 8;
+const DEFAULT_CAMERA_RATIO = 100 / 83;
+const DEFAULT_CAMERA_STATE: CameraStateSnapshot = {
+    x: 0.5,
+    y: 0.5,
+    ratio: DEFAULT_CAMERA_RATIO,
+    angle: 0,
+};
 const LAYOUT_PADDING = 0.22;
 const MAX_MOUNT_RETRIES = 30;
 
@@ -138,7 +145,10 @@ const seedPosition = (node: BaseNode): { x: number; y: number } => {
     const xJitter = ((node.order % 11) - 5) * 0.01;
 
     return {
-        x: Math.max(LAYOUT_PADDING, Math.min(1 - LAYOUT_PADDING, baseX + xJitter)),
+        x: Math.max(
+            LAYOUT_PADDING,
+            Math.min(1 - LAYOUT_PADDING, baseX + xJitter),
+        ),
         y: seedY(node.order),
     };
 };
@@ -332,7 +342,13 @@ const drawRoundedLabel = (
 
     context.beginPath();
     context.moveTo(boxX + radius, boxY);
-    context.arcTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + boxHeight, radius);
+    context.arcTo(
+        boxX + boxWidth,
+        boxY,
+        boxX + boxWidth,
+        boxY + boxHeight,
+        radius,
+    );
     context.arcTo(
         boxX + boxWidth,
         boxY + boxHeight,
@@ -360,10 +376,15 @@ const toZoomPercent = (ratio: number): number => {
         return 100;
     }
 
-    return Math.max(10, Math.min(800, Math.round((1 / ratio) * 100)));
+    return Math.max(
+        10,
+        Math.min(800, Math.round((DEFAULT_CAMERA_RATIO / ratio) * 100)),
+    );
 };
 
-const buildGraphSignature = (graph?: Record<string, unknown> | null): string => {
+const buildGraphSignature = (
+    graph?: Record<string, unknown> | null,
+): string => {
     const nodes = buildNodes(graph);
     const nodeSignature = nodes
         .map((node) => `${node.id}:${node.type}:${node.label}`)
@@ -489,8 +510,7 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
             }
 
             if (highlightedEdgeIds.has(edge)) {
-                const edgeSize =
-                    typeof data.size === 'number' ? data.size : 2;
+                const edgeSize = typeof data.size === 'number' ? data.size : 2;
 
                 return {
                     size: Math.max(edgeSize, 3.2),
@@ -548,7 +568,7 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
         sigmaRenderer?.off('leaveNode', onLeaveNode);
     };
 
-    camera.setState(cameraState ?? { x: 0.5, y: 0.5, ratio: 1, angle: 0 });
+    camera.setState(cameraState ?? DEFAULT_CAMERA_STATE);
     onCameraUpdate();
     renderedGraphSignature.value = buildGraphSignature(props.graph);
 };
@@ -564,26 +584,28 @@ const withCamera = (callback: (ratio: number) => void): void => {
 
 const zoomIn = (): void => {
     withCamera((ratio) => {
-        sigmaRenderer?.getCamera().animate(
-            { ratio: Math.max(MIN_RATIO, ratio / ZOOM_STEP) },
-            { duration: 150 },
-        );
+        sigmaRenderer
+            ?.getCamera()
+            .animate(
+                { ratio: Math.max(MIN_RATIO, ratio / ZOOM_STEP) },
+                { duration: 150 },
+            );
     });
 };
 
 const zoomOut = (): void => {
     withCamera((ratio) => {
-        sigmaRenderer?.getCamera().animate(
-            { ratio: Math.min(MAX_RATIO, ratio * ZOOM_STEP) },
-            { duration: 150 },
-        );
+        sigmaRenderer
+            ?.getCamera()
+            .animate(
+                { ratio: Math.min(MAX_RATIO, ratio * ZOOM_STEP) },
+                { duration: 150 },
+            );
     });
 };
 
 const resetView = (): void => {
-    sigmaRenderer
-        ?.getCamera()
-        .animate({ x: 0.5, y: 0.5, ratio: 1, angle: 0 }, { duration: 180 });
+    sigmaRenderer?.getCamera().animate(DEFAULT_CAMERA_STATE, { duration: 180 });
 };
 
 defineExpose({
