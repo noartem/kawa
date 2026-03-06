@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Flows\FlowDeploymentsIndexRequest;
 use App\Models\Flow;
 use App\Models\FlowHistory;
 use App\Models\FlowRun;
@@ -136,13 +137,32 @@ PY
         ]);
     }
 
-    public function deployments(Flow $flow): Response
+    public function deployments(FlowDeploymentsIndexRequest $request, Flow $flow): Response
     {
         $flow->load('user')->loadCount('runs');
 
+        $filters = [
+            'search' => $request->search(),
+            'status' => $request->status(),
+            'type' => $request->runType(),
+        ];
+
+        $sorting = [
+            'column' => $request->sortBy(),
+            'direction' => $request->sortDirection(),
+        ];
+
         return Inertia::render('flows/Deployments', [
             'flow' => $flow,
-            'deployments' => $this->buildPaginatedDeployments($flow, self::DEPLOYMENTS_PER_PAGE),
+            'filters' => $filters,
+            'sorting' => $sorting,
+            'statusOptions' => FlowDeploymentsIndexRequest::statusOptions(),
+            'deployments' => $this->buildPaginatedDeployments(
+                $flow,
+                self::DEPLOYMENTS_PER_PAGE,
+                $filters,
+                $sorting,
+            ),
         ]);
     }
 
@@ -228,11 +248,40 @@ PY
         return $this->buildDeploymentsFromRuns($flow, $runs);
     }
 
-    private function buildPaginatedDeployments(Flow $flow, int $perPage): LengthAwarePaginator
+    /**
+     * @param  array{search: ?string, status: ?string, type: ?string}  $filters
+     * @param  array{column: string, direction: string}  $sorting
+     */
+    private function buildPaginatedDeployments(Flow $flow, int $perPage, array $filters, array $sorting): LengthAwarePaginator
     {
+        $search = $filters['search'];
+        $status = $filters['status'];
+        $type = $filters['type'];
+        $sortColumn = $sorting['column'];
+        $sortDirection = $sorting['direction'];
+
         $runs = $flow->runs()
-            ->latest('created_at')
-            ->orderByDesc('id')
+            ->when($search !== null, function ($runsQuery) use ($search): void {
+                $escapedSearch = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search);
+
+                $runsQuery->where(function ($whereQuery) use ($escapedSearch, $search): void {
+                    $whereQuery->where('container_id', 'like', '%'.$escapedSearch.'%');
+
+                    if (ctype_digit($search)) {
+                        $whereQuery->orWhereKey((int) $search);
+                    }
+                });
+            })
+            ->when($status !== null, function ($runsQuery) use ($status): void {
+                $runsQuery->where('status', $status);
+            })
+            ->when($type !== null, function ($runsQuery) use ($type): void {
+                $runsQuery->where('type', $type);
+            })
+            ->orderBy($sortColumn, $sortDirection)
+            ->when($sortColumn !== 'id', function ($runsQuery) use ($sortDirection): void {
+                $runsQuery->orderBy('id', $sortDirection);
+            })
             ->paginate($perPage)
             ->withQueryString();
 

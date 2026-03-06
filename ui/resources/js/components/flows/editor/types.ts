@@ -93,7 +93,18 @@ export interface DeploymentCard {
 export interface FlowDeploymentsPaginator {
     data: FlowDeployment[];
     current_page: number;
+    from?: number | null;
     last_page: number;
     per_page: number;
     total: number;
+    to?: number | null;
 }
+
+export type FlowDeploymentsSortKey =
+    | 'id'
+    | 'started_at'
+    | 'finished_at'
+    | 'created_at'
+    | 'updated_at';
+
+export type FlowDeploymentsSortDirection = 'asc' | 'desc';
