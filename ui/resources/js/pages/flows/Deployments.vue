@@ -21,6 +21,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from '@/components/ui/pagination';
+import {
     Table,
     TableBody,
     TableCell,
@@ -40,8 +49,6 @@ import {
     ArrowDown,
     ArrowDownUp,
     ArrowUp,
-    ChevronLeft,
-    ChevronRight,
     Filter,
     FilterX,
     Search,
@@ -57,6 +64,8 @@ type DeploymentsQuery = {
     direction?: FlowDeploymentsSortDirection;
     page?: number;
 };
+
+type PaginationToken = number | 'ellipsis-left' | 'ellipsis-right';
 
 const props = defineProps<{
     flow: {
@@ -243,19 +252,39 @@ const selectedDeploymentCard = computed<DeploymentCard | null>(() => {
     );
 });
 
-const pageNumbers = computed<number[]>(() => {
-    const start = Math.max(1, props.deployments.current_page - 2);
-    const end = Math.min(
-        props.deployments.last_page,
-        props.deployments.current_page + 2,
-    );
-    const pages: number[] = [];
+const paginationItems = computed<PaginationToken[]>(() => {
+    const totalPages = props.deployments.last_page;
+    const currentPage = props.deployments.current_page;
 
-    for (let page = start; page <= end; page += 1) {
-        pages.push(page);
+    if (totalPages <= 7) {
+        return Array.from({ length: totalPages }, (_, index) => index + 1);
     }
 
-    return pages;
+    if (currentPage <= 4) {
+        return [1, 2, 3, 4, 5, 'ellipsis-right', totalPages];
+    }
+
+    if (currentPage >= totalPages - 3) {
+        return [
+            1,
+            'ellipsis-left',
+            totalPages - 4,
+            totalPages - 3,
+            totalPages - 2,
+            totalPages - 1,
+            totalPages,
+        ];
+    }
+
+    return [
+        1,
+        'ellipsis-left',
+        currentPage - 1,
+        currentPage,
+        currentPage + 1,
+        'ellipsis-right',
+        totalPages,
+    ];
 });
 
 const hasActiveFilters = computed<boolean>(() => {
@@ -471,9 +500,14 @@ watch(deploymentCards, (cards) => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto w-full max-w-[1600px] divide-y">
-            <h1 class="p-4 text-xl font-semibold">
-                {{ t('flows.deployments_page.title') }}
-            </h1>
+            <div class="space-y-1 p-4">
+                <h1 class="text-xl font-semibold">
+                    {{ t('flows.deployments_page.title') }}
+                </h1>
+                <p class="text-sm text-muted-foreground">
+                    {{ resultsLabel }}
+                </p>
+            </div>
 
             <div class="p-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -779,94 +813,112 @@ watch(deploymentCards, (cards) => {
                     v-if="props.deployments.last_page > 1"
                     class="border-t border-border p-3"
                 >
-                    <nav
-                        class="flex flex-wrap items-center justify-between gap-2"
-                        :aria-label="t('flows.deployments_page.title')"
-                    >
-                        <Button
-                            v-if="props.deployments.current_page > 1"
-                            as-child
-                            variant="outline"
-                            size="sm"
-                        >
-                            <Link
-                                :href="
-                                    paginationHref(
-                                        props.deployments.current_page - 1,
-                                    )
-                                "
-                                preserve-state
-                                preserve-scroll
-                            >
-                                <ChevronLeft class="size-4" />
-                                {{
-                                    t(
-                                        'flows.deployments_page.pagination.previous',
-                                    )
-                                }}
-                            </Link>
-                        </Button>
-                        <span v-else class="text-sm text-muted-foreground">
-                            {{
-                                t('flows.deployments_page.pagination.previous')
-                            }}
-                        </span>
+                    <Pagination :aria-label="t('flows.deployments_page.title')">
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    v-if="props.deployments.current_page > 1"
+                                    :as-child="true"
+                                >
+                                    <Link
+                                        :href="
+                                            paginationHref(
+                                                props.deployments.current_page -
+                                                    1,
+                                            )
+                                        "
+                                        preserve-state
+                                        preserve-scroll
+                                    >
+                                        {{
+                                            t(
+                                                'flows.deployments_page.pagination.previous',
+                                            )
+                                        }}
+                                    </Link>
+                                </PaginationPrevious>
+                                <PaginationPrevious
+                                    v-else
+                                    as="span"
+                                    class="pointer-events-none opacity-50"
+                                >
+                                    {{
+                                        t(
+                                            'flows.deployments_page.pagination.previous',
+                                        )
+                                    }}
+                                </PaginationPrevious>
+                            </PaginationItem>
 
-                        <div class="flex flex-wrap items-center gap-1">
-                            <Button
-                                v-for="page in pageNumbers"
-                                :key="page"
-                                as-child
-                                size="sm"
-                                :variant="
-                                    page === props.deployments.current_page
-                                        ? 'default'
-                                        : 'outline'
-                                "
+                            <PaginationItem
+                                v-for="item in paginationItems"
+                                :key="item"
                             >
-                                <Link
-                                    :href="paginationHref(page)"
-                                    preserve-state
-                                    preserve-scroll
-                                    :aria-current="
-                                        page === props.deployments.current_page
-                                            ? 'page'
-                                            : undefined
+                                <PaginationEllipsis
+                                    v-if="typeof item !== 'number'"
+                                />
+                                <PaginationLink
+                                    v-else
+                                    :as-child="true"
+                                    :is-active="
+                                        item === props.deployments.current_page
                                     "
                                 >
-                                    {{ page }}
-                                </Link>
-                            </Button>
-                        </div>
+                                    <Link
+                                        :href="paginationHref(item)"
+                                        preserve-state
+                                        preserve-scroll
+                                        :aria-current="
+                                            item ===
+                                            props.deployments.current_page
+                                                ? 'page'
+                                                : undefined
+                                        "
+                                    >
+                                        {{ item }}
+                                    </Link>
+                                </PaginationLink>
+                            </PaginationItem>
 
-                        <Button
-                            v-if="
-                                props.deployments.current_page <
-                                props.deployments.last_page
-                            "
-                            as-child
-                            variant="outline"
-                            size="sm"
-                        >
-                            <Link
-                                :href="
-                                    paginationHref(
-                                        props.deployments.current_page + 1,
-                                    )
-                                "
-                                preserve-state
-                                preserve-scroll
-                            >
-                                {{
-                                    t('flows.deployments_page.pagination.next')
-                                }}
-                                <ChevronRight class="size-4" />
-                            </Link>
-                        </Button>
-                        <span v-else class="text-sm text-muted-foreground">
-                            {{ t('flows.deployments_page.pagination.next') }}
-                        </span>
-                    </nav>
+                            <PaginationItem>
+                                <PaginationNext
+                                    v-if="
+                                        props.deployments.current_page <
+                                        props.deployments.last_page
+                                    "
+                                    :as-child="true"
+                                >
+                                    <Link
+                                        :href="
+                                            paginationHref(
+                                                props.deployments.current_page +
+                                                    1,
+                                            )
+                                        "
+                                        preserve-state
+                                        preserve-scroll
+                                    >
+                                        {{
+                                            t(
+                                                'flows.deployments_page.pagination.next',
+                                            )
+                                        }}
+                                    </Link>
+                                </PaginationNext>
+                                <PaginationNext
+                                    v-else
+                                    as="span"
+                                    class="pointer-events-none opacity-50"
+                                >
+                                    {{
+                                        t(
+                                            'flows.deployments_page.pagination.next',
+                                        )
+                                    }}
+                                </PaginationNext>
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
                 </div>
             </div>
         </div>
