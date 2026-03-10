@@ -11,15 +11,9 @@ import type {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuRadioGroup,
-    DropdownMenuRadioItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
+    ClearableDropdownFilter,
+    ClearableSearchFilter,
+} from '@/components/ui/filters';
 import {
     Pagination,
     PaginationContent,
@@ -49,9 +43,6 @@ import {
     ArrowDown,
     ArrowDownUp,
     ArrowUp,
-    ChevronDown,
-    Search,
-    X,
 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -319,16 +310,20 @@ const resultsLabel = computed<string>(() => {
 
 const statusFilterValue = computed<string>(() => selectedStatus.value ?? 'all');
 const typeFilterValue = computed<string>(() => selectedType.value ?? 'all');
-const hasActivePrimaryFilters = computed<boolean>(() => {
-    return (
-        searchValue.value.trim() !== '' ||
-        selectedStatus.value !== null ||
-        selectedType.value !== null
-    );
-});
 
 const FILTER_DEBOUNCE_MS = 350;
 let queryDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const statusFilterOptions = computed(() => [
+    {
+        value: 'all',
+        label: t('flows.deployments_page.filters.status_all'),
+    },
+    ...props.statusOptions.map((status) => ({
+        value: status,
+        label: statusFilterLabel(status),
+    })),
+]);
 
 const typeOptions = computed(() => [
     {
@@ -436,20 +431,6 @@ const onTypeFilterChange = (value: string): void => {
     scheduleApplyQuery({ type: nextType ?? undefined, page: 1 });
 };
 
-const clearPrimaryFilters = (): void => {
-    clearQueryDebounce();
-    searchValue.value = '';
-    selectedStatus.value = null;
-    selectedType.value = null;
-
-    applyQuery({
-        search: undefined,
-        status: undefined,
-        type: undefined,
-        page: 1,
-    });
-};
-
 const toggleSorting = (column: FlowDeploymentsSortKey): void => {
     if (sortColumn.value === column) {
         sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
@@ -539,111 +520,36 @@ onBeforeUnmount(() => {
 
             <div class="p-4">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center">
-                    <div class="relative w-full md:max-w-xl">
-                        <Search
-                            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                        />
-                        <Input
-                            v-model="searchValue"
-                            :placeholder="
-                                t('flows.deployments_page.filters.search_placeholder')
-                            "
-                            class="pl-9 pr-10"
-                            @input="onSearchInput"
-                        />
-                        <button
-                            v-if="hasActivePrimaryFilters"
-                            type="button"
-                            class="absolute top-1/2 right-2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            :aria-label="t('flows.deployments_page.filters.reset')"
-                            @click="clearPrimaryFilters"
-                        >
-                            <X class="size-3.5" />
-                        </button>
-                    </div>
+                    <ClearableSearchFilter
+                        v-model="searchValue"
+                        class="w-full md:max-w-xl"
+                        :placeholder="
+                            t('flows.deployments_page.filters.search_placeholder')
+                        "
+                        :clear-label="t('flows.deployments_page.filters.reset')"
+                        clearable
+                        @input="onSearchInput"
+                    />
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger :as-child="true">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                class="w-full justify-between md:w-[170px]"
-                            >
-                                <span class="truncate">
-                                    {{
-                                        selectedStatus
-                                            ? statusFilterLabel(selectedStatus)
-                                            : t(
-                                                  'flows.deployments_page.filters.status',
-                                              )
-                                    }}
-                                </span>
-                                <ChevronDown class="ml-2 size-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" class="w-56">
-                            <DropdownMenuLabel>
-                                {{ t('flows.deployments_page.filters.status') }}
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuRadioGroup
-                                :model-value="statusFilterValue"
-                                @update:model-value="onStatusFilterChange"
-                            >
-                                <DropdownMenuRadioItem value="all">
-                                    {{
-                                        t(
-                                            'flows.deployments_page.filters.status_all',
-                                        )
-                                    }}
-                                </DropdownMenuRadioItem>
-                                <DropdownMenuRadioItem
-                                    v-for="status in props.statusOptions"
-                                    :key="status"
-                                    :value="status"
-                                >
-                                    {{ statusFilterLabel(status) }}
-                                </DropdownMenuRadioItem>
-                            </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ClearableDropdownFilter
+                        :model-value="statusFilterValue"
+                        :label="t('flows.deployments_page.filters.status')"
+                        :options="statusFilterOptions"
+                        :clear-label="t('flows.deployments_page.filters.reset')"
+                        class="md:w-[170px]"
+                        clearable
+                        @update:model-value="onStatusFilterChange"
+                    />
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger :as-child="true">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                class="w-full justify-between md:w-[170px]"
-                            >
-                                <span class="truncate">
-                                    {{
-                                        selectedType
-                                            ? runTypeLabel(selectedType)
-                                            : t('flows.deployments_page.filters.type')
-                                    }}
-                                </span>
-                                <ChevronDown class="ml-2 size-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" class="w-56">
-                            <DropdownMenuLabel>
-                                {{ t('flows.deployments_page.filters.type') }}
-                            </DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuRadioGroup
-                                :model-value="typeFilterValue"
-                                @update:model-value="onTypeFilterChange"
-                            >
-                                <DropdownMenuRadioItem
-                                    v-for="option in typeOptions"
-                                    :key="option.value"
-                                    :value="option.value"
-                                >
-                                    {{ option.label }}
-                                </DropdownMenuRadioItem>
-                            </DropdownMenuRadioGroup>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ClearableDropdownFilter
+                        :model-value="typeFilterValue"
+                        :label="t('flows.deployments_page.filters.type')"
+                        :options="typeOptions"
+                        :clear-label="t('flows.deployments_page.filters.reset')"
+                        class="md:w-[170px]"
+                        clearable
+                        @update:model-value="onTypeFilterChange"
+                    />
                 </div>
 
                 <Table>

@@ -14,6 +14,7 @@ interface FlowLog {
 interface ParsedLogEvent {
     label: string;
     message: string | null;
+    statusState: string | null;
 }
 
 interface DisplayLog extends FlowLog {
@@ -104,6 +105,63 @@ const extractActorMessageText = (
     return trimmed ? trimmed : null;
 };
 
+const normalizeStatusValue = (value: unknown): string | null => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().toLowerCase();
+
+    return normalized ? normalized : null;
+};
+
+const resolveStatusLabel = (status: string): string => {
+    const translationKey = `statuses.${status}`;
+
+    if (te(translationKey)) {
+        return t(translationKey);
+    }
+
+    return toReadableEventLabel(status);
+};
+
+const formatStatusTransition = (
+    fromStatus: string,
+    toStatus: string,
+): string => {
+    return `${resolveStatusLabel(fromStatus)} -> ${resolveStatusLabel(toStatus)}`;
+};
+
+const extractContextStatusState = (
+    context: Record<string, unknown> | null,
+): string | null => {
+    const statusRecord = asRecord(context?.status);
+
+    return (
+        normalizeStatusValue(statusRecord?.state) ??
+        normalizeStatusValue(context?.to_status) ??
+        normalizeStatusValue(context?.status)
+    );
+};
+
+const extractExplicitStatusTransitionText = (
+    context: Record<string, unknown> | null,
+): string | null => {
+    const details = asRecord(context?.details);
+    const fromStatus =
+        normalizeStatusValue(details?.from_status) ??
+        normalizeStatusValue(context?.from_status);
+    const toStatus =
+        normalizeStatusValue(details?.to_status) ??
+        normalizeStatusValue(context?.to_status);
+
+    if (!fromStatus || !toStatus) {
+        return null;
+    }
+
+    return formatStatusTransition(fromStatus, toStatus);
+};
+
 const isInlineOperationalMessage = (message: string): boolean => {
     const normalized = message.trim();
 
@@ -151,11 +209,18 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
     if (eventKey === 'activity_log' || eventKey === 'activity') {
         const activityType =
             typeof context?.type === 'string' ? context.type.trim() : '';
+        const details = asRecord(context?.details);
+        const activityStatus = normalizeStatusValue(details?.status);
+        const explicitTransition =
+            activityType === 'status_change'
+                ? extractExplicitStatusTransitionText(context)
+                : null;
 
         if (!activityType) {
             return {
                 label: resolveEventLabel(eventKey),
                 message: null,
+                statusState: null,
             };
         }
 
@@ -168,13 +233,17 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
                 return {
                     label: customEvent,
                     message: null,
+                    statusState: null,
                 };
             }
         }
 
         return {
             label: resolveEventLabel(activityType),
-            message: extractActivityMessageText(activityType, context),
+            message:
+                explicitTransition ??
+                extractActivityMessageText(activityType, context),
+            statusState: activityStatus,
         };
     }
 
@@ -182,12 +251,26 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
         return {
             label: resolveEventLabel(eventKey),
             message: extractActorMessageText(context),
+            statusState: null,
         };
     }
 
+    const statusState =
+        eventKey === 'container_status_update' ||
+        eventKey === 'status_changed' ||
+        eventKey === 'status_change'
+            ? extractContextStatusState(context)
+            : null;
+
+    const explicitTransition =
+        eventKey === 'status_changed' || eventKey === 'status_change'
+            ? extractExplicitStatusTransitionText(context)
+            : null;
+
     return {
         label: resolveEventLabel(eventKey),
-        message: null,
+        message: explicitTransition,
+        statusState,
     };
 };
 
@@ -220,9 +303,14 @@ const resolveRenderedMessage = (
     log: FlowLog,
     parsedEvent: ParsedLogEvent | null,
     inlineLabel: string | null,
+    statusTransitionMessage: string | null,
 ): string | null => {
     if (parsedEvent?.message) {
         return parsedEvent.message;
+    }
+
+    if (statusTransitionMessage) {
+        return statusTransitionMessage;
     }
 
     if (parsedEvent || inlineLabel) {
@@ -235,12 +323,29 @@ const resolveRenderedMessage = (
 };
 
 const displayLogs = computed<DisplayLog[]>(() => {
+    let previousStatusState: string | null = null;
+
     return [...props.logs].reverse().map((log) => {
         const parsedEvent = parseLogEvent(log);
         const plainMessage = log.message?.trim() ?? '';
         const inlineLabel =
             parsedEvent?.label ??
             (isInlineOperationalMessage(plainMessage) ? plainMessage : null);
+        let statusTransitionMessage: string | null = null;
+
+        if (parsedEvent?.statusState) {
+            if (
+                previousStatusState &&
+                previousStatusState !== parsedEvent.statusState
+            ) {
+                statusTransitionMessage = formatStatusTransition(
+                    previousStatusState,
+                    parsedEvent.statusState,
+                );
+            }
+
+            previousStatusState = parsedEvent.statusState;
+        }
 
         return {
             ...log,
@@ -251,6 +356,7 @@ const displayLogs = computed<DisplayLog[]>(() => {
                 log,
                 parsedEvent,
                 inlineLabel,
+                statusTransitionMessage,
             ),
         };
     });
