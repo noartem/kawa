@@ -376,7 +376,7 @@ const itemPaddingClass = computed(() =>
 const messageClass = computed(() =>
     props.dense
         ? 'mt-1 text-xs leading-relaxed text-foreground'
-        : 'mt-2 text-sm text-foreground',
+        : 'mt-2 text-xs text-foreground',
 );
 
 const isScrolledToBottom = (): boolean => {
