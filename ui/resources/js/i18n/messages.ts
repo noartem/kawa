@@ -490,6 +490,8 @@ export const messages = {
                     'What does this flow do? Which services does it touch?',
                 timezone: 'Timezone',
                 timezone_placeholder: 'e.g., Europe/Berlin',
+                timezone_search_placeholder: 'Search timezone...',
+                timezone_no_results: 'No timezones found.',
                 delete_hint:
                     'Deletion is available only when there are no active deployments.',
             },
@@ -1002,6 +1004,8 @@ export const messages = {
                     'Что делает поток? Какие сервисы затрагивает?',
                 timezone: 'Часовой пояс',
                 timezone_placeholder: 'Например, Europe/Berlin',
+                timezone_search_placeholder: 'Поиск часового пояса...',
+                timezone_no_results: 'Часовые пояса не найдены.',
                 delete_hint:
                     'Удаление доступно только при отсутствии активных деплоев.',
             },

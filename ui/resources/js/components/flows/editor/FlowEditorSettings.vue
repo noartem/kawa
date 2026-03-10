@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import TimezoneCombobox from '@/components/flows/TimezoneCombobox.vue';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Archive, Save, Trash2 } from 'lucide-vue-next';
@@ -69,20 +69,16 @@ const { t } = useI18n();
                 <Label for="flow-timezone">{{
                     t('flows.settings.timezone')
                 }}</Label>
-                <Input
+                <TimezoneCombobox
                     id="flow-timezone"
                     v-model="timezone"
-                    list="timezone-options-editor"
+                    :options="timezoneOptions"
                     :placeholder="t('flows.settings.timezone_placeholder')"
-                    required
+                    :search-placeholder="
+                        t('flows.settings.timezone_search_placeholder')
+                    "
+                    :empty-label="t('flows.settings.timezone_no_results')"
                 />
-                <datalist id="timezone-options-editor">
-                    <option
-                        v-for="timezoneOption in timezoneOptions"
-                        :key="timezoneOption"
-                        :value="timezoneOption"
-                    />
-                </datalist>
                 <p v-if="timezoneError" class="text-sm text-destructive">
                     {{ timezoneError }}
                 </p>

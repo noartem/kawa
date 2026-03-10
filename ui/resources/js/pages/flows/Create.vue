@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import TimezoneCombobox from '@/components/flows/TimezoneCombobox.vue';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
@@ -179,24 +179,25 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                         <Label for="timezone">{{
                             t('flows.settings.timezone')
                         }}</Label>
-                        <Input
+                        <TimezoneCombobox
                             id="timezone"
                             v-model="timezone"
-                            type="text"
-                            required
-                            name="timezone"
-                            list="timezone-options-create"
+                            :options="props.timezoneOptions"
                             :placeholder="
                                 t('flows.settings.timezone_placeholder')
                             "
+                            :search-placeholder="
+                                t('flows.settings.timezone_search_placeholder')
+                            "
+                            :empty-label="
+                                t('flows.settings.timezone_no_results')
+                            "
                         />
-                        <datalist id="timezone-options-create">
-                            <option
-                                v-for="timezoneOption in props.timezoneOptions"
-                                :key="timezoneOption"
-                                :value="timezoneOption"
-                            />
-                        </datalist>
+                        <input
+                            type="hidden"
+                            name="timezone"
+                            :value="timezone"
+                        />
                         <p
                             v-if="errors.timezone"
                             class="text-sm text-destructive"
