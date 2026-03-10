@@ -26,6 +26,21 @@ async def test_flow_manager_shutdown_is_idempotent(monkeypatch):
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
     app._started = True
+    active = Mock(
+        id="active-flow",
+        status="running",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "UTC"},
+    )
+    non_flow = Mock(id="non-flow", status="running", environment={})
+    stopped_flow = Mock(
+        id="stopped-flow",
+        status="stopped",
+        environment={"FLOW_RUN_ID": "99", "FLOW_TIMEZONE": "UTC"},
+    )
+    app.container_manager.list_containers = AsyncMock(
+        return_value=[active, non_flow, stopped_flow]
+    )
+    app.container_manager.stop_container = AsyncMock()
     app.container_manager.stop_monitoring = AsyncMock()
     app.socket_handler.close_all_connections = AsyncMock()
     app.messaging.close = AsyncMock()
@@ -34,6 +49,35 @@ async def test_flow_manager_shutdown_is_idempotent(monkeypatch):
     await app.shutdown()
 
     app.container_manager.stop_monitoring.assert_called_once()
+    app.container_manager.list_containers.assert_called_once()
+    app.container_manager.stop_container.assert_called_once_with("active-flow")
+    app.socket_handler.close_all_connections.assert_called_once()
+    app.messaging.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_flow_manager_shutdown_continues_if_container_stop_fails(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app._started = True
+    active = Mock(
+        id="active-flow",
+        status="running",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "UTC"},
+    )
+    app.container_manager.list_containers = AsyncMock(return_value=[active])
+    app.container_manager.stop_container = AsyncMock(side_effect=RuntimeError("boom"))
+    app.container_manager.stop_monitoring = AsyncMock()
+    app.socket_handler.close_all_connections = AsyncMock()
+    app.messaging.close = AsyncMock()
+
+    await app.shutdown()
+
+    app.container_manager.stop_monitoring.assert_called_once()
+    app.container_manager.stop_container.assert_called_once_with("active-flow")
     app.socket_handler.close_all_connections.assert_called_once()
     app.messaging.close.assert_called_once()
 

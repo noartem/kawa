@@ -154,10 +154,33 @@ class FlowManagerApp:
             self._background_tasks = []
 
             await self.container_manager.stop_monitoring()
+            await self._stop_active_flow_containers_on_shutdown()
             await self.socket_handler.close_all_connections()
             await self.messaging.close()
 
             self.logger.debug("Flow Manager application shutdown complete", {})
+
+    async def _stop_active_flow_containers_on_shutdown(self) -> None:
+        try:
+            containers = await self.container_manager.list_containers()
+        except Exception as exc:
+            self.logger.error(exc, {"operation": "list_containers_for_shutdown"})
+            return
+
+        for container in containers:
+            if not self._is_active_flow_deployment(container):
+                continue
+
+            try:
+                await self.container_manager.stop_container(container.id)
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "stop_container_on_shutdown",
+                        "container_id": container.id,
+                    },
+                )
 
     async def _health_check_loop(self) -> None:
         while not self._shutdown_event.is_set():
