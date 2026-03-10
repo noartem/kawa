@@ -113,6 +113,73 @@ class UserActivityLogger:
 
         await self._emit_activity_log("actor_event", container_id, message, details)
 
+    async def cron_system_event(
+        self,
+        container_id: str,
+        dispatch_count: int,
+        timezone_name: str,
+    ) -> None:
+        message = "System cron event triggered"
+        details = {
+            "container_id": container_id,
+            "dispatch_count": dispatch_count,
+            "timezone": timezone_name,
+            "trigger_event": "CronEvent",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        await self._emit_activity_log(
+            "cron_system_event",
+            container_id,
+            message,
+            details,
+        )
+
+    async def actor_invoked(
+        self,
+        container_id: str,
+        actor: str,
+        trigger_event: str,
+        event_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        message = f"Actor '{actor}' invoked by event '{trigger_event}'"
+        details = {
+            "container_id": container_id,
+            "actor": actor,
+            "trigger_event": trigger_event,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if event_data:
+            details["event_data"] = self.sensivity_filter(event_data)
+
+        await self._emit_activity_log("actor_invoked", container_id, message, details)
+
+    async def actor_dispatched(
+        self,
+        container_id: str,
+        actor: str,
+        dispatched_event: str,
+        event_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        message = f"Actor '{actor}' dispatched event '{dispatched_event}'"
+        details = {
+            "container_id": container_id,
+            "actor": actor,
+            "dispatched_event": dispatched_event,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if event_data:
+            details["event_data"] = self.sensivity_filter(event_data)
+
+        await self._emit_activity_log(
+            "actor_dispatched",
+            container_id,
+            message,
+            details,
+        )
+
     async def container_error(
         self, container_id: str, error_message: str, operation: Optional[str] = None
     ) -> None:

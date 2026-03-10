@@ -160,7 +160,9 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
             "dispatches": [],
         }
     )
-    app.user_logger.actor_event = AsyncMock()
+    app.user_logger.cron_system_event = AsyncMock()
+    app.user_logger.actor_invoked = AsyncMock()
+    app.user_logger.actor_dispatched = AsyncMock()
 
     await app._dispatch_cron_ticks()
 
@@ -179,7 +181,9 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
         "active-container",
         "flow-2-run-1",
     )
-    app.user_logger.actor_event.assert_not_called()
+    app.user_logger.cron_system_event.assert_not_called()
+    app.user_logger.actor_invoked.assert_not_called()
+    app.user_logger.actor_dispatched.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -217,7 +221,9 @@ async def test_handle_runtime_socket_message_logs_cron_dispatches(monkeypatch):
         mock_docker.return_value = Mock()
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
-    app.user_logger.actor_event = AsyncMock()
+    app.user_logger.cron_system_event = AsyncMock()
+    app.user_logger.actor_invoked = AsyncMock()
+    app.user_logger.actor_dispatched = AsyncMock()
 
     await app._handle_runtime_socket_message(
         "container-1",
@@ -229,17 +235,45 @@ async def test_handle_runtime_socket_message_logs_cron_dispatches(monkeypatch):
                     "actor": "MorningActor",
                     "template": "0 8 * * *",
                     "datetime": "2026-03-08T08:00:00+01:00",
+                    "dispatched_events": ["WakeUpEvent", "Message"],
                 }
             ],
         },
     )
 
-    app.user_logger.actor_event.assert_called_once_with(
+    app.user_logger.cron_system_event.assert_called_once_with(
         container_id="container-1",
-        actor="system",
-        event="CronEvent",
+        dispatch_count=1,
+        timezone_name="Europe/Berlin",
+    )
+    app.user_logger.actor_invoked.assert_called_once_with(
+        container_id="container-1",
+        actor="MorningActor",
+        trigger_event="CronEvent",
         event_data={
-            "actor": "MorningActor",
+            "template": "0 8 * * *",
+            "datetime": "2026-03-08T08:00:00+01:00",
+            "timezone": "Europe/Berlin",
+        },
+    )
+    assert app.user_logger.actor_dispatched.await_count == 2
+    app.user_logger.actor_dispatched.assert_any_await(
+        container_id="container-1",
+        actor="MorningActor",
+        dispatched_event="WakeUpEvent",
+        event_data={
+            "trigger_event": "CronEvent",
+            "template": "0 8 * * *",
+            "datetime": "2026-03-08T08:00:00+01:00",
+            "timezone": "Europe/Berlin",
+        },
+    )
+    app.user_logger.actor_dispatched.assert_any_await(
+        container_id="container-1",
+        actor="MorningActor",
+        dispatched_event="Message",
+        event_data={
+            "trigger_event": "CronEvent",
             "template": "0 8 * * *",
             "datetime": "2026-03-08T08:00:00+01:00",
             "timezone": "Europe/Berlin",

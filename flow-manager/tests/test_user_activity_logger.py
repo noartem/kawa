@@ -114,3 +114,45 @@ class TestUserActivityLogger:
         assert payload["details"]["error"] is True
         assert payload["details"]["operation"] == "start_container"
         assert datetime.fromisoformat(payload["timestamp"])
+
+    @pytest.mark.asyncio
+    async def test_log_cron_system_event(self, activity_logger):
+        await activity_logger.cron_system_event(
+            "cid", dispatch_count=2, timezone_name="UTC"
+        )
+
+        payload = activity_logger.messaging.published_events[-1]["payload"]
+        assert payload["type"] == "cron_system_event"
+        assert payload["details"]["dispatch_count"] == 2
+        assert payload["details"]["timezone"] == "UTC"
+        assert payload["details"]["trigger_event"] == "CronEvent"
+
+    @pytest.mark.asyncio
+    async def test_log_actor_invoked(self, activity_logger):
+        await activity_logger.actor_invoked(
+            "cid",
+            "MorningActor",
+            "CronEvent",
+            {"template": "0 8 * * *"},
+        )
+
+        payload = activity_logger.messaging.published_events[-1]["payload"]
+        assert payload["type"] == "actor_invoked"
+        assert payload["details"]["actor"] == "MorningActor"
+        assert payload["details"]["trigger_event"] == "CronEvent"
+        assert payload["details"]["event_data"]["template"] == "0 8 * * *"
+
+    @pytest.mark.asyncio
+    async def test_log_actor_dispatched(self, activity_logger):
+        await activity_logger.actor_dispatched(
+            "cid",
+            "MorningActor",
+            "WakeUpEvent",
+            {"trigger_event": "CronEvent"},
+        )
+
+        payload = activity_logger.messaging.published_events[-1]["payload"]
+        assert payload["type"] == "actor_dispatched"
+        assert payload["details"]["actor"] == "MorningActor"
+        assert payload["details"]["dispatched_event"] == "WakeUpEvent"
+        assert payload["details"]["event_data"]["trigger_event"] == "CronEvent"

@@ -607,6 +607,21 @@ def resolve_tick_time(timezone_name: str, timestamp_value: object) -> datetime:
     return datetime.now(zone)
 
 
+class RuntimeContext:
+    def __init__(self, base_context, actor_name: str, trigger_event: str):
+        self._base_context = base_context
+        self._actor_name = actor_name
+        self._trigger_event = trigger_event
+        self.dispatched_events = []
+
+    def dispatch(self, event):
+        event_name = event.__class__.__name__
+        if event_name:
+            self.dispatched_events.append(event_name)
+
+        return self._base_context.dispatch(event)
+
+
 def process_cron_tick(data: dict) -> dict:
     try:
         from kawa import Context, registry
@@ -695,7 +710,13 @@ def process_cron_tick(data: dict) -> dict:
                 if inspect.isclass(actor_callable):
                     actor_callable = actor_callable()
 
-                result = actor_callable(Context(), event)
+                runtime_context = RuntimeContext(
+                    Context(),
+                    actor_name=actor_name,
+                    trigger_event='CronEvent',
+                )
+
+                result = actor_callable(runtime_context, event)
                 if inspect.isawaitable(result):
                     continue
             except Exception:
@@ -707,6 +728,7 @@ def process_cron_tick(data: dict) -> dict:
                     'event': 'CronEvent',
                     'template': template,
                     'datetime': tick_time.isoformat(),
+                    'dispatched_events': runtime_context.dispatched_events,
                 }
             )
 

@@ -345,7 +345,9 @@ export const messages = {
                 node: 'Node: {node}',
                 events: {
                     activity_log: 'Activity',
+                    activity: 'Activity',
                     actor_message: 'Message',
+                    cron_system_event: 'System cron event',
                     container_created: 'Container created',
                     lock_generated: 'Lock generated',
                     lock_failed: 'Lock failed',
@@ -364,6 +366,12 @@ export const messages = {
                     health_warning: 'Health warning',
                     container_crash: 'Container crash',
                     actor_event: 'Actor event',
+                    actor_invoked: 'Actor invoked',
+                    actor_invoked_label: 'Actor {actor} invoked by {event}',
+                    actor_dispatched: 'Actor dispatched event',
+                    actor_dispatched_label: 'Actor {actor} dispatched {event}',
+                    cron_system_event_message:
+                        '{count} actor(s) triggered, timezone {timezone}',
                 },
             },
             summary: {
@@ -859,7 +867,9 @@ export const messages = {
                 node: 'Нода: {node}',
                 events: {
                     activity_log: 'Активность',
+                    activity: 'Активность',
                     actor_message: 'Сообщение',
+                    cron_system_event: 'Системное cron-событие',
                     container_created: 'Контейнер создан',
                     lock_generated: 'Блокировка создана',
                     lock_failed: 'Ошибка блокировки',
@@ -878,6 +888,13 @@ export const messages = {
                     health_warning: 'Предупреждение здоровья',
                     container_crash: 'Сбой контейнера',
                     actor_event: 'Событие актора',
+                    actor_invoked: 'Вызов актора',
+                    actor_invoked_label:
+                        'Актор {actor} вызван событием {event}',
+                    actor_dispatched: 'Актор задиспатчил событие',
+                    actor_dispatched_label: 'Актор {actor} задиспатчил {event}',
+                    cron_system_event_message:
+                        'Сработало акторов: {count}, таймзона {timezone}',
                 },
             },
             summary: {

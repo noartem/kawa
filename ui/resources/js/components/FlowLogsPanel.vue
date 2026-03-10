@@ -197,6 +197,70 @@ const extractActivityMessageText = (
     return trimmed ? trimmed : null;
 };
 
+const stringValue = (value: unknown): string | null => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const trimmed = value.trim();
+
+    return trimmed ? trimmed : null;
+};
+
+const resolveActivityLabel = (
+    activityType: string,
+    details: Record<string, unknown> | null,
+): string => {
+    if (activityType === 'actor_invoked') {
+        const actor = stringValue(details?.actor) ?? t('common.unknown');
+        const triggerEvent =
+            stringValue(details?.trigger_event) ?? t('common.unknown');
+
+        return t('flows.logs.events.actor_invoked_label', {
+            actor,
+            event: triggerEvent,
+        });
+    }
+
+    if (activityType === 'actor_dispatched') {
+        const actor = stringValue(details?.actor) ?? t('common.unknown');
+        const dispatchedEvent =
+            stringValue(details?.dispatched_event) ?? t('common.unknown');
+
+        return t('flows.logs.events.actor_dispatched_label', {
+            actor,
+            event: dispatchedEvent,
+        });
+    }
+
+    return resolveEventLabel(activityType);
+};
+
+const resolveActivityMessage = (
+    activityType: string,
+    context: Record<string, unknown> | null,
+    details: Record<string, unknown> | null,
+    explicitTransition: string | null,
+): string | null => {
+    if (explicitTransition) {
+        return explicitTransition;
+    }
+
+    if (activityType === 'cron_system_event') {
+        const dispatchCount = details?.dispatch_count;
+        const timezoneName = stringValue(details?.timezone) ?? 'UTC';
+
+        if (typeof dispatchCount === 'number') {
+            return t('flows.logs.events.cron_system_event_message', {
+                count: dispatchCount,
+                timezone: timezoneName,
+            });
+        }
+    }
+
+    return extractActivityMessageText(activityType, context);
+};
+
 const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
     const eventKey = extractEventKey(log.message);
 
@@ -239,10 +303,13 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
         }
 
         return {
-            label: resolveEventLabel(activityType),
-            message:
-                explicitTransition ??
-                extractActivityMessageText(activityType, context),
+            label: resolveActivityLabel(activityType, details),
+            message: resolveActivityMessage(
+                activityType,
+                context,
+                details,
+                explicitTransition,
+            ),
             statusState: activityStatus,
         };
     }

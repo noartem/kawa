@@ -382,6 +382,8 @@ class FlowManagerApp:
         if not isinstance(dispatches, list):
             return
 
+        valid_dispatches: list[dict[str, Any]] = []
+
         for dispatch in dispatches:
             if not isinstance(dispatch, dict):
                 continue
@@ -391,17 +393,55 @@ class FlowManagerApp:
             if not actor_name or not template:
                 continue
 
-            await self.user_logger.actor_event(
+            valid_dispatches.append(dispatch)
+
+        if not valid_dispatches:
+            return
+
+        timezone_name = str(message.get("timezone", "")).strip() or "UTC"
+
+        await self.user_logger.cron_system_event(
+            container_id=container_id,
+            dispatch_count=len(valid_dispatches),
+            timezone_name=timezone_name,
+        )
+
+        for dispatch in valid_dispatches:
+            actor_name = str(dispatch.get("actor", "")).strip()
+            template = str(dispatch.get("template", "")).strip()
+            trigger_event = str(dispatch.get("event", "")).strip() or "CronEvent"
+
+            await self.user_logger.actor_invoked(
                 container_id=container_id,
-                actor="system",
-                event="CronEvent",
+                actor=actor_name,
+                trigger_event=trigger_event,
                 event_data={
-                    "actor": actor_name,
                     "template": template,
                     "datetime": dispatch.get("datetime"),
-                    "timezone": message.get("timezone"),
+                    "timezone": timezone_name,
                 },
             )
+
+            dispatched_events = dispatch.get("dispatched_events")
+            if not isinstance(dispatched_events, list):
+                continue
+
+            for dispatched_event in dispatched_events:
+                dispatched_event_name = str(dispatched_event).strip()
+                if not dispatched_event_name:
+                    continue
+
+                await self.user_logger.actor_dispatched(
+                    container_id=container_id,
+                    actor=actor_name,
+                    dispatched_event=dispatched_event_name,
+                    event_data={
+                        "trigger_event": trigger_event,
+                        "template": template,
+                        "datetime": dispatch.get("datetime"),
+                        "timezone": timezone_name,
+                    },
+                )
 
 
 app_instance = FlowManagerApp()
