@@ -63,6 +63,10 @@ const isStatusTransitioning = computed(() => {
     return props.actionInProgress === 'run' || props.actionInProgress === 'stop';
 });
 
+const showStatusChip = computed(() => {
+    return props.currentDevelopmentActive || isStatusTransitioning.value;
+});
+
 const statusChipStatus = computed<string>(() => {
     if (props.actionInProgress === 'run') {
         return 'running';
@@ -204,6 +208,7 @@ watch(
 
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge
+                        v-if="showStatusChip"
                         variant="outline"
                         :class="[
                             'inline-flex items-center gap-1.5',
