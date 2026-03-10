@@ -18,6 +18,7 @@ defineProps<{
     canDelete: boolean;
     hasActiveDeploys: boolean;
     actionInProgress: string | null;
+    timezoneOptions: string[];
     nameError?: string;
     timezoneError?: string;
 }>();
@@ -71,9 +72,17 @@ const { t } = useI18n();
                 <Input
                     id="flow-timezone"
                     v-model="timezone"
+                    list="timezone-options-editor"
                     :placeholder="t('flows.settings.timezone_placeholder')"
                     required
                 />
+                <datalist id="timezone-options-editor">
+                    <option
+                        v-for="timezoneOption in timezoneOptions"
+                        :key="timezoneOption"
+                        :value="timezoneOption"
+                    />
+                </datalist>
                 <p v-if="timezoneError" class="text-sm text-destructive">
                     {{ timezoneError }}
                 </p>

@@ -56,6 +56,28 @@ class FlowGraphDefaultsTest extends TestCase
         $this->assertSame('UTC', $flow->timezone);
     }
 
+    public function test_flow_creation_rejects_invalid_timezone(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)
+            ->from(route('flows.create'))
+            ->post(route('flows.store'), [
+                'name' => 'Invalid timezone flow',
+                'description' => 'Should fail validation',
+                'template' => 'cron',
+                'timezone' => 'Invalid/Timezone',
+            ])
+            ->assertRedirect(route('flows.create'))
+            ->assertSessionHasErrors(['timezone']);
+
+        $this->assertDatabaseMissing('flows', [
+            'user_id' => $user->id,
+            'name' => 'Invalid timezone flow',
+        ]);
+    }
+
     public function test_show_does_not_backfill_graph_when_it_is_empty(): void
     {
         /** @var User $user */
@@ -129,5 +151,30 @@ PY,
         $this->assertNotNull($flow->code_updated_at);
         $this->assertNotNull($previousCodeUpdatedAt);
         $this->assertTrue($flow->code_updated_at->gt($previousCodeUpdatedAt));
+    }
+
+    public function test_flow_update_rejects_invalid_timezone(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'timezone' => 'UTC',
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('flows.show', $flow))
+            ->put(route('flows.update', $flow), [
+                'name' => $flow->name,
+                'description' => $flow->description,
+                'code' => $flow->code,
+                'timezone' => 'Invalid/Timezone',
+            ])
+            ->assertRedirect(route('flows.show', $flow))
+            ->assertSessionHasErrors(['timezone']);
+
+        $flow->refresh();
+
+        $this->assertSame('UTC', $flow->timezone);
     }
 }

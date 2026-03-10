@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -74,16 +75,19 @@ PY
         return Inertia::render('flows/Create', [
             'defaultTemplate' => 'cron',
             'defaultTimezone' => config('app.timezone', 'UTC'),
+            'timezoneOptions' => $this->timezoneOptions(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $timezoneOptions = $this->timezoneOptions();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'template' => ['required', 'string', 'in:blank,cron,webhook'],
-            'timezone' => ['nullable', 'string', 'timezone'],
+            'timezone' => ['nullable', 'string', 'timezone', Rule::in($timezoneOptions)],
         ]);
 
         $code = self::TEMPLATES[$data['template']] ?? '';
@@ -132,6 +136,7 @@ PY
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
+            'timezoneOptions' => $this->timezoneOptions(),
             'permissions' => [
                 'canRun' => $request->user()->can('run', $flow),
                 'canUpdate' => $request->user()->can('update', $flow),
@@ -172,11 +177,13 @@ PY
 
     public function update(Request $request, Flow $flow): RedirectResponse
     {
+        $timezoneOptions = $this->timezoneOptions();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'code' => ['nullable', 'string'],
-            'timezone' => ['sometimes', 'string', 'timezone'],
+            'timezone' => ['sometimes', 'string', 'timezone', Rule::in($timezoneOptions)],
         ]);
 
         $codeChanged = array_key_exists('code', $data)
@@ -567,5 +574,13 @@ PY
         }
 
         return implode("\n", $diff);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function timezoneOptions(): array
+    {
+        return \DateTimeZone::listIdentifiers();
     }
 }

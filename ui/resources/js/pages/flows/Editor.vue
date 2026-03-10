@@ -35,6 +35,7 @@ const props = defineProps<{
     status?: string | null;
     runStats: RunStat[];
     history: FlowHistory[];
+    timezoneOptions: string[];
     permissions: Permissions;
 }>();
 
@@ -712,6 +713,7 @@ onBeforeUnmount(() => {
                 :can-delete="props.permissions.canDelete"
                 :has-active-deploys="hasActiveDeploys"
                 :action-in-progress="actionInProgress"
+                :timezone-options="props.timezoneOptions"
                 :name-error="form.errors.name"
                 :timezone-error="form.errors.timezone"
                 @save="save"

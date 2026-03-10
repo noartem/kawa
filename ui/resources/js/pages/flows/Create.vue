@@ -18,6 +18,7 @@ const { t } = useI18n();
 const props = defineProps<{
     defaultTemplate: 'blank' | 'cron' | 'webhook';
     defaultTimezone: string;
+    timezoneOptions: string[];
 }>();
 
 const detectBrowserTimezone = (): string | null => {
@@ -184,10 +185,18 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                             type="text"
                             required
                             name="timezone"
+                            list="timezone-options-create"
                             :placeholder="
                                 t('flows.settings.timezone_placeholder')
                             "
                         />
+                        <datalist id="timezone-options-create">
+                            <option
+                                v-for="timezoneOption in props.timezoneOptions"
+                                :key="timezoneOption"
+                                :value="timezoneOption"
+                            />
+                        </datalist>
                         <p
                             v-if="errors.timezone"
                             class="text-sm text-destructive"
