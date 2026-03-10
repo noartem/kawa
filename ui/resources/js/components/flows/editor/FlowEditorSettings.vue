@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import TimezoneCombobox from '@/components/flows/TimezoneCombobox.vue';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Archive, Save, Trash2 } from 'lucide-vue-next';

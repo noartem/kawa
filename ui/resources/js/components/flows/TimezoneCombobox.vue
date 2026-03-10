@@ -15,7 +15,10 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { Check, ChevronsUpDown } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+
+const INITIAL_OPTIONS_LIMIT = 40;
+const SEARCH_OPTIONS_LIMIT = 120;
 
 const timezone = defineModel<string>({ required: true });
 
@@ -35,6 +38,7 @@ const props = withDefaults(
 );
 
 const open = ref(false);
+const searchTerm = ref('');
 
 const selectedTimezone = computed(() => {
     if (props.options.includes(timezone.value)) {
@@ -44,10 +48,37 @@ const selectedTimezone = computed(() => {
     return '';
 });
 
+const visibleOptions = computed(() => {
+    const normalizedSearchTerm = searchTerm.value.trim().toLowerCase();
+
+    if (normalizedSearchTerm.length === 0) {
+        const initialOptions = props.options.slice(0, INITIAL_OPTIONS_LIMIT);
+
+        if (
+            selectedTimezone.value.length > 0 &&
+            !initialOptions.includes(selectedTimezone.value)
+        ) {
+            return [selectedTimezone.value, ...initialOptions];
+        }
+
+        return initialOptions;
+    }
+
+    return props.options
+        .filter((option) => option.toLowerCase().includes(normalizedSearchTerm))
+        .slice(0, SEARCH_OPTIONS_LIMIT);
+});
+
 const selectTimezone = (nextTimezone: string): void => {
     timezone.value = nextTimezone;
     open.value = false;
 };
+
+watch(open, (isOpen) => {
+    if (!isOpen) {
+        searchTerm.value = '';
+    }
+});
 </script>
 
 <template>
@@ -69,16 +100,22 @@ const selectTimezone = (nextTimezone: string): void => {
             </Button>
         </PopoverTrigger>
 
-        <PopoverContent class="w-[--reka-popover-trigger-width] p-0">
+        <PopoverContent
+            class="w-[var(--reka-popover-trigger-width)] p-0"
+            :style="{
+                maxHeight: 'var(--reka-popover-content-available-height)',
+            }"
+        >
             <Command>
-                <CommandInput :placeholder="searchPlaceholder" />
-
+                <CommandInput
+                    :placeholder="searchPlaceholder"
+                    @update:model-value="(value) => (searchTerm = value)"
+                />
                 <CommandList>
                     <CommandEmpty>{{ emptyLabel }}</CommandEmpty>
-
                     <CommandGroup>
                         <CommandItem
-                            v-for="timezoneOption in options"
+                            v-for="timezoneOption in visibleOptions"
                             :key="timezoneOption"
                             :value="timezoneOption"
                             @select="() => selectTimezone(timezoneOption)"
