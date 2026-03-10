@@ -26,8 +26,12 @@ tasks:
         vars:
           COMPOSE: down
 
+  build-flow:
+    cmd: docker build -t flow:dev -f flow/Dockerfile .
+
   build:
     cmds:
+      - task: build-flow
       - task: compose
         vars:
           COMPOSE: build sandbox

@@ -43,6 +43,7 @@ class FlowFactory extends Factory
             'container_id' => $status === 'draft' ? null : 'flow-'.Str::lower(Str::random(8)),
             'entrypoint' => 'main.py',
             'image' => 'flow:dev',
+            'timezone' => 'UTC',
             'last_started_at' => $startedAt,
             'last_finished_at' => $status === 'running' ? null : $finishedAt,
         ];

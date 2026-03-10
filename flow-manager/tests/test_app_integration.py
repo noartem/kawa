@@ -125,3 +125,123 @@ async def test_drain_container_messages_reads_and_publishes(monkeypatch):
             "message": "runtime log",
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    active = Mock(
+        id="active-container",
+        status="running",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "Europe/Berlin"},
+    )
+    active.name = "flow-2-run-1"
+    non_flow = Mock(id="non-flow", status="running", environment={})
+    stopped = Mock(
+        id="stopped-container",
+        status="stopped",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "UTC"},
+    )
+
+    app.container_manager.list_containers = AsyncMock(
+        return_value=[active, non_flow, stopped]
+    )
+    app.socket_handler.is_socket_connected = Mock(return_value=False)
+    app.socket_handler.setup_socket = AsyncMock()
+    app.socket_handler.send_message = AsyncMock()
+    app.socket_handler.receive_message = AsyncMock(
+        return_value={
+            "type": "cron_tick_result",
+            "timezone": "Europe/Berlin",
+            "dispatches": [],
+        }
+    )
+    app.user_logger.actor_event = AsyncMock()
+
+    await app._dispatch_cron_ticks()
+
+    app.socket_handler.send_message.assert_called_once_with(
+        "active-container",
+        {
+            "command": "cron_tick",
+            "data": {"timezone": "Europe/Berlin"},
+        },
+    )
+    app.socket_handler.receive_message.assert_called_once_with(
+        "active-container",
+        timeout=5,
+    )
+    app.socket_handler.setup_socket.assert_called_once_with(
+        "active-container",
+        "flow-2-run-1",
+    )
+    app.user_logger.actor_event.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_restore_runtime_sockets_for_active_flow_deployments(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    active = Mock(id="active-container")
+    active.name = "flow-2-run-1"
+    active.status = "running"
+    active.environment = {"FLOW_RUN_ID": "101"}
+
+    non_flow = Mock(id="non-flow")
+    non_flow.name = "utility-container"
+    non_flow.status = "running"
+    non_flow.environment = {}
+
+    app.container_manager.list_containers = AsyncMock(return_value=[active, non_flow])
+    app.socket_handler.setup_socket = AsyncMock()
+
+    await app._restore_runtime_sockets()
+
+    app.socket_handler.setup_socket.assert_called_once_with(
+        "active-container",
+        "flow-2-run-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_runtime_socket_message_logs_cron_dispatches(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app.user_logger.actor_event = AsyncMock()
+
+    await app._handle_runtime_socket_message(
+        "container-1",
+        {
+            "type": "cron_tick_result",
+            "timezone": "Europe/Berlin",
+            "dispatches": [
+                {
+                    "actor": "MorningActor",
+                    "template": "0 8 * * *",
+                    "datetime": "2026-03-08T08:00:00+01:00",
+                }
+            ],
+        },
+    )
+
+    app.user_logger.actor_event.assert_called_once_with(
+        container_id="container-1",
+        actor="system",
+        event="CronEvent",
+        event_data={
+            "actor": "MorningActor",
+            "template": "0 8 * * *",
+            "datetime": "2026-03-08T08:00:00+01:00",
+            "timezone": "Europe/Berlin",
+        },
+    )

@@ -71,7 +71,7 @@ class FlowDeploymentsPageTest extends TestCase
 
         $response = $this->actingAs($user)->get(route('flows.deployments', [
             'flow' => $flow,
-            'status' => 'success',
+            'status' => 'status_successful',
             'type' => 'production',
             'search' => 'target',
         ]));
@@ -79,7 +79,7 @@ class FlowDeploymentsPageTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Deployments')
-            ->where('filters.status', 'success')
+            ->where('filters.status', 'status_successful')
             ->where('filters.type', 'production')
             ->where('filters.search', 'target')
             ->has('deployments.data', 1)

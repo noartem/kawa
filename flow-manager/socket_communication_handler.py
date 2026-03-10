@@ -90,7 +90,7 @@ class SocketCommunicationHandler:
 
             # Bind to socket path
             sock.bind(str(socket_path))
-            sock.listen(1)
+            sock.listen(16)
 
             # Store connection
             self._connections[container_id] = sock
@@ -371,67 +371,113 @@ class SocketCommunicationHandler:
                     f"No socket connection for container {container_id}"
                 )
 
-            # Accept connection if needed (for server socket)
-            try:
-                client_sock, _ = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, sock.accept),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                raise SocketTimeoutError(
-                    f"Timeout waiting for connection from container {container_id}"
-                )
-            except Exception:
-                # If accept fails, assume we're already connected
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout
+            stale_connections = 0
+            accepted_sock = False
+            client_sock = sock
+
+            while True:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    raise SocketTimeoutError(
+                        f"Timeout waiting for message from container {container_id}"
+                    )
+
+                accepted_sock = False
                 client_sock = sock
+                try:
+                    try:
+                        client_sock, _ = await asyncio.wait_for(
+                            loop.run_in_executor(None, sock.accept),
+                            timeout=remaining,
+                        )
+                        accepted_sock = True
+                    except asyncio.TimeoutError:
+                        raise SocketTimeoutError(
+                            f"Timeout waiting for connection from container {container_id}"
+                        )
+                    except Exception:
+                        client_sock = sock
 
-            # Receive message length first (4 bytes)
-            try:
-                length_bytes = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(None, client_sock.recv, 4),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                raise SocketTimeoutError(
-                    f"Timeout receiving message length from container {container_id}"
-                )
+                    try:
+                        length_bytes = await asyncio.wait_for(
+                            loop.run_in_executor(None, client_sock.recv, 4),
+                            timeout=remaining,
+                        )
+                    except asyncio.TimeoutError:
+                        stale_connections += 1
+                        self.logger.debug(
+                            "Skipping stale socket connection",
+                            {
+                                "container_id": container_id,
+                                "retry_count": stale_connections,
+                            },
+                        )
+                        continue
 
-            if len(length_bytes) != 4:
-                raise SocketCommunicationError(
-                    f"Invalid message length received from container {container_id}"
-                )
+                    if len(length_bytes) != 4:
+                        stale_connections += 1
+                        self.logger.debug(
+                            "Skipping socket with invalid length prefix",
+                            {
+                                "container_id": container_id,
+                                "retry_count": stale_connections,
+                                "bytes": len(length_bytes),
+                            },
+                        )
+                        continue
 
-            message_length = int.from_bytes(length_bytes, byteorder="big")
+                    message_length = int.from_bytes(length_bytes, byteorder="big")
 
-            # Receive message data
-            try:
-                message_data = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(
-                        None, client_sock.recv, message_length
-                    ),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                raise SocketTimeoutError(
-                    f"Timeout receiving message data from container {container_id}"
-                )
+                    try:
+                        message_data = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                None, client_sock.recv, message_length
+                            ),
+                            timeout=remaining,
+                        )
+                    except asyncio.TimeoutError:
+                        stale_connections += 1
+                        self.logger.debug(
+                            "Skipping socket with incomplete payload timeout",
+                            {
+                                "container_id": container_id,
+                                "retry_count": stale_connections,
+                                "expected_bytes": message_length,
+                            },
+                        )
+                        continue
 
-            if len(message_data) != message_length:
-                raise SocketCommunicationError(
-                    f"Incomplete message received from container {container_id}"
-                )
+                    if len(message_data) != message_length:
+                        stale_connections += 1
+                        self.logger.debug(
+                            "Skipping socket with incomplete payload",
+                            {
+                                "container_id": container_id,
+                                "retry_count": stale_connections,
+                                "expected_bytes": message_length,
+                                "received_bytes": len(message_data),
+                            },
+                        )
+                        continue
 
-            # Deserialize message from JSON
-            try:
-                message = json.loads(message_data.decode("utf-8"))
-            except json.JSONDecodeError as e:
-                raise SocketCommunicationError(
-                    f"Invalid JSON message from container {container_id}: {str(e)}"
-                )
+                    try:
+                        message = json.loads(message_data.decode("utf-8"))
+                    except json.JSONDecodeError as exc:
+                        raise SocketCommunicationError(
+                            f"Invalid JSON message from container {container_id}: {str(exc)}"
+                        )
 
-            self.logger.communication(container_id, "received", message)
+                    self.logger.communication(container_id, "received", message)
 
-            return message
+                    return message
+                finally:
+                    if accepted_sock and client_sock is not sock:
+                        try:
+                            client_sock.close()
+                        except OSError:
+                            pass
 
         except (SocketTimeoutError, SocketConnectionError, SocketCommunicationError):
             # Re-raise our custom exceptions

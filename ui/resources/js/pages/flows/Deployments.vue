@@ -49,11 +49,11 @@ import {
     ArrowDown,
     ArrowDownUp,
     ArrowUp,
-    Filter,
-    FilterX,
+    ChevronDown,
     Search,
+    X,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 type DeploymentsQuery = {
@@ -115,6 +115,19 @@ const selectedDeploymentId = ref<number | null>(null);
 
 const statusLabel = (status?: string | null): string => {
     return t(`statuses.${status ?? 'unknown'}`);
+};
+
+const statusFilterLabel = (status: string): string => {
+    switch (status) {
+        case 'status_working':
+            return t('flows.deployments_page.filters.status_groups.working');
+        case 'status_successful':
+            return t('flows.deployments_page.filters.status_groups.successful');
+        case 'status_error':
+            return t('flows.deployments_page.filters.status_groups.error');
+        default:
+            return statusLabel(status);
+    }
 };
 
 const runTypeLabel = (type?: FlowRun['type'] | null): string => {
@@ -287,16 +300,6 @@ const paginationItems = computed<PaginationToken[]>(() => {
     ];
 });
 
-const hasActiveFilters = computed<boolean>(() => {
-    return (
-        searchValue.value.trim() !== '' ||
-        selectedStatus.value !== null ||
-        selectedType.value !== null ||
-        sortColumn.value !== 'created_at' ||
-        sortDirection.value !== 'desc'
-    );
-});
-
 const resultsLabel = computed<string>(() => {
     if (props.deployments.total === 0) {
         return t('flows.deployments_page.results_empty');
@@ -316,6 +319,16 @@ const resultsLabel = computed<string>(() => {
 
 const statusFilterValue = computed<string>(() => selectedStatus.value ?? 'all');
 const typeFilterValue = computed<string>(() => selectedType.value ?? 'all');
+const hasActivePrimaryFilters = computed<boolean>(() => {
+    return (
+        searchValue.value.trim() !== '' ||
+        selectedStatus.value !== null ||
+        selectedType.value !== null
+    );
+});
+
+const FILTER_DEBOUNCE_MS = 350;
+let queryDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const typeOptions = computed(() => [
     {
@@ -382,9 +395,23 @@ const applyQuery = (overrides: Partial<DeploymentsQuery> = {}): void => {
     );
 };
 
-const applySearch = (): void => {
-    searchValue.value = searchValue.value.trim();
-    applyQuery({ search: searchValue.value || undefined, page: 1 });
+const clearQueryDebounce = (): void => {
+    if (queryDebounceTimer !== null) {
+        clearTimeout(queryDebounceTimer);
+        queryDebounceTimer = null;
+    }
+};
+
+const scheduleApplyQuery = (overrides: Partial<DeploymentsQuery> = {}): void => {
+    clearQueryDebounce();
+    queryDebounceTimer = setTimeout(() => {
+        applyQuery(overrides);
+        queryDebounceTimer = null;
+    }, FILTER_DEBOUNCE_MS);
+};
+
+const onSearchInput = (): void => {
+    scheduleApplyQuery({ search: searchValue.value.trim() || undefined, page: 1 });
 };
 
 const onStatusFilterChange = (value: string): void => {
@@ -395,7 +422,7 @@ const onStatusFilterChange = (value: string): void => {
     }
 
     selectedStatus.value = nextStatus;
-    applyQuery({ status: nextStatus ?? undefined, page: 1 });
+    scheduleApplyQuery({ status: nextStatus ?? undefined, page: 1 });
 };
 
 const onTypeFilterChange = (value: string): void => {
@@ -406,22 +433,19 @@ const onTypeFilterChange = (value: string): void => {
     }
 
     selectedType.value = nextType;
-    applyQuery({ type: nextType ?? undefined, page: 1 });
+    scheduleApplyQuery({ type: nextType ?? undefined, page: 1 });
 };
 
-const resetFilters = (): void => {
+const clearPrimaryFilters = (): void => {
+    clearQueryDebounce();
     searchValue.value = '';
     selectedStatus.value = null;
     selectedType.value = null;
-    sortColumn.value = 'created_at';
-    sortDirection.value = 'desc';
 
     applyQuery({
         search: undefined,
         status: undefined,
         type: undefined,
-        sort: 'created_at',
-        direction: 'desc',
         page: 1,
     });
 };
@@ -493,6 +517,10 @@ watch(deploymentCards, (cards) => {
         selectedDeploymentId.value = null;
     }
 });
+
+onBeforeUnmount(() => {
+    clearQueryDebounce();
+});
 </script>
 
 <template>
@@ -510,146 +538,117 @@ watch(deploymentCards, (cards) => {
             </div>
 
             <div class="p-4">
-                <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
-                    <form
-                        class="flex w-full flex-col gap-2 sm:flex-row"
-                        @submit.prevent="applySearch"
-                    >
-                        <div class="relative w-full">
-                            <Search
-                                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                            />
-                            <Input
-                                v-model="searchValue"
-                                :placeholder="
-                                    t(
-                                        'flows.deployments_page.filters.search_placeholder',
-                                    )
-                                "
-                                class="pl-9"
-                            />
-                        </div>
-                        <Button
-                            type="submit"
-                            variant="secondary"
-                            class="sm:w-auto"
+                <div class="flex flex-col gap-2 md:flex-row md:items-center">
+                    <div class="relative w-full md:max-w-xl">
+                        <Search
+                            class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            v-model="searchValue"
+                            :placeholder="
+                                t('flows.deployments_page.filters.search_placeholder')
+                            "
+                            class="pl-9 pr-10"
+                            @input="onSearchInput"
+                        />
+                        <button
+                            v-if="hasActivePrimaryFilters"
+                            type="button"
+                            class="absolute top-1/2 right-2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            :aria-label="t('flows.deployments_page.filters.reset')"
+                            @click="clearPrimaryFilters"
                         >
-                            {{ t('flows.deployments_page.filters.apply') }}
-                        </Button>
-                    </form>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger :as-child="true">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    class="gap-2"
-                                >
-                                    <Filter class="size-4" />
-                                    {{
-                                        t(
-                                            'flows.deployments_page.filters.status',
-                                        )
-                                    }}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" class="w-56">
-                                <DropdownMenuLabel>
-                                    {{
-                                        t(
-                                            'flows.deployments_page.filters.status',
-                                        )
-                                    }}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuRadioGroup
-                                    :model-value="statusFilterValue"
-                                    @update:model-value="onStatusFilterChange"
-                                >
-                                    <DropdownMenuRadioItem value="all">
-                                        {{
-                                            t(
-                                                'flows.deployments_page.filters.status_all',
-                                            )
-                                        }}
-                                    </DropdownMenuRadioItem>
-                                    <DropdownMenuRadioItem
-                                        v-for="status in props.statusOptions"
-                                        :key="status"
-                                        :value="status"
-                                    >
-                                        {{ statusLabel(status) }}
-                                    </DropdownMenuRadioItem>
-                                </DropdownMenuRadioGroup>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        <DropdownMenu>
-                            <DropdownMenuTrigger :as-child="true">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    class="gap-2"
-                                >
-                                    <Filter class="size-4" />
-                                    {{
-                                        t('flows.deployments_page.filters.type')
-                                    }}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" class="w-56">
-                                <DropdownMenuLabel>
-                                    {{
-                                        t('flows.deployments_page.filters.type')
-                                    }}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuRadioGroup
-                                    :model-value="typeFilterValue"
-                                    @update:model-value="onTypeFilterChange"
-                                >
-                                    <DropdownMenuRadioItem
-                                        v-for="option in typeOptions"
-                                        :key="option.value"
-                                        :value="option.value"
-                                    >
-                                        {{ option.label }}
-                                    </DropdownMenuRadioItem>
-                                </DropdownMenuRadioGroup>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        <Button
-                            v-if="hasActiveFilters"
-                            variant="ghost"
-                            size="sm"
-                            class="gap-2"
-                            @click="resetFilters"
-                        >
-                            <FilterX class="size-4" />
-                            {{ t('flows.deployments_page.filters.reset') }}
-                        </Button>
+                            <X class="size-3.5" />
+                        </button>
                     </div>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger :as-child="true">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="w-full justify-between md:w-[170px]"
+                            >
+                                <span class="truncate">
+                                    {{
+                                        selectedStatus
+                                            ? statusFilterLabel(selectedStatus)
+                                            : t(
+                                                  'flows.deployments_page.filters.status',
+                                              )
+                                    }}
+                                </span>
+                                <ChevronDown class="ml-2 size-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-56">
+                            <DropdownMenuLabel>
+                                {{ t('flows.deployments_page.filters.status') }}
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioGroup
+                                :model-value="statusFilterValue"
+                                @update:model-value="onStatusFilterChange"
+                            >
+                                <DropdownMenuRadioItem value="all">
+                                    {{
+                                        t(
+                                            'flows.deployments_page.filters.status_all',
+                                        )
+                                    }}
+                                </DropdownMenuRadioItem>
+                                <DropdownMenuRadioItem
+                                    v-for="status in props.statusOptions"
+                                    :key="status"
+                                    :value="status"
+                                >
+                                    {{ statusFilterLabel(status) }}
+                                </DropdownMenuRadioItem>
+                            </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger :as-child="true">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="w-full justify-between md:w-[170px]"
+                            >
+                                <span class="truncate">
+                                    {{
+                                        selectedType
+                                            ? runTypeLabel(selectedType)
+                                            : t('flows.deployments_page.filters.type')
+                                    }}
+                                </span>
+                                <ChevronDown class="ml-2 size-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-56">
+                            <DropdownMenuLabel>
+                                {{ t('flows.deployments_page.filters.type') }}
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioGroup
+                                :model-value="typeFilterValue"
+                                @update:model-value="onTypeFilterChange"
+                            >
+                                <DropdownMenuRadioItem
+                                    v-for="option in typeOptions"
+                                    :key="option.value"
+                                    :value="option.value"
+                                >
+                                    {{ option.label }}
+                                </DropdownMenuRadioItem>
+                            </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
 
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="-ml-2 h-8 px-2"
-                                    @click="toggleSorting('id')"
-                                >
-                                    {{ t('flows.deployments_page.columns.id') }}
-                                    <component
-                                        :is="sortIconFor('id')"
-                                        class="ml-1 size-3.5"
-                                    />
-                                </Button>
-                            </TableHead>
                             <TableHead>
                                 {{ t('flows.deployments_page.columns.status') }}
                             </TableHead>
@@ -741,19 +740,6 @@ watch(deploymentCards, (cards) => {
                                 openDeploymentDetails(card.deployment.id)
                             "
                         >
-                            <TableCell class="font-medium">
-                                <div class="space-y-0.5">
-                                    <p class="font-mono text-xs">
-                                        #{{ card.deployment.id }}
-                                    </p>
-                                    <p
-                                        v-if="card.deployment.container_id"
-                                        class="truncate text-xs text-muted-foreground"
-                                    >
-                                        {{ card.deployment.container_id }}
-                                    </p>
-                                </div>
-                            </TableCell>
                             <TableCell>
                                 <Badge
                                     variant="outline"
@@ -800,7 +786,7 @@ watch(deploymentCards, (cards) => {
 
                         <TableRow v-if="deploymentCards.length === 0">
                             <TableCell
-                                colspan="10"
+                                colspan="9"
                                 class="py-10 text-center text-muted-foreground"
                             >
                                 {{ t('flows.deployments_page.empty') }}

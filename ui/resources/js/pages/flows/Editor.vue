@@ -51,6 +51,7 @@ const form = useForm({
     name: props.flow.name,
     description: props.flow.description || '',
     code: props.flow.code || '',
+    timezone: props.flow.timezone || 'UTC',
 });
 
 const resolveGraphId = (value: unknown): string | null => {
@@ -165,7 +166,8 @@ const hasUnsavedFlowChanges = computed(() => {
     return (
         form.name !== (props.flow.name || '') ||
         form.description !== (props.flow.description || '') ||
-        form.code !== (props.flow.code || '')
+        form.code !== (props.flow.code || '') ||
+        form.timezone !== (props.flow.timezone || 'UTC')
     );
 });
 
@@ -702,6 +704,7 @@ onBeforeUnmount(() => {
                 v-if="props.permissions.canUpdate"
                 v-model:name="form.name"
                 v-model:description="form.description"
+                v-model:timezone="form.timezone"
                 :processing="form.processing"
                 :can-save="canSave"
                 :is-archived="isArchived"
@@ -710,6 +713,7 @@ onBeforeUnmount(() => {
                 :has-active-deploys="hasActiveDeploys"
                 :action-in-progress="actionInProgress"
                 :name-error="form.errors.name"
+                :timezone-error="form.errors.timezone"
                 @save="save"
                 @archive="archiveFlow"
                 @restore="restoreFlow"

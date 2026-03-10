@@ -41,6 +41,30 @@ class FlowDeploymentsIndexRequest extends FormRequest
         'locked',
     ];
 
+    /**
+     * @var array<string, array<int, string>>
+     */
+    private const STATUS_GROUPS = [
+        'status_working' => [
+            'pending',
+            'running',
+            'deploying',
+            'locking',
+            'ready',
+            'locked',
+            'draft',
+        ],
+        'status_successful' => [
+            'success',
+            'stopped',
+        ],
+        'status_error' => [
+            'failed',
+            'error',
+            'lock_failed',
+        ],
+    ];
+
     public function authorize(): bool
     {
         return true;
@@ -53,7 +77,7 @@ class FlowDeploymentsIndexRequest extends FormRequest
     {
         return [
             'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'string', Rule::in(self::STATUSES)],
+            'status' => ['nullable', 'string', Rule::in(self::statusFilterOptions())],
             'type' => ['nullable', 'string', Rule::in(['production', 'development'])],
             'sort' => ['nullable', 'string', Rule::in(self::SORTABLE_COLUMNS)],
             'direction' => ['nullable', 'string', Rule::in(self::SORT_DIRECTIONS)],
@@ -99,8 +123,34 @@ class FlowDeploymentsIndexRequest extends FormRequest
     /**
      * @return array<int, string>
      */
+    public function resolvedStatuses(): array
+    {
+        $status = $this->status();
+
+        if ($status === null) {
+            return [];
+        }
+
+        if (array_key_exists($status, self::STATUS_GROUPS)) {
+            return self::STATUS_GROUPS[$status];
+        }
+
+        return in_array($status, self::STATUSES, true) ? [$status] : [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
     public static function statusOptions(): array
     {
-        return self::STATUSES;
+        return array_keys(self::STATUS_GROUPS);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function statusFilterOptions(): array
+    {
+        return [...self::STATUSES, ...array_keys(self::STATUS_GROUPS)];
     }
 }

@@ -129,6 +129,7 @@ final readonly class FlowService
     {
         $run = $this->createDeployment($flow, 'development', 'running');
         $deploymentRoot = $this->deploymentRoot($flow, $run);
+        $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
 
         $payload = [
             'image' => $flow->image ?? 'flow:dev',
@@ -143,16 +144,18 @@ final readonly class FlowService
                 'kawaflow.flow_run_id' => (string) $run->id,
                 'kawaflow.flow_name' => $flow->name,
                 'kawaflow.graph_hash' => $this->graphHash($flow),
+                'kawaflow.timezone' => $timezone,
             ],
             'environment' => [
                 'FLOW_ID' => (string) $flow->id,
                 'FLOW_RUN_ID' => (string) $run->id,
+                'FLOW_TIMEZONE' => $timezone,
             ],
             'volumes' => [
                 $deploymentRoot => '/flow',
             ],
             'command' => [
-                'python',
+                '/app/.venv/bin/python',
                 '-u',
                 '/flow/main.py',
             ],
@@ -316,13 +319,19 @@ final readonly class FlowService
     {
         return <<<'PY'
 import ast
+import importlib.util
+import inspect
 import json
 import socket
+import sys
 import time
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 SOCKET_PATH = '/run/kawaflow.sock'
-FLOW_PATH = '/flow/flow.py'
+FLOW_PATH = Path('/flow/flow.py')
 
 
 def recv_exact(sock: socket.socket, size: int) -> bytes:
@@ -344,13 +353,20 @@ def receive_command() -> dict:
                 length = int.from_bytes(recv_exact(conn, 4), byteorder='big')
                 payload = recv_exact(conn, length)
                 return json.loads(payload.decode('utf-8'))
-        except (FileNotFoundError, ConnectionRefusedError):
+        except (
+            FileNotFoundError,
+            ConnectionRefusedError,
+            ConnectionError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
             time.sleep(0.2)
 
 
 def send_response(response: dict) -> None:
     encoded = json.dumps(response).encode('utf-8')
-    deadline = time.time() + 5
+    deadline = time.time() + 2
 
     while True:
         try:
@@ -361,7 +377,7 @@ def send_response(response: dict) -> None:
                 return
         except OSError:
             if time.time() >= deadline:
-                raise
+                return
             time.sleep(0.1)
 
 
@@ -493,9 +509,224 @@ def extract_graph() -> dict:
     }
 
 
-def handle_command(command: str) -> dict:
+def cron_field_matches(field: str, value: int, minimum: int, maximum: int) -> bool:
+    parts = [part.strip() for part in field.split(',') if part.strip()]
+    if not parts:
+        return False
+
+    for part in parts:
+        step = 1
+        base = part
+
+        if '/' in part:
+            base, step_text = part.split('/', 1)
+            try:
+                step = int(step_text)
+            except ValueError:
+                return False
+
+            if step <= 0:
+                return False
+
+        if base == '*':
+            start = minimum
+            end = maximum
+        elif '-' in base:
+            start_text, end_text = base.split('-', 1)
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                return False
+        else:
+            try:
+                start = int(base)
+                end = start
+            except ValueError:
+                return False
+
+        if start < minimum or end > maximum or start > end:
+            return False
+
+        if value < start or value > end:
+            continue
+
+        if (value - start) % step == 0:
+            return True
+
+    return False
+
+
+def cron_template_matches(template: str, timestamp: datetime) -> bool:
+    parts = [part for part in template.split() if part]
+    if len(parts) == 6:
+        parts = parts[1:]
+
+    if len(parts) != 5:
+        return False
+
+    minute_field, hour_field, day_field, month_field, weekday_field = parts
+    cron_weekday = (timestamp.weekday() + 1) % 7
+
+    minute_match = cron_field_matches(minute_field, timestamp.minute, 0, 59)
+    hour_match = cron_field_matches(hour_field, timestamp.hour, 0, 23)
+    month_match = cron_field_matches(month_field, timestamp.month, 1, 12)
+    day_of_month_match = cron_field_matches(day_field, timestamp.day, 1, 31)
+    day_of_week_match = cron_field_matches(weekday_field, cron_weekday, 0, 7)
+
+    if not (minute_match and hour_match and month_match):
+        return False
+
+    if day_field != '*' and weekday_field != '*':
+        return day_of_month_match or day_of_week_match
+
+    return day_of_month_match and day_of_week_match
+
+
+def parse_cron_template(receive: str) -> str | None:
+    normalized = receive.strip()
+    prefix = 'CronEvent.by('
+    if not normalized.startswith(prefix) or not normalized.endswith(')'):
+        return None
+
+    template = normalized[len(prefix):-1].strip().strip('"\'')
+    if not template:
+        return None
+
+    return template
+
+
+def resolve_tick_time(timezone_name: str, timestamp_value: object) -> datetime:
+    zone = ZoneInfo(timezone_name)
+    if isinstance(timestamp_value, str) and timestamp_value.strip():
+        parsed = datetime.fromisoformat(timestamp_value.strip())
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=zone)
+        return parsed.astimezone(zone)
+
+    return datetime.now(zone)
+
+
+def process_cron_tick(data: dict) -> dict:
+    try:
+        from kawa import Context, registry
+        from kawa.core import EventFilter
+        from kawa.cron import CronEvent
+    except Exception as exc:
+        return {
+            'type': 'cron_tick_result',
+            'timezone': str(data.get('timezone') or 'UTC'),
+            'dispatches': [],
+            'invalid_templates': [],
+            'error': f'kawa import failed: {exc}',
+        }
+
+    timezone_name = str(data.get('timezone') or 'UTC')
+
+    try:
+        tick_time = resolve_tick_time(timezone_name, data.get('timestamp'))
+    except Exception:
+        timezone_name = 'UTC'
+        tick_time = datetime.now(ZoneInfo(timezone_name))
+
+    dispatches = []
+    invalid_templates = []
+
+    try:
+        registry.actors.clear()
+        registry.events.clear()
+
+        module_name = '_kawa_runtime_flow'
+        spec = importlib.util.spec_from_file_location(module_name, FLOW_PATH)
+        if spec is None or spec.loader is None:
+            return {
+                'type': 'cron_tick_result',
+                'timezone': timezone_name,
+                'dispatches': [],
+                'invalid_templates': [],
+                'error': 'flow module could not be loaded',
+            }
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        return {
+            'type': 'cron_tick_result',
+            'timezone': timezone_name,
+            'dispatches': [],
+            'invalid_templates': [],
+            'error': str(exc),
+        }
+
+    for actor_definition in registry.actors.values():
+        actor_name = actor_definition.name
+
+        for receive_definition in actor_definition.receivs:
+            event_filter = receive_definition.eventClassOrFilter
+            if not isinstance(event_filter, EventFilter):
+                continue
+
+            if receive_definition.eventClass is not CronEvent:
+                continue
+
+            template = str(event_filter.context.get('template') or '').strip()
+            if not template:
+                continue
+
+            try:
+                matches = cron_template_matches(template, tick_time)
+            except Exception:
+                invalid_templates.append(
+                    {
+                        'actor': actor_name,
+                        'template': template,
+                    }
+                )
+                continue
+
+            if not matches:
+                continue
+
+            event = CronEvent(template=template, datetime=tick_time)
+
+            try:
+                actor_callable = actor_definition.actorFuncOrClass
+                if inspect.isclass(actor_callable):
+                    actor_callable = actor_callable()
+
+                result = actor_callable(Context(), event)
+                if inspect.isawaitable(result):
+                    continue
+            except Exception:
+                continue
+
+            dispatches.append(
+                {
+                    'actor': actor_name,
+                    'event': 'CronEvent',
+                    'template': template,
+                    'datetime': tick_time.isoformat(),
+                }
+            )
+
+    return {
+        'type': 'cron_tick_result',
+        'timezone': timezone_name,
+        'dispatches': dispatches,
+        'invalid_templates': invalid_templates,
+    }
+
+
+def handle_command(message: dict) -> dict:
+    command = message.get('command', '')
+
     if command == 'dump':
         return extract_graph()
+
+    if command == 'cron_tick':
+        data = message.get('data') if isinstance(message.get('data'), dict) else {}
+        return process_cron_tick(data)
 
     return {'error': f'unknown command: {command}'}
 
@@ -503,7 +734,7 @@ def handle_command(command: str) -> dict:
 def serve() -> None:
     while True:
         message = receive_command()
-        response = handle_command(message.get('command', ''))
+        response = handle_command(message)
         send_response(response)
 
 

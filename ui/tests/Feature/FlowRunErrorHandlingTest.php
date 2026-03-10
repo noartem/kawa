@@ -134,6 +134,36 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame(['nodes' => [], 'edges' => []], $flow->graph);
     }
 
+    public function test_flow_service_passes_timezone_to_flow_manager_payload(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => null,
+            'image' => 'flow:dev',
+            'timezone' => 'Europe/Berlin',
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('createContainer')
+            ->once()
+            ->withArgs(function (array $payload): bool {
+                return ($payload['environment']['FLOW_TIMEZONE'] ?? null)
+                        === 'Europe/Berlin'
+                    && ($payload['labels']['kawaflow.timezone'] ?? null)
+                        === 'Europe/Berlin';
+            })
+            ->andReturn([
+                'ok' => true,
+            ]);
+
+        $service = app(FlowService::class);
+        $result = $service->start($flow);
+
+        $this->assertTrue($result['ok']);
+    }
+
     public function test_container_created_event_pulls_graph_from_runtime_async(): void
     {
         /** @var User $user */

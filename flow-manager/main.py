@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,10 @@ def _load_env_file(env_path: Path) -> None:
 
 _load_env_file(Path(__file__).with_name(".env"))
 
-DEFAULT_SOCKET_DIR = os.getenv("FLOW_MANAGER_SOCKET_DIR", "/tmp/kawaflow/sockets")
+DEFAULT_SOCKET_DIR = os.getenv(
+    "FLOW_MANAGER_SOCKET_DIR",
+    str(Path(__file__).resolve().parent / ".run" / "sockets"),
+)
 
 
 class FlowManagerApp:
@@ -122,8 +126,10 @@ class FlowManagerApp:
                 raise
         await self.container_manager.start_monitoring()
         await self.event_handler.start()
+        await self._restore_runtime_sockets()
 
         self._background_tasks.append(asyncio.create_task(self._health_check_loop()))
+        self._background_tasks.append(asyncio.create_task(self._cron_tick_loop()))
         self._started = True
 
         self.logger.debug(
@@ -196,7 +202,6 @@ class FlowManagerApp:
                                 },
                             )
 
-                        await self._drain_container_messages(container.id)
                     except Exception as exc:
                         self.logger.error(
                             exc,
@@ -210,6 +215,93 @@ class FlowManagerApp:
             except Exception as exc:
                 self.logger.error(exc, {"operation": "health_check_loop"})
                 await asyncio.sleep(5)
+
+    async def _cron_tick_loop(self) -> None:
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(self._seconds_until_next_minute())
+                if self._shutdown_event.is_set():
+                    break
+
+                await self._dispatch_cron_ticks()
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                self.logger.error(exc, {"operation": "cron_tick_loop"})
+                await asyncio.sleep(5)
+
+    def _seconds_until_next_minute(self) -> float:
+        remainder = time.time() % 60
+        wait_time = 60 - remainder
+        if wait_time <= 0:
+            return 60
+        return wait_time
+
+    async def _dispatch_cron_ticks(self) -> None:
+        containers = await self.container_manager.list_containers()
+
+        for container in containers:
+            try:
+                if not self._is_active_flow_deployment(container):
+                    continue
+
+                if not self.socket_handler.is_socket_connected(container.id):
+                    await self.socket_handler.setup_socket(
+                        container.id,
+                        container.name,
+                    )
+
+                timezone = container.environment.get("FLOW_TIMEZONE", "UTC")
+                await self.socket_handler.send_message(
+                    container.id,
+                    {
+                        "command": "cron_tick",
+                        "data": {
+                            "timezone": timezone,
+                        },
+                    },
+                )
+                runtime_response = await self.socket_handler.receive_message(
+                    container.id,
+                    timeout=5,
+                )
+                await self._handle_runtime_socket_message(
+                    container.id,
+                    runtime_response,
+                )
+                await self._drain_container_messages(container.id)
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "dispatch_cron_tick",
+                        "container_id": container.id,
+                    },
+                )
+
+    def _is_active_flow_deployment(self, container: Any) -> bool:
+        if str(container.status).lower() != "running":
+            return False
+
+        flow_run_id = str(container.environment.get("FLOW_RUN_ID", "")).strip()
+        return flow_run_id != ""
+
+    async def _restore_runtime_sockets(self) -> None:
+        containers = await self.container_manager.list_containers()
+        for container in containers:
+            if not self._is_active_flow_deployment(container):
+                continue
+
+            try:
+                await self.socket_handler.setup_socket(container.id, container.name)
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "restore_runtime_socket",
+                        "container_id": container.id,
+                    },
+                )
 
     def _should_publish_container_status(
         self,
@@ -262,6 +354,10 @@ class FlowManagerApp:
         container_id: str,
         message: dict[str, Any],
     ) -> None:
+        if message.get("type") == "cron_tick_result":
+            await self._handle_cron_tick_result(container_id, message)
+            return
+
         if message.get("type") != "kawa_message":
             return
 
@@ -276,6 +372,36 @@ class FlowManagerApp:
                 "message": message_text,
             },
         )
+
+    async def _handle_cron_tick_result(
+        self,
+        container_id: str,
+        message: dict[str, Any],
+    ) -> None:
+        dispatches = message.get("dispatches")
+        if not isinstance(dispatches, list):
+            return
+
+        for dispatch in dispatches:
+            if not isinstance(dispatch, dict):
+                continue
+
+            actor_name = str(dispatch.get("actor", "")).strip()
+            template = str(dispatch.get("template", "")).strip()
+            if not actor_name or not template:
+                continue
+
+            await self.user_logger.actor_event(
+                container_id=container_id,
+                actor="system",
+                event="CronEvent",
+                event_data={
+                    "actor": actor_name,
+                    "template": template,
+                    "datetime": dispatch.get("datetime"),
+                    "timezone": message.get("timezone"),
+                },
+            )
 
 
 app_instance = FlowManagerApp()

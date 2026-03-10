@@ -17,11 +17,26 @@ const { t } = useI18n();
 
 const props = defineProps<{
     defaultTemplate: 'blank' | 'cron' | 'webhook';
+    defaultTimezone: string;
 }>();
+
+const detectBrowserTimezone = (): string | null => {
+    try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (typeof timezone === 'string' && timezone.trim().length > 0) {
+            return timezone;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+};
 
 const selectedTemplate = ref<'blank' | 'cron' | 'webhook'>(
     props.defaultTemplate,
 );
+const timezone = ref(detectBrowserTimezone() ?? props.defaultTimezone);
 
 const templates = computed(() => [
     {
@@ -157,6 +172,28 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                             "
                             class="min-h-[90px]"
                         />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="timezone">{{
+                            t('flows.settings.timezone')
+                        }}</Label>
+                        <Input
+                            id="timezone"
+                            v-model="timezone"
+                            type="text"
+                            required
+                            name="timezone"
+                            :placeholder="
+                                t('flows.settings.timezone_placeholder')
+                            "
+                        />
+                        <p
+                            v-if="errors.timezone"
+                            class="text-sm text-destructive"
+                        >
+                            {{ errors.timezone }}
+                        </p>
                     </div>
                 </div>
 

@@ -94,7 +94,7 @@ class TestSocketCommunicationHandler:
             )
             mock_socket.setblocking.assert_called_once_with(True)
             mock_socket.bind.assert_called_once()
-            mock_socket.listen.assert_called_once_with(1)
+            mock_socket.listen.assert_called_once_with(16)
 
             # Verify internal state
             assert container_id in handler._connections

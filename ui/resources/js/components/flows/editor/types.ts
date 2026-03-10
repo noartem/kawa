@@ -48,6 +48,7 @@ export interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
     container_id?: string | null;
     entrypoint?: string | null;
     image?: string | null;
+    timezone?: string | null;
     last_started_at?: string | null;
     last_finished_at?: string | null;
     archived_at?: string | null;

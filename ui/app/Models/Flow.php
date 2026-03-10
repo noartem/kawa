@@ -26,6 +26,7 @@ class Flow extends Model
         'container_id',
         'entrypoint',
         'image',
+        'timezone',
         'last_started_at',
         'last_finished_at',
         'archived_at',

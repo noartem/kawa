@@ -20,6 +20,7 @@ class FlowGraphDefaultsTest extends TestCase
             'name' => 'Morning flow',
             'description' => 'Daily cron scenario',
             'template' => 'cron',
+            'timezone' => 'Europe/Berlin',
         ])->assertRedirect();
 
         $flow = Flow::query()
@@ -29,7 +30,30 @@ class FlowGraphDefaultsTest extends TestCase
 
         $this->assertNotNull($flow);
         $this->assertSame(['nodes' => [], 'edges' => []], $flow->graph);
+        $this->assertSame('Europe/Berlin', $flow->timezone);
         $this->assertNotNull($flow->code_updated_at);
+    }
+
+    public function test_flow_creation_uses_app_timezone_when_not_provided(): void
+    {
+        config(['app.timezone' => 'UTC']);
+
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)->post(route('flows.store'), [
+            'name' => 'Fallback timezone flow',
+            'description' => 'Fallback timezone scenario',
+            'template' => 'blank',
+        ])->assertRedirect();
+
+        $flow = Flow::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'Fallback timezone flow')
+            ->first();
+
+        $this->assertNotNull($flow);
+        $this->assertSame('UTC', $flow->timezone);
     }
 
     public function test_show_does_not_backfill_graph_when_it_is_empty(): void

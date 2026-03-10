@@ -26,23 +26,23 @@ class FlowController extends Controller
     private const TEMPLATES = [
         'blank' => '',
         'cron' => <<<'PY'
-from kawa import actor, event, Context
+from kawa import Context, Message, actor
 from kawa.cron import CronEvent
 
 
-@event
-class MorningMessageEvent:
-    message: str
-
-
-@actor(receivs=CronEvent.by("0 8 * * *"), sends=MorningMessageEvent)
-def PrepareMorningMessage(ctx: Context, event):
-    ctx.dispatch(MorningMessageEvent(message="Good morning!"))
-
-
-@actor(receivs=MorningMessageEvent)
-def MorningActor(ctx: Context, event):
-    print(event.message)
+@actor(
+    receivs=CronEvent.by("* * * * *"),
+    sends=Message,
+)
+def EveryMinuteMessage(ctx: Context, event: CronEvent) -> None:
+    ctx.dispatch(
+        Message(
+            message=(
+                f"[system] cron tick {event.template} at "
+                f"{event.datetime.isoformat()}"
+            )
+        )
+    )
 PY
         ,
         'webhook' => <<<'PY'
@@ -73,6 +73,7 @@ PY
     {
         return Inertia::render('flows/Create', [
             'defaultTemplate' => 'cron',
+            'defaultTimezone' => config('app.timezone', 'UTC'),
         ]);
     }
 
@@ -82,6 +83,7 @@ PY
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'template' => ['required', 'string', 'in:blank,cron,webhook'],
+            'timezone' => ['nullable', 'string', 'timezone'],
         ]);
 
         $code = self::TEMPLATES[$data['template']] ?? '';
@@ -102,6 +104,7 @@ PY
             'user_id' => $request->user()->id,
             'status' => 'draft',
             'slug' => $slug,
+            'timezone' => $data['timezone'] ?? config('app.timezone', 'UTC'),
         ]);
 
         return redirect()->route('flows.show', $flow)->with('success', __('flows.created'));
@@ -144,6 +147,7 @@ PY
         $filters = [
             'search' => $request->search(),
             'status' => $request->status(),
+            'statuses' => $request->resolvedStatuses(),
             'type' => $request->runType(),
         ];
 
@@ -172,6 +176,7 @@ PY
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'code' => ['nullable', 'string'],
+            'timezone' => ['sometimes', 'string', 'timezone'],
         ]);
 
         $codeChanged = array_key_exists('code', $data)
@@ -249,13 +254,13 @@ PY
     }
 
     /**
-     * @param  array{search: ?string, status: ?string, type: ?string}  $filters
+     * @param  array{search: ?string, status: ?string, statuses: array<int, string>, type: ?string}  $filters
      * @param  array{column: string, direction: string}  $sorting
      */
     private function buildPaginatedDeployments(Flow $flow, int $perPage, array $filters, array $sorting): LengthAwarePaginator
     {
         $search = $filters['search'];
-        $status = $filters['status'];
+        $statuses = $filters['statuses'];
         $type = $filters['type'];
         $sortColumn = $sorting['column'];
         $sortDirection = $sorting['direction'];
@@ -272,8 +277,8 @@ PY
                     }
                 });
             })
-            ->when($status !== null, function ($runsQuery) use ($status): void {
-                $runsQuery->where('status', $status);
+            ->when($statuses !== [], function ($runsQuery) use ($statuses): void {
+                $runsQuery->whereIn('status', $statuses);
             })
             ->when($type !== null, function ($runsQuery) use ($type): void {
                 $runsQuery->where('type', $type);

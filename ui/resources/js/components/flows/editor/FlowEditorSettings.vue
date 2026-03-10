@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n';
 
 const name = defineModel<string>('name', { required: true });
 const description = defineModel<string>('description', { required: true });
+const timezone = defineModel<string>('timezone', { required: true });
 
 defineProps<{
     processing: boolean;
@@ -18,6 +19,7 @@ defineProps<{
     hasActiveDeploys: boolean;
     actionInProgress: string | null;
     nameError?: string;
+    timezoneError?: string;
 }>();
 
 defineEmits<{
@@ -60,6 +62,21 @@ const { t } = useI18n();
                     :placeholder="t('flows.settings.description_placeholder')"
                     class="min-h-[100px]"
                 />
+            </div>
+
+            <div class="space-y-2">
+                <Label for="flow-timezone">{{
+                    t('flows.settings.timezone')
+                }}</Label>
+                <Input
+                    id="flow-timezone"
+                    v-model="timezone"
+                    :placeholder="t('flows.settings.timezone_placeholder')"
+                    required
+                />
+                <p v-if="timezoneError" class="text-sm text-destructive">
+                    {{ timezoneError }}
+                </p>
             </div>
         </div>
 
