@@ -382,6 +382,10 @@ export const messages = {
             editor: {
                 title: 'Flow editor',
                 description: 'Test run, code, graph, and chat',
+                status: {
+                    starting: 'Starting...',
+                    stopping: 'Stopping...',
+                },
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
@@ -890,6 +894,10 @@ export const messages = {
             editor: {
                 title: 'Редактор Потока',
                 description: 'Тестовый запуск, код, граф и чат',
+                status: {
+                    starting: 'Запуск...',
+                    stopping: 'Остановка...',
+                },
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',

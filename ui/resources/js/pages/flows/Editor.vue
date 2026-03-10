@@ -677,6 +677,9 @@ onBeforeUnmount(() => {
                 :current-development-active="
                     Boolean(currentDevelopment?.active)
                 "
+                :current-development-status="currentDevelopment?.status"
+                :status-tone="statusTone"
+                :status-label="statusLabel"
                 :code-updated-at="props.flow.code_updated_at"
                 :code-error-messages="codeErrorMessages"
                 :history-cards="historyCards"

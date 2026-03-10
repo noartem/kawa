@@ -4,15 +4,24 @@ import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import FlowCodeMergeView from '@/components/flows/FlowCodeMergeView.vue';
 import FlowGraph from '@/components/flows/FlowGraph.vue';
 import type { GraphMeta, HistoryCard } from '@/components/flows/editor/types';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { ChevronDown, History, Play, Square } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import {
+    AlertCircle,
+    ChevronDown,
+    Clock3,
+    History,
+    Play,
+    Square,
+} from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const code = defineModel<string>('code', { required: true });
@@ -22,6 +31,9 @@ const props = defineProps<{
     canRun: boolean;
     actionInProgress: string | null;
     currentDevelopmentActive: boolean;
+    currentDevelopmentStatus?: string | null;
+    statusTone: (status?: string | null) => string;
+    statusLabel: (status?: string | null) => string;
     codeUpdatedAt?: string | null;
     codeErrorMessages: string[];
     historyCards: HistoryCard[];
@@ -46,6 +58,56 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const isStatusTransitioning = computed(() => {
+    return props.actionInProgress === 'run' || props.actionInProgress === 'stop';
+});
+
+const statusChipStatus = computed<string>(() => {
+    if (props.actionInProgress === 'run') {
+        return 'running';
+    }
+
+    if (props.actionInProgress === 'stop') {
+        return 'stopped';
+    }
+
+    if (props.currentDevelopmentStatus) {
+        return props.currentDevelopmentStatus;
+    }
+
+    return props.currentDevelopmentActive ? 'running' : 'unknown';
+});
+
+const statusChipLabel = computed(() => {
+    if (props.actionInProgress === 'run') {
+        return t('flows.editor.status.starting');
+    }
+
+    if (props.actionInProgress === 'stop') {
+        return t('flows.editor.status.stopping');
+    }
+
+    return props.statusLabel(statusChipStatus.value);
+});
+
+const statusChipIcon = computed(() => {
+    switch (statusChipStatus.value) {
+        case 'error':
+        case 'failed':
+        case 'lock_failed':
+            return AlertCircle;
+        case 'running':
+        case 'ready':
+        case 'locked':
+            return Play;
+        case 'stopped':
+        case 'success':
+            return Square;
+        default:
+            return Clock3;
+    }
+});
 
 const activeTab = ref<'editor' | 'chat' | 'changes'>('editor');
 const expandedHistoryIds = ref<Set<number>>(new Set());
@@ -141,6 +203,18 @@ watch(
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                    <Badge
+                        variant="outline"
+                        :class="[
+                            'inline-flex items-center gap-1.5',
+                            statusTone(statusChipStatus),
+                        ]"
+                    >
+                        <Spinner v-if="isStatusTransitioning" class="size-3.5" />
+                        <component :is="statusChipIcon" v-else class="size-3.5" />
+                        {{ statusChipLabel }}
+                    </Badge>
+
                     <Button
                         v-if="currentDevelopmentActive"
                         variant="outline"
