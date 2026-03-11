@@ -325,7 +325,7 @@ import json
 import socket
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -608,33 +608,157 @@ def resolve_tick_time(timezone_name: str, timestamp_value: object) -> datetime:
 
 
 class RuntimeContext:
-    def __init__(self, base_context, actor_name: str, trigger_event: str):
-        self._base_context = base_context
+    def __init__(self, pending_events: list, actor_name: str, trigger_event: str):
+        self._pending_events = pending_events
         self._actor_name = actor_name
         self._trigger_event = trigger_event
-        self.dispatched_events = []
 
     def dispatch(self, event):
         event_name = event.__class__.__name__
-        if event_name:
-            self.dispatched_events.append(event_name)
+        self._pending_events.append(event)
+        append_runtime_event(
+            {
+                'kind': 'event_dispatched',
+                'actor': self._actor_name,
+                'trigger_event': self._trigger_event,
+                'event': event_name,
+                'payload': serialize_event_payload(event),
+            }
+        )
 
-        return self._base_context.dispatch(event)
 
+RUNTIME_EVENTS = []
+RUNTIME_EVENT_SEQUENCE = 0
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def serialize_event_payload(event) -> dict:
+    payload = {}
+    event_dict = getattr(event, '__dict__', None)
+    if isinstance(event_dict, dict):
+        for key, value in event_dict.items():
+            if isinstance(value, datetime):
+                payload[key] = value.isoformat()
+            elif isinstance(value, (str, int, float, bool)) or value is None:
+                payload[key] = value
+            else:
+                payload[key] = str(value)
+
+    return payload
+
+
+def append_runtime_event(event: dict) -> None:
+    global RUNTIME_EVENT_SEQUENCE
+
+    RUNTIME_EVENT_SEQUENCE += 1
+    runtime_event = {
+        'seq': RUNTIME_EVENT_SEQUENCE,
+        'timestamp': now_iso(),
+        **event,
+    }
+    RUNTIME_EVENTS.append(runtime_event)
+
+
+def pull_runtime_events() -> list:
+    events = list(RUNTIME_EVENTS)
+    RUNTIME_EVENTS.clear()
+    return events
+
+
+def receive_definition_matches_event(receive_definition, incoming_event) -> bool:
+    try:
+        event_filter = receive_definition.eventClassOrFilter
+    except Exception:
+        return False
+
+    if event_filter is None:
+        return False
+
+    if hasattr(event_filter, 'filter_function'):
+        try:
+            return bool(event_filter(incoming_event))
+        except Exception:
+            return False
+
+    try:
+        event_class = receive_definition.eventClass
+        return isinstance(incoming_event, event_class)
+    except Exception:
+        return False
+
+
+def invoke_actor(actor_definition, incoming_event, pending_events: list) -> None:
+    actor_name = actor_definition.name
+    trigger_event_name = incoming_event.__class__.__name__
+
+    append_runtime_event(
+        {
+            'kind': 'actor_invoked',
+            'actor': actor_name,
+            'trigger_event': trigger_event_name,
+            'event': trigger_event_name,
+            'payload': serialize_event_payload(incoming_event),
+        }
+    )
+
+    actor_callable = actor_definition.actorFuncOrClass
+    if inspect.isclass(actor_callable):
+        actor_callable = actor_callable()
+
+    runtime_context = RuntimeContext(
+        pending_events,
+        actor_name=actor_name,
+        trigger_event=trigger_event_name,
+    )
+
+    result = actor_callable(runtime_context, incoming_event)
+    if inspect.isawaitable(result):
+        return
+
+
+def process_pending_events(pending_events: list, registry) -> None:
+    while pending_events:
+        incoming_event = pending_events.pop(0)
+
+        for actor_definition in registry.actors.values():
+            if not any(
+                receive_definition_matches_event(receive_definition, incoming_event)
+                for receive_definition in actor_definition.receivs
+            ):
+                continue
+
+            try:
+                invoke_actor(actor_definition, incoming_event, pending_events)
+            except Exception as exc:
+                append_runtime_event(
+                    {
+                        'kind': 'actor_error',
+                        'actor': actor_definition.name,
+                        'trigger_event': incoming_event.__class__.__name__,
+                        'event': incoming_event.__class__.__name__,
+                        'payload': {'error': str(exc)},
+                    }
+                )
 
 def process_cron_tick(data: dict) -> dict:
     try:
-        from kawa import Context, registry
+        from kawa import registry
         from kawa.core import EventFilter
         from kawa.cron import CronEvent
     except Exception as exc:
-        return {
-            'type': 'cron_tick_result',
-            'timezone': str(data.get('timezone') or 'UTC'),
-            'dispatches': [],
-            'invalid_templates': [],
-            'error': f'kawa import failed: {exc}',
-        }
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': 'cron_tick',
+                'event': 'cron_tick',
+                'payload': {'error': f'kawa import failed: {exc}'},
+            }
+        )
+        return {'type': 'runtime_ack', 'command': 'cron_tick', 'ok': False}
 
     timezone_name = str(data.get('timezone') or 'UTC')
 
@@ -644,8 +768,7 @@ def process_cron_tick(data: dict) -> dict:
         timezone_name = 'UTC'
         tick_time = datetime.now(ZoneInfo(timezone_name))
 
-    dispatches = []
-    invalid_templates = []
+    pending_events = []
 
     try:
         registry.actors.clear()
@@ -654,25 +777,31 @@ def process_cron_tick(data: dict) -> dict:
         module_name = '_kawa_runtime_flow'
         spec = importlib.util.spec_from_file_location(module_name, FLOW_PATH)
         if spec is None or spec.loader is None:
-            return {
-                'type': 'cron_tick_result',
-                'timezone': timezone_name,
-                'dispatches': [],
-                'invalid_templates': [],
-                'error': 'flow module could not be loaded',
-            }
+            append_runtime_event(
+                {
+                    'kind': 'runtime_error',
+                    'actor': 'runtime',
+                    'trigger_event': 'cron_tick',
+                    'event': 'cron_tick',
+                    'payload': {'error': 'flow module could not be loaded'},
+                }
+            )
+            return {'type': 'runtime_ack', 'command': 'cron_tick', 'ok': False}
 
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
     except Exception as exc:
-        return {
-            'type': 'cron_tick_result',
-            'timezone': timezone_name,
-            'dispatches': [],
-            'invalid_templates': [],
-            'error': str(exc),
-        }
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': 'cron_tick',
+                'event': 'cron_tick',
+                'payload': {'error': str(exc)},
+            }
+        )
+        return {'type': 'runtime_ack', 'command': 'cron_tick', 'ok': False}
 
     for actor_definition in registry.actors.values():
         actor_name = actor_definition.name
@@ -692,10 +821,17 @@ def process_cron_tick(data: dict) -> dict:
             try:
                 matches = cron_template_matches(template, tick_time)
             except Exception:
-                invalid_templates.append(
+                append_runtime_event(
                     {
+                        'kind': 'cron_template_error',
                         'actor': actor_name,
-                        'template': template,
+                        'trigger_event': 'CronEvent',
+                        'event': 'CronEvent',
+                        'payload': {
+                            'timezone': timezone_name,
+                            'datetime': tick_time.isoformat(),
+                            'template': template,
+                        },
                     }
                 )
                 continue
@@ -703,40 +839,14 @@ def process_cron_tick(data: dict) -> dict:
             if not matches:
                 continue
 
-            event = CronEvent(template=template, datetime=tick_time)
+            pending_events.append(CronEvent(template=template, datetime=tick_time))
 
-            try:
-                actor_callable = actor_definition.actorFuncOrClass
-                if inspect.isclass(actor_callable):
-                    actor_callable = actor_callable()
-
-                runtime_context = RuntimeContext(
-                    Context(),
-                    actor_name=actor_name,
-                    trigger_event='CronEvent',
-                )
-
-                result = actor_callable(runtime_context, event)
-                if inspect.isawaitable(result):
-                    continue
-            except Exception:
-                continue
-
-            dispatches.append(
-                {
-                    'actor': actor_name,
-                    'event': 'CronEvent',
-                    'template': template,
-                    'datetime': tick_time.isoformat(),
-                    'dispatched_events': runtime_context.dispatched_events,
-                }
-            )
+    process_pending_events(pending_events, registry)
 
     return {
-        'type': 'cron_tick_result',
-        'timezone': timezone_name,
-        'dispatches': dispatches,
-        'invalid_templates': invalid_templates,
+        'type': 'runtime_ack',
+        'command': 'cron_tick',
+        'ok': True,
     }
 
 
@@ -749,6 +859,12 @@ def handle_command(message: dict) -> dict:
     if command == 'cron_tick':
         data = message.get('data') if isinstance(message.get('data'), dict) else {}
         return process_cron_tick(data)
+
+    if command == 'pull_events':
+        return {
+            'type': 'runtime_events',
+            'events': pull_runtime_events(),
+        }
 
     return {'error': f'unknown command: {command}'}
 

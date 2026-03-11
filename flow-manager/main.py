@@ -130,6 +130,9 @@ class FlowManagerApp:
 
         self._background_tasks.append(asyncio.create_task(self._health_check_loop()))
         self._background_tasks.append(asyncio.create_task(self._cron_tick_loop()))
+        self._background_tasks.append(
+            asyncio.create_task(self._runtime_event_poll_loop())
+        )
         self._started = True
 
         self.logger.debug(
@@ -253,6 +256,20 @@ class FlowManagerApp:
                 self.logger.error(exc, {"operation": "cron_tick_loop"})
                 await asyncio.sleep(5)
 
+    async def _runtime_event_poll_loop(self) -> None:
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(1)
+                if self._shutdown_event.is_set():
+                    break
+
+                await self._poll_runtime_events()
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                self.logger.error(exc, {"operation": "runtime_event_poll_loop"})
+                await asyncio.sleep(1)
+
     def _seconds_until_next_minute(self) -> float:
         remainder = time.time() % 60
         wait_time = 60 - remainder
@@ -288,6 +305,43 @@ class FlowManagerApp:
                     container.id,
                     timeout=5,
                 )
+                await self._handle_runtime_command_response(
+                    container.id, runtime_response
+                )
+                await self._drain_container_messages(container.id)
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": "dispatch_cron_tick",
+                        "container_id": container.id,
+                    },
+                )
+
+    async def _poll_runtime_events(self) -> None:
+        containers = await self.container_manager.list_containers()
+
+        for container in containers:
+            try:
+                if not self._is_active_flow_deployment(container):
+                    continue
+
+                if not self.socket_handler.is_socket_connected(container.id):
+                    await self.socket_handler.setup_socket(
+                        container.id,
+                        container.name,
+                    )
+
+                await self.socket_handler.send_message(
+                    container.id,
+                    {
+                        "command": "pull_events",
+                    },
+                )
+                runtime_response = await self.socket_handler.receive_message(
+                    container.id,
+                    timeout=3,
+                )
                 await self._handle_runtime_socket_message(
                     container.id,
                     runtime_response,
@@ -297,7 +351,7 @@ class FlowManagerApp:
                 self.logger.error(
                     exc,
                     {
-                        "operation": "dispatch_cron_tick",
+                        "operation": "poll_runtime_events",
                         "container_id": container.id,
                     },
                 )
@@ -377,94 +431,46 @@ class FlowManagerApp:
         container_id: str,
         message: dict[str, Any],
     ) -> None:
-        if message.get("type") == "cron_tick_result":
-            await self._handle_cron_tick_result(container_id, message)
+        if message.get("type") != "runtime_events":
             return
 
-        if message.get("type") != "kawa_message":
+        runtime_events = message.get("events")
+        if not isinstance(runtime_events, list):
             return
 
-        message_text = str(message.get("message", "")).strip()
-        if not message_text:
-            return
+        for runtime_event in runtime_events:
+            if not isinstance(runtime_event, dict):
+                continue
 
-        await self.messaging.publish_event(
-            "actor_message",
-            {
-                "container_id": container_id,
-                "message": message_text,
-            },
-        )
+            await self.messaging.publish_event(
+                "flow_runtime_event",
+                {
+                    "container_id": container_id,
+                    **runtime_event,
+                },
+            )
 
-    async def _handle_cron_tick_result(
+    async def _handle_runtime_command_response(
         self,
         container_id: str,
         message: dict[str, Any],
     ) -> None:
-        dispatches = message.get("dispatches")
-        if not isinstance(dispatches, list):
+        if message.get("type") == "runtime_events":
+            await self._handle_runtime_socket_message(container_id, message)
             return
 
-        valid_dispatches: list[dict[str, Any]] = []
-
-        for dispatch in dispatches:
-            if not isinstance(dispatch, dict):
-                continue
-
-            actor_name = str(dispatch.get("actor", "")).strip()
-            template = str(dispatch.get("template", "")).strip()
-            if not actor_name or not template:
-                continue
-
-            valid_dispatches.append(dispatch)
-
-        if not valid_dispatches:
+        response_type = str(message.get("type", "")).strip()
+        if response_type == "runtime_ack":
             return
 
-        timezone_name = str(message.get("timezone", "")).strip() or "UTC"
-
-        await self.user_logger.cron_system_event(
-            container_id=container_id,
-            dispatch_count=len(valid_dispatches),
-            timezone_name=timezone_name,
+        self.logger.debug(
+            "Unknown runtime command response",
+            {
+                "operation": "handle_runtime_command_response",
+                "container_id": container_id,
+                "message_type": response_type,
+            },
         )
-
-        for dispatch in valid_dispatches:
-            actor_name = str(dispatch.get("actor", "")).strip()
-            template = str(dispatch.get("template", "")).strip()
-            trigger_event = str(dispatch.get("event", "")).strip() or "CronEvent"
-
-            await self.user_logger.actor_invoked(
-                container_id=container_id,
-                actor=actor_name,
-                trigger_event=trigger_event,
-                event_data={
-                    "template": template,
-                    "datetime": dispatch.get("datetime"),
-                    "timezone": timezone_name,
-                },
-            )
-
-            dispatched_events = dispatch.get("dispatched_events")
-            if not isinstance(dispatched_events, list):
-                continue
-
-            for dispatched_event in dispatched_events:
-                dispatched_event_name = str(dispatched_event).strip()
-                if not dispatched_event_name:
-                    continue
-
-                await self.user_logger.actor_dispatched(
-                    container_id=container_id,
-                    actor=actor_name,
-                    dispatched_event=dispatched_event_name,
-                    event_data={
-                        "trigger_event": trigger_event,
-                        "template": template,
-                        "datetime": dispatch.get("datetime"),
-                        "timezone": timezone_name,
-                    },
-                )
 
 
 app_instance = FlowManagerApp()

@@ -261,6 +261,70 @@ const resolveActivityMessage = (
     return extractActivityMessageText(activityType, context);
 };
 
+const resolveRuntimeEventLabel = (
+    context: Record<string, unknown> | null,
+): string => {
+    const kind = stringValue(context?.kind);
+    const actor = stringValue(context?.actor) ?? t('common.unknown');
+    const event = stringValue(context?.event) ?? t('common.unknown');
+    const triggerEvent =
+        stringValue(context?.trigger_event) ?? t('common.unknown');
+
+    if (kind === 'actor_invoked') {
+        return t('flows.logs.events.runtime_actor_invoked_label', {
+            actor,
+            event: triggerEvent,
+        });
+    }
+
+    if (kind === 'event_dispatched') {
+        return t('flows.logs.events.runtime_event_dispatched_label', {
+            actor,
+            event,
+        });
+    }
+
+    if (kind === 'actor_error') {
+        return t('flows.logs.events.runtime_actor_error_label', {
+            actor,
+        });
+    }
+
+    if (kind === 'runtime_error') {
+        return t('flows.logs.events.runtime_runtime_error_label');
+    }
+
+    if (kind === 'cron_template_error') {
+        return t('flows.logs.events.runtime_cron_template_error_label', {
+            actor,
+        });
+    }
+
+    return resolveEventLabel('flow_runtime_event');
+};
+
+const resolveRuntimeEventMessage = (
+    context: Record<string, unknown> | null,
+): string | null => {
+    const payload = asRecord(context?.payload);
+    const kind = stringValue(context?.kind);
+    const event = stringValue(context?.event);
+
+    if (kind === 'event_dispatched' && event === 'Message') {
+        return stringValue(payload?.message);
+    }
+
+    if (
+        kind === 'actor_error' ||
+        kind === 'runtime_error' ||
+        kind === 'cron_template_error'
+    ) {
+        return stringValue(payload?.error);
+    }
+
+    return null;
+};
+
 const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
     const eventKey = extractEventKey(log.message);
 
@@ -318,6 +382,14 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
         return {
             label: resolveEventLabel(eventKey),
             message: extractActorMessageText(context),
+            statusState: null,
+        };
+    }
+
+    if (eventKey === 'flow_runtime_event') {
+        return {
+            label: resolveRuntimeEventLabel(context),
+            message: resolveRuntimeEventMessage(context),
             statusState: null,
         };
     }

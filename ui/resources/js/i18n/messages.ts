@@ -347,6 +347,7 @@ export const messages = {
                     activity_log: 'Activity',
                     activity: 'Activity',
                     actor_message: 'Message',
+                    flow_runtime_event: 'Runtime event',
                     cron_system_event: 'System cron event',
                     container_created: 'Container created',
                     lock_generated: 'Lock generated',
@@ -370,6 +371,14 @@ export const messages = {
                     actor_invoked_label: 'Actor {actor} invoked by {event}',
                     actor_dispatched: 'Actor dispatched event',
                     actor_dispatched_label: 'Actor {actor} dispatched {event}',
+                    runtime_actor_invoked_label:
+                        'Actor {actor} invoked by {event}',
+                    runtime_event_dispatched_label:
+                        'Actor {actor} dispatched {event}',
+                    runtime_actor_error_label: 'Actor {actor} failed',
+                    runtime_runtime_error_label: 'Runtime error',
+                    runtime_cron_template_error_label:
+                        'Cron template error for {actor}',
                     cron_system_event_message:
                         '{count} actor(s) triggered, timezone {timezone}',
                 },
@@ -869,6 +878,7 @@ export const messages = {
                     activity_log: 'Активность',
                     activity: 'Активность',
                     actor_message: 'Сообщение',
+                    flow_runtime_event: 'Событие рантайма',
                     cron_system_event: 'Системное cron-событие',
                     container_created: 'Контейнер создан',
                     lock_generated: 'Блокировка создана',
@@ -893,6 +903,14 @@ export const messages = {
                         'Актор {actor} вызван событием {event}',
                     actor_dispatched: 'Актор задиспатчил событие',
                     actor_dispatched_label: 'Актор {actor} задиспатчил {event}',
+                    runtime_actor_invoked_label:
+                        'Актор {actor} вызван событием {event}',
+                    runtime_event_dispatched_label:
+                        'Актор {actor} задиспатчил {event}',
+                    runtime_actor_error_label: 'Ошибка актора {actor}',
+                    runtime_runtime_error_label: 'Ошибка рантайма',
+                    runtime_cron_template_error_label:
+                        'Ошибка cron-шаблона у {actor}',
                     cron_system_event_message:
                         'Сработало акторов: {count}, таймзона {timezone}',
                 },

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 
@@ -115,7 +115,7 @@ def test_prune_status_cache_removes_stale_containers(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_runtime_socket_message_publishes_actor_message(monkeypatch):
+async def test_handle_runtime_socket_message_publishes_runtime_events(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
         mock_docker.return_value = Mock()
@@ -126,22 +126,52 @@ async def test_handle_runtime_socket_message_publishes_actor_message(monkeypatch
     await app._handle_runtime_socket_message(
         "container-1",
         {
-            "type": "kawa_message",
-            "message": "hello from actor",
+            "type": "runtime_events",
+            "events": [
+                {
+                    "seq": 1,
+                    "kind": "actor_invoked",
+                    "actor": "CronStarter",
+                    "event": "CronEvent",
+                },
+                {
+                    "seq": 2,
+                    "kind": "event_dispatched",
+                    "actor": "CronStarter",
+                    "event": "TickEvent",
+                },
+            ],
         },
     )
 
-    app.messaging.publish_event.assert_called_once_with(
-        "actor_message",
-        {
-            "container_id": "container-1",
-            "message": "hello from actor",
-        },
+    app.messaging.publish_event.assert_has_awaits(
+        [
+            call(
+                "flow_runtime_event",
+                {
+                    "container_id": "container-1",
+                    "seq": 1,
+                    "kind": "actor_invoked",
+                    "actor": "CronStarter",
+                    "event": "CronEvent",
+                },
+            ),
+            call(
+                "flow_runtime_event",
+                {
+                    "container_id": "container-1",
+                    "seq": 2,
+                    "kind": "event_dispatched",
+                    "actor": "CronStarter",
+                    "event": "TickEvent",
+                },
+            ),
+        ]
     )
 
 
 @pytest.mark.asyncio
-async def test_drain_container_messages_reads_and_publishes(monkeypatch):
+async def test_drain_container_messages_reads_and_publishes_runtime_events(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
         mock_docker.return_value = Mock()
@@ -150,8 +180,15 @@ async def test_drain_container_messages_reads_and_publishes(monkeypatch):
     app.socket_handler.has_pending_connection = Mock(side_effect=[True, False])
     app.socket_handler.receive_message = AsyncMock(
         return_value={
-            "type": "kawa_message",
-            "message": "runtime log",
+            "type": "runtime_events",
+            "events": [
+                {
+                    "seq": 10,
+                    "kind": "event_dispatched",
+                    "actor": "Worker",
+                    "event": "Message",
+                }
+            ],
         }
     )
     app.messaging.publish_event = AsyncMock()
@@ -163,10 +200,13 @@ async def test_drain_container_messages_reads_and_publishes(monkeypatch):
         timeout=1,
     )
     app.messaging.publish_event.assert_called_once_with(
-        "actor_message",
+        "flow_runtime_event",
         {
             "container_id": "container-1",
-            "message": "runtime log",
+            "seq": 10,
+            "kind": "event_dispatched",
+            "actor": "Worker",
+            "event": "Message",
         },
     )
 
@@ -199,14 +239,11 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
     app.socket_handler.send_message = AsyncMock()
     app.socket_handler.receive_message = AsyncMock(
         return_value={
-            "type": "cron_tick_result",
-            "timezone": "Europe/Berlin",
-            "dispatches": [],
+            "type": "runtime_ack",
+            "command": "cron_tick",
+            "ok": True,
         }
     )
-    app.user_logger.cron_system_event = AsyncMock()
-    app.user_logger.actor_invoked = AsyncMock()
-    app.user_logger.actor_dispatched = AsyncMock()
 
     await app._dispatch_cron_ticks()
 
@@ -225,9 +262,6 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
         "active-container",
         "flow-2-run-1",
     )
-    app.user_logger.cron_system_event.assert_not_called()
-    app.user_logger.actor_invoked.assert_not_called()
-    app.user_logger.actor_dispatched.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -259,67 +293,67 @@ async def test_restore_runtime_sockets_for_active_flow_deployments(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_handle_runtime_socket_message_logs_cron_dispatches(monkeypatch):
+async def test_poll_runtime_events_targets_only_active_flow_deployments(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
         mock_docker.return_value = Mock()
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
-    app.user_logger.cron_system_event = AsyncMock()
-    app.user_logger.actor_invoked = AsyncMock()
-    app.user_logger.actor_dispatched = AsyncMock()
+    active = Mock(
+        id="active-container",
+        status="running",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "Europe/Berlin"},
+    )
+    active.name = "flow-2-run-1"
+    non_flow = Mock(id="non-flow", status="running", environment={})
+    stopped = Mock(
+        id="stopped-container",
+        status="stopped",
+        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "UTC"},
+    )
 
-    await app._handle_runtime_socket_message(
-        "container-1",
-        {
-            "type": "cron_tick_result",
-            "timezone": "Europe/Berlin",
-            "dispatches": [
+    app.container_manager.list_containers = AsyncMock(
+        return_value=[active, non_flow, stopped]
+    )
+    app.socket_handler.is_socket_connected = Mock(return_value=False)
+    app.socket_handler.setup_socket = AsyncMock()
+    app.socket_handler.send_message = AsyncMock()
+    app.socket_handler.receive_message = AsyncMock(
+        return_value={
+            "type": "runtime_events",
+            "events": [
                 {
-                    "actor": "MorningActor",
-                    "template": "0 8 * * *",
-                    "datetime": "2026-03-08T08:00:00+01:00",
-                    "dispatched_events": ["WakeUpEvent", "Message"],
+                    "seq": 1,
+                    "kind": "actor_invoked",
+                    "actor": "CronStarter",
+                    "event": "CronEvent",
                 }
             ],
-        },
+        }
     )
+    app.messaging.publish_event = AsyncMock()
 
-    app.user_logger.cron_system_event.assert_called_once_with(
-        container_id="container-1",
-        dispatch_count=1,
-        timezone_name="Europe/Berlin",
+    await app._poll_runtime_events()
+
+    app.socket_handler.send_message.assert_called_once_with(
+        "active-container",
+        {"command": "pull_events"},
     )
-    app.user_logger.actor_invoked.assert_called_once_with(
-        container_id="container-1",
-        actor="MorningActor",
-        trigger_event="CronEvent",
-        event_data={
-            "template": "0 8 * * *",
-            "datetime": "2026-03-08T08:00:00+01:00",
-            "timezone": "Europe/Berlin",
-        },
+    app.socket_handler.receive_message.assert_called_once_with(
+        "active-container",
+        timeout=3,
     )
-    assert app.user_logger.actor_dispatched.await_count == 2
-    app.user_logger.actor_dispatched.assert_any_await(
-        container_id="container-1",
-        actor="MorningActor",
-        dispatched_event="WakeUpEvent",
-        event_data={
-            "trigger_event": "CronEvent",
-            "template": "0 8 * * *",
-            "datetime": "2026-03-08T08:00:00+01:00",
-            "timezone": "Europe/Berlin",
-        },
+    app.socket_handler.setup_socket.assert_called_once_with(
+        "active-container",
+        "flow-2-run-1",
     )
-    app.user_logger.actor_dispatched.assert_any_await(
-        container_id="container-1",
-        actor="MorningActor",
-        dispatched_event="Message",
-        event_data={
-            "trigger_event": "CronEvent",
-            "template": "0 8 * * *",
-            "datetime": "2026-03-08T08:00:00+01:00",
-            "timezone": "Europe/Berlin",
+    app.messaging.publish_event.assert_called_once_with(
+        "flow_runtime_event",
+        {
+            "container_id": "active-container",
+            "seq": 1,
+            "kind": "actor_invoked",
+            "actor": "CronStarter",
+            "event": "CronEvent",
         },
     )
