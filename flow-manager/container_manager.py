@@ -50,6 +50,7 @@ class ContainerManager:
         # Container monitoring state
         self._container_states: Dict[str, ContainerState] = {}
         self._reported_crashes: Dict[str, Dict[str, Any]] = {}
+        self._expected_stops: set[str] = set()
         self._status_change_callbacks: List[Callable] = []
         self._health_check_callbacks: List[Callable] = []
         self._crash_callbacks: List[Callable] = []
@@ -230,16 +231,19 @@ class ContainerManager:
             self.logger.debug("Stopping container", {"container_id": container_id})
 
             container = self.docker_client.containers.get(container_id)
+            self._expected_stops.add(container_id)
             container.stop()
 
             self.logger.container_operation("stop", container_id, {"status": "stopped"})
 
         except NotFound as e:
+            self._expected_stops.discard(container_id)
             self.logger.error(
                 e, {"operation": "stop_container", "container_id": container_id}
             )
             raise
         except APIError as e:
+            self._expected_stops.discard(container_id)
             self.logger.error(
                 e, {"operation": "stop_container", "container_id": container_id}
             )
@@ -603,6 +607,7 @@ class ContainerManager:
 
             # Stop container if running
             if container.status in ["running", "paused"]:
+                self._expected_stops.add(container_id)
                 container.stop()
 
             # Clean up health check resources
@@ -612,6 +617,7 @@ class ContainerManager:
             container.remove()
             self._container_states.pop(container_id, None)
             self._reported_crashes.pop(container_id, None)
+            self._expected_stops.discard(container_id)
             self._resource_usage_history.pop(container_id, None)
 
             # Clean up socket file
@@ -1308,6 +1314,21 @@ print(
             self._container_states[container_id] = current_state
             if current_state not in [ContainerState.EXITED, ContainerState.DEAD]:
                 self._reported_crashes.pop(container_id, None)
+                if previous_state in [ContainerState.EXITED, ContainerState.DEAD]:
+                    self._expected_stops.discard(container_id)
+
+            if current_state in [ContainerState.EXITED, ContainerState.DEAD]:
+                if container_id in self._expected_stops:
+                    self.logger.debug(
+                        "Container exited after intentional stop",
+                        {
+                            "operation": "check_container_status",
+                            "container_id": container_id,
+                            "state": current_state.value,
+                        },
+                    )
+                    self._reported_crashes.pop(container_id, None)
+                    return
 
             # Check for crashes
             if current_state in [ContainerState.EXITED, ContainerState.DEAD]:

@@ -13,7 +13,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
 
 class ProcessFlowManagerEvent implements ShouldQueue
 {
@@ -30,11 +29,6 @@ class ProcessFlowManagerEvent implements ShouldQueue
         $flow = $flowRun?->flow ?? $this->resolveFlow();
 
         if (! $flow) {
-            Log::info('flow-manager event without flow match', [
-                'event' => $this->event,
-                'payload' => $this->payload,
-            ]);
-
             return;
         }
 
@@ -119,6 +113,10 @@ class ProcessFlowManagerEvent implements ShouldQueue
 
         if ($this->event === 'container_crashed') {
             if ($flowRun) {
+                if ($flowRun->status === 'stopped' && $flowRun->active === false) {
+                    return;
+                }
+
                 $flowRun->update([
                     'status' => 'error',
                     'finished_at' => now(),

@@ -370,15 +370,18 @@ class EventHandler:
         self.container_manager.register_resource_alert_callback(self._on_resource_alert)
 
     async def _on_status_change(
-        self, container_id: str, old_state: str, new_state: str
+        self, container_id: str, old_state: Any, new_state: Any
     ) -> None:
         try:
+            old_state_value = getattr(old_state, "value", old_state)
+            new_state_value = getattr(new_state, "value", new_state)
+
             await self.messaging.publish_event(
                 "status_changed",
                 {
                     "container_id": container_id,
-                    "old_state": old_state,
-                    "new_state": new_state,
+                    "old_state": str(old_state_value),
+                    "new_state": str(new_state_value),
                     "timestamp": asyncio.get_event_loop().time(),
                 },
             )

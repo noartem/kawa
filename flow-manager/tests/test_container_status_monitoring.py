@@ -469,3 +469,72 @@ class TestContainerStatusMonitoring:
 
         # Verify crash callback was NOT called for normal exit
         crash_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("container_manager.docker")
+    async def test_intentional_stop_with_non_zero_exit_code_is_not_crash(self, _):
+        """Test that intentional stops do not emit crash callbacks."""
+        mock_container = Mock()
+        mock_container.id = "test_container_id"
+        mock_container.attrs = {
+            "State": {
+                "Status": "exited",
+                "ExitCode": 137,
+                "FinishedAt": "2025-01-19T10:30:00.000000000Z",
+                "Error": "",
+                "OOMKilled": False,
+                "Pid": 0,
+            }
+        }
+
+        crash_callback = AsyncMock()
+        self.container_manager.register_crash_callback(crash_callback)
+        self.container_manager._expected_stops.add("test_container_id")
+
+        await self.container_manager._check_container_status(mock_container)
+
+        crash_callback.assert_not_called()
+        assert "test_container_id" in self.container_manager._expected_stops
+
+    @pytest.mark.asyncio
+    @patch("container_manager.docker")
+    async def test_expected_stop_survives_poll_before_container_exits(self, _):
+        """Test that a stop intent is kept until the container fully exits."""
+        running_container = Mock()
+        running_container.id = "test_container_id"
+        running_container.attrs = {
+            "State": {
+                "Status": "running",
+                "ExitCode": 0,
+            }
+        }
+
+        exited_container = Mock()
+        exited_container.id = "test_container_id"
+        exited_container.attrs = {
+            "State": {
+                "Status": "exited",
+                "ExitCode": 137,
+                "FinishedAt": "2025-01-19T10:30:00.000000000Z",
+                "Error": "",
+                "OOMKilled": False,
+                "Pid": 0,
+            }
+        }
+
+        crash_callback = AsyncMock()
+        self.container_manager.register_crash_callback(crash_callback)
+        self.container_manager._container_states["test_container_id"] = (
+            ContainerState.RUNNING
+        )
+        self.container_manager._expected_stops.add("test_container_id")
+
+        await self.container_manager._check_container_status(running_container)
+
+        assert "test_container_id" in self.container_manager._expected_stops
+
+        await self.container_manager._check_container_status(exited_container)
+        await self.container_manager._check_container_status(exited_container)
+
+        crash_callback.assert_not_called()
+        assert "test_container_id" in self.container_manager._expected_stops

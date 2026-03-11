@@ -218,4 +218,37 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
     }
+
+    public function test_container_crashed_event_does_not_override_intentional_stop(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => false,
+            'status' => 'stopped',
+            'started_at' => now()->subMinute(),
+            'finished_at' => now(),
+            'container_id' => 'container-id-1',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManagerEvent('container_crashed', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-1',
+            'exit_code' => 137,
+        ]);
+        $job->handle();
+
+        $run->refresh();
+
+        $this->assertSame('stopped', $run->status);
+        $this->assertFalse($run->active);
+    }
 }
