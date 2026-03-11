@@ -382,12 +382,6 @@ class EventHandler:
                     "timestamp": asyncio.get_event_loop().time(),
                 },
             )
-            await self.user_logger.user_activity(
-                "status_change",
-                container_id,
-                f"Container status changed from {old_state} to {new_state}",
-                {"old_state": old_state, "new_state": new_state},
-            )
         except Exception as exc:
             self.logger.error(
                 exc,
@@ -406,12 +400,6 @@ class EventHandler:
                     "health": health,
                     "timestamp": asyncio.get_event_loop().time(),
                 },
-            )
-            await self.user_logger.user_activity(
-                "health_warning",
-                container_id,
-                f"Container health check failed: {health}",
-                {"health": health},
             )
         except Exception as exc:
             self.logger.error(
@@ -434,12 +422,6 @@ class EventHandler:
                     "crash_details": crash_details,
                     "timestamp": asyncio.get_event_loop().time(),
                 },
-            )
-            await self.user_logger.user_activity(
-                "container_crash",
-                container_id,
-                f"Container crashed with exit code {exit_code}",
-                {"exit_code": exit_code, "crash_details": crash_details},
             )
         except Exception as exc:
             self.logger.error(
@@ -465,16 +447,6 @@ class EventHandler:
                     "threshold": threshold,
                     "usage_data": usage_data,
                     "timestamp": asyncio.get_event_loop().time(),
-                },
-            )
-            await self.user_logger.user_activity(
-                "resource_alert",
-                container_id,
-                f"Resource threshold exceeded: {resource_type} at {current_value:.2f} (threshold: {threshold:.2f})",
-                {
-                    "resource_type": resource_type,
-                    "current_value": current_value,
-                    "threshold": threshold,
                 },
             )
         except Exception as exc:

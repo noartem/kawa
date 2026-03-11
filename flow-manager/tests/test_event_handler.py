@@ -120,3 +120,61 @@ async def test_handle_get_container_graph_success():
         "container_id": "cid",
         "graph": {"actors": [{"id": "a1"}], "events": []},
     }
+
+
+@pytest.mark.asyncio
+async def test_status_change_callback_publishes_only_domain_event():
+    handler, messaging, _, _, user_logger = _make_handler()
+
+    user_logger.user_activity = AsyncMock()
+
+    await handler._on_status_change("cid", "running", "exited")
+
+    assert len(messaging.published_events) == 1
+    assert messaging.published_events[0]["event"] == "status_changed"
+    user_logger.user_activity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_health_warning_callback_publishes_only_domain_event():
+    handler, messaging, _, _, user_logger = _make_handler()
+
+    user_logger.user_activity = AsyncMock()
+
+    await handler._on_health_check_failure("cid", "unhealthy")
+
+    assert len(messaging.published_events) == 1
+    assert messaging.published_events[0]["event"] == "container_health_warning"
+    user_logger.user_activity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_container_crash_callback_publishes_only_domain_event():
+    handler, messaging, _, _, user_logger = _make_handler()
+
+    user_logger.user_activity = AsyncMock()
+
+    await handler._on_container_crash("cid", 137, {"reason": "oom"})
+
+    assert len(messaging.published_events) == 1
+    assert messaging.published_events[0]["event"] == "container_crashed"
+    user_logger.user_activity.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_resource_alert_callback_publishes_only_domain_event():
+    handler, messaging, _, _, user_logger = _make_handler()
+
+    user_logger.user_activity = AsyncMock()
+
+    await handler._on_resource_alert(
+        "cid",
+        "cpu",
+        0.91,
+        0.80,
+        {"cpu_percent": 91},
+    )
+
+    assert len(messaging.published_events) == 1
+    assert messaging.published_events[0]["event"] == "resource_alert"
+    user_logger.user_activity.assert_not_called()
