@@ -1,8 +1,67 @@
 <script setup lang="ts">
+import { EditorSelection, StateEffect, StateField } from '@codemirror/state';
+import {
+    Decoration,
+    type DecorationSet,
+    EditorView,
+} from '@codemirror/view';
 import { createFlowCodeEditorExtensions } from '@/components/flows/codeEditorExtensions';
 import { useDarkThemeClass } from '@/composables/useDarkThemeClass';
-import { computed, useAttrs } from 'vue';
+import { computed, onBeforeUnmount, ref, useAttrs } from 'vue';
 import { Codemirror } from 'vue-codemirror';
+
+const highlightLineEffect = StateEffect.define<number>();
+const clearHighlightedLineEffect = StateEffect.define<void>();
+
+const highlightedLineField = StateField.define<DecorationSet>({
+    create() {
+        return Decoration.none;
+    },
+    update(decorations, transaction) {
+        let nextDecorations = decorations.map(transaction.changes);
+
+        for (const effect of transaction.effects) {
+            if (effect.is(clearHighlightedLineEffect)) {
+                nextDecorations = Decoration.none;
+                continue;
+            }
+
+            if (!effect.is(highlightLineEffect)) {
+                continue;
+            }
+
+            const lineNumber = Math.min(
+                Math.max(effect.value, 1),
+                transaction.state.doc.lines,
+            );
+            const line = transaction.state.doc.line(lineNumber);
+            nextDecorations = Decoration.set([
+                Decoration.line({ class: 'cm-flow-jump-line' }).range(line.from),
+            ]);
+        }
+
+        return nextDecorations;
+    },
+    provide(field) {
+        return EditorView.decorations.from(field);
+    },
+});
+
+const highlightedLineTheme = EditorView.theme({
+    '.cm-flow-jump-line': {
+        backgroundColor: 'rgba(250, 204, 21, 0.28)',
+        boxShadow: 'inset 3px 0 0 rgba(234, 179, 8, 0.95)',
+        transition: 'background-color 220ms ease, box-shadow 220ms ease',
+    },
+});
+
+interface FlowCodeEditorReadyPayload {
+    view: EditorView;
+}
+
+interface FlowCodeEditorExpose {
+    focusLine: (line: number, flash?: boolean) => boolean;
+}
 
 defineOptions({
     inheritAttrs: false,
@@ -35,6 +94,73 @@ const emit = defineEmits<{
 
 const attrs = useAttrs();
 const { isDarkThemeClass } = useDarkThemeClass();
+const editorView = ref<EditorView | null>(null);
+
+let flashResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearFlashResetTimer = (): void => {
+    if (flashResetTimer === null) {
+        return;
+    }
+
+    clearTimeout(flashResetTimer);
+    flashResetTimer = null;
+};
+
+const clearHighlightedLine = (): void => {
+    const view = editorView.value;
+    if (!view) {
+        return;
+    }
+
+    view.dispatch({ effects: clearHighlightedLineEffect.of() });
+};
+
+const handleReady = ({ view }: FlowCodeEditorReadyPayload): void => {
+    editorView.value = view;
+};
+
+const focusLine = (line: number, flash = true): boolean => {
+    const view = editorView.value;
+    if (!view || !Number.isFinite(line)) {
+        return false;
+    }
+
+    const lineNumber = Math.min(
+        Math.max(Math.round(line), 1),
+        view.state.doc.lines,
+    );
+    const lineInfo = view.state.doc.line(lineNumber);
+    const effects = [EditorView.scrollIntoView(lineInfo.from, { y: 'center' })];
+
+    if (flash) {
+        effects.push(highlightLineEffect.of(lineNumber));
+    }
+
+    view.dispatch({
+        selection: EditorSelection.cursor(lineInfo.from),
+        effects,
+    });
+
+    try {
+        view.contentDOM.focus({ preventScroll: true });
+    } catch {
+        view.focus();
+    }
+
+    clearFlashResetTimer();
+
+    if (flash) {
+        flashResetTimer = setTimeout(() => {
+            clearHighlightedLine();
+            flashResetTimer = null;
+        }, 1600);
+    } else {
+        clearHighlightedLine();
+    }
+
+    return true;
+};
 
 const codeEditorExtensions = computed(() => {
     return createFlowCodeEditorExtensions({
@@ -42,6 +168,7 @@ const codeEditorExtensions = computed(() => {
         bottomPadding: props.bottomPadding,
         lineWrapping: props.lineWrapping,
         isDarkTheme: isDarkThemeClass.value,
+        extraExtensions: [highlightedLineField, highlightedLineTheme],
     });
 });
 
@@ -57,6 +184,15 @@ const model = computed({
         emit('update:modelValue', value);
     },
 });
+
+defineExpose<FlowCodeEditorExpose>({
+    focusLine,
+});
+
+onBeforeUnmount(() => {
+    clearFlashResetTimer();
+    editorView.value = null;
+});
 </script>
 
 <template>
@@ -69,5 +205,6 @@ const model = computed({
         :extensions="codeEditorExtensions"
         class="flow-code-editor min-h-[9rem] overflow-hidden text-sm"
         v-bind="attrs"
+        @ready="handleReady"
     />
 </template>

@@ -415,11 +415,7 @@ PY
                 continue;
             }
 
-            $nodesById[$eventId] = [
-                'id' => $eventId,
-                'type' => 'event',
-                'label' => $eventId,
-            ];
+            $nodesById[$eventId] = $this->buildEventNode($eventId, $event);
         }
 
         foreach ($graphActors as $actor) {
@@ -433,11 +429,7 @@ PY
                 continue;
             }
 
-            $nodesById[$actorId] = [
-                'id' => $actorId,
-                'type' => 'actor',
-                'label' => $actorId,
-            ];
+            $nodesById[$actorId] = $this->buildActorNode($actorId, $actor);
 
             $receives = $actor['receives'] ?? [];
             if (is_string($receives)) {
@@ -451,11 +443,7 @@ PY
                     continue;
                 }
 
-                $nodesById[$eventId] = [
-                    'id' => $eventId,
-                    'type' => 'event',
-                    'label' => $eventId,
-                ];
+                $nodesById[$eventId] = $this->buildEventNode($eventId, $this->resolveEventPayload($eventId, $graphEvents));
 
                 $edgeKey = $eventId.'->'.$actorId;
                 $edgesById[$edgeKey] = [
@@ -476,11 +464,7 @@ PY
                     continue;
                 }
 
-                $nodesById[$eventId] = [
-                    'id' => $eventId,
-                    'type' => 'event',
-                    'label' => $eventId,
-                ];
+                $nodesById[$eventId] = $this->buildEventNode($eventId, $this->resolveEventPayload($eventId, $graphEvents));
 
                 $edgeKey = $actorId.'->'.$eventId;
                 $edgesById[$edgeKey] = [
@@ -519,6 +503,79 @@ PY
         }
 
         return $id;
+    }
+
+    /**
+     * @param  array<string, mixed>  $actor
+     * @return array<string, mixed>
+     */
+    private function buildActorNode(string $actorId, array $actor): array
+    {
+        $node = [
+            'id' => $actorId,
+            'type' => 'actor',
+            'label' => $actorId,
+        ];
+
+        if (is_int($actor['source_line'] ?? null) && $actor['source_line'] > 0) {
+            $node['source_line'] = $actor['source_line'];
+        }
+
+        if (in_array($actor['source_kind'] ?? null, ['main', 'import'], true)) {
+            $node['source_kind'] = $actor['source_kind'];
+        }
+
+        if (is_string($actor['source_module'] ?? null) && $actor['source_module'] !== '') {
+            $node['source_module'] = $actor['source_module'];
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param  array<string, mixed>|string  $event
+     * @return array<string, mixed>
+     */
+    private function buildEventNode(string $eventId, array|string $event): array
+    {
+        $node = [
+            'id' => $eventId,
+            'type' => 'event',
+            'label' => $eventId,
+        ];
+
+        if (! is_array($event)) {
+            return $node;
+        }
+
+        if (is_int($event['source_line'] ?? null) && $event['source_line'] > 0) {
+            $node['source_line'] = $event['source_line'];
+        }
+
+        if (in_array($event['source_kind'] ?? null, ['main', 'import'], true)) {
+            $node['source_kind'] = $event['source_kind'];
+        }
+
+        if (is_string($event['source_module'] ?? null) && $event['source_module'] !== '') {
+            $node['source_module'] = $event['source_module'];
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param  list<mixed>  $events
+     * @return array<string, mixed>|string
+     */
+    private function resolveEventPayload(string $eventId, array $events): array|string
+    {
+        foreach ($events as $event) {
+            if ($this->resolveEntityId($event) === $eventId) {
+                return is_array($event) ? $event : $eventId;
+            }
+        }
+
+        return $eventId;
     }
 
     private function buildDiff(string $from, string $to): string

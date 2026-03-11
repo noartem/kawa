@@ -39,11 +39,26 @@ class FlowDeploymentsPayloadTest extends TestCase
             'active' => false,
             'code_snapshot' => null,
             'graph_snapshot' => null,
-            'events' => ['event.old', 'event.done'],
+            'events' => [
+                [
+                    'id' => 'event.old',
+                    'source_line' => 7,
+                    'source_kind' => 'import',
+                    'source_module' => 'events.old',
+                ],
+                [
+                    'id' => 'event.done',
+                    'source_line' => 11,
+                    'source_kind' => 'main',
+                ],
+            ],
             'actors' => [[
                 'id' => 'actor.old',
                 'receives' => ['event.old'],
                 'sends' => ['event.done'],
+                'source_line' => 16,
+                'source_kind' => 'import',
+                'source_module' => 'actors.old',
             ]],
             'started_at' => now()->subHours(2),
             'finished_at' => now()->subHours(2)->addMinutes(5),
@@ -81,6 +96,16 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->where('deployments.1.id', $oldRun->id)
             ->where('deployments.1.code', 'print("legacy")')
             ->where('deployments.1.graph.nodes.0.id', 'event.old')
+            ->where('deployments.1.graph.nodes.0.source_line', 7)
+            ->where('deployments.1.graph.nodes.0.source_kind', 'import')
+            ->where('deployments.1.graph.nodes.0.source_module', 'events.old')
+            ->where('deployments.1.graph.nodes.1.id', 'event.done')
+            ->where('deployments.1.graph.nodes.1.source_line', 11)
+            ->where('deployments.1.graph.nodes.1.source_kind', 'main')
+            ->where('deployments.1.graph.nodes.2.id', 'actor.old')
+            ->where('deployments.1.graph.nodes.2.source_line', 16)
+            ->where('deployments.1.graph.nodes.2.source_kind', 'import')
+            ->where('deployments.1.graph.nodes.2.source_module', 'actors.old')
             ->where('deployments.1.logs.0.message', 'Old deployment log')
             ->missing('productionLogs')
             ->missing('productionRuns')

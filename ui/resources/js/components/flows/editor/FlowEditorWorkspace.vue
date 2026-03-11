@@ -21,8 +21,12 @@ import {
     Play,
     Square,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+interface FlowCodeEditorExpose {
+    focusLine: (line: number, flash?: boolean) => boolean;
+}
 
 const code = defineModel<string>('code', { required: true });
 
@@ -121,7 +125,11 @@ const statusChipIcon = computed(() => {
 
 const activeTab = ref<'editor' | 'chat' | 'changes'>('editor');
 const expandedHistoryIds = ref<Set<number>>(new Set());
-const editor = ref<HTMLElement | null>(null);
+const workspaceSection = ref<HTMLElement | null>(null);
+const codeEditor = ref<FlowCodeEditorExpose | null>(null);
+
+let suppressWorkspaceScroll = false;
+let restoreWorkspaceScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isHistoryExpanded = (historyId: number): boolean => {
     return expandedHistoryIds.value.has(historyId);
@@ -139,8 +147,48 @@ const toggleHistoryCard = (historyId: number): void => {
     expandedHistoryIds.value = nextExpandedIds;
 };
 
+const clearWorkspaceScrollSuppression = (): void => {
+    suppressWorkspaceScroll = false;
+
+    if (restoreWorkspaceScrollTimer === null) {
+        return;
+    }
+
+    clearTimeout(restoreWorkspaceScrollTimer);
+    restoreWorkspaceScrollTimer = null;
+};
+
+const suppressNextWorkspaceScroll = (): void => {
+    suppressWorkspaceScroll = true;
+
+    if (restoreWorkspaceScrollTimer !== null) {
+        clearTimeout(restoreWorkspaceScrollTimer);
+    }
+
+    restoreWorkspaceScrollTimer = setTimeout(() => {
+        clearWorkspaceScrollSuppression();
+    }, 80);
+};
+
 const focusEditor = (): void => {
-    editor.value?.scrollIntoView({ behavior: 'smooth' });
+    if (suppressWorkspaceScroll) {
+        return;
+    }
+
+    workspaceSection.value?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+    });
+};
+
+const jumpToCode = async (line: number): Promise<void> => {
+    suppressNextWorkspaceScroll();
+    activeTab.value = 'editor';
+    await nextTick();
+
+    requestAnimationFrame(() => {
+        codeEditor.value?.focusLine(line, true);
+    });
 };
 
 watch(
@@ -164,7 +212,7 @@ watch(
 </script>
 
 <template>
-    <section ref="editor" class="h-[100vh] p-4" @click="focusEditor">
+    <section ref="workspaceSection" class="h-[100vh] p-4" @click="focusEditor">
         <div
             class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_1fr_1fr]"
         >
@@ -262,6 +310,7 @@ watch(
                         class="relative h-full overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25"
                     >
                         <FlowCodeEditor
+                            ref="codeEditor"
                             id="flow-code"
                             v-model="code"
                             :disabled="!canUpdate"
@@ -435,6 +484,7 @@ watch(
                 :graph="graph"
                 :meta="graphMeta"
                 :outdated="graphIsOutdated"
+                @jump-to-code="jumpToCode"
             />
 
             <FlowLogsPanel

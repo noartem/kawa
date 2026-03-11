@@ -847,18 +847,112 @@ def is_actor_decorator(node):
 with open(FLOW_PATH, 'r', encoding='utf-8') as file_handle:
     tree = ast.parse(file_handle.read(), FLOW_PATH)
 
+
+def register_import(node, imported_names):
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            local_name = alias.asname or alias.name.split('.', 1)[0]
+            imported_names[local_name] = {
+                'source_line': node.lineno,
+                'source_kind': 'import',
+                'source_module': alias.name,
+            }
+
+        return
+
+    if isinstance(node, ast.ImportFrom):
+        module_name = node.module or ''
+        for alias in node.names:
+            if alias.name == '*':
+                continue
+
+            local_name = alias.asname or alias.name
+            imported_names[local_name] = {
+                'source_line': node.lineno,
+                'source_kind': 'import',
+                'source_module': module_name,
+            }
+
+
+def resolve_imported_source(name, imported_names):
+    imported_source = imported_names.get(name)
+    if imported_source is not None:
+        return dict(imported_source)
+
+    root_name = name.split('.', 1)[0].split('(', 1)[0]
+    imported_source = imported_names.get(root_name)
+    if imported_source is not None:
+        return dict(imported_source)
+
+    return None
+
+
+def resolve_main_source(line_number):
+    return {
+        'source_line': line_number,
+        'source_kind': 'main',
+        'source_module': None,
+    }
+
+
+def resolve_actor_source(node, imported_names):
+    imported_source = resolve_imported_source(node.name, imported_names)
+    if imported_source is not None:
+        return imported_source
+
+    return resolve_main_source(node.lineno)
+
+
+def resolve_event_source(event_name, event_sources, imported_names):
+    event_source = event_sources.get(event_name)
+    if event_source is not None:
+        return dict(event_source)
+
+    imported_source = resolve_imported_source(event_name, imported_names)
+    if imported_source is not None:
+        return imported_source
+
+    return {}
+
+
+def append_event(event_name, event_ids, event_sources, imported_names, events, nodes):
+    if event_name in event_ids:
+        return
+
+    source = resolve_event_source(event_name, event_sources, imported_names)
+    event_payload = {'id': event_name, 'name': event_name, **source}
+    events.append(event_payload)
+    nodes.append({'id': event_name, 'type': 'event', 'label': event_name, **source})
+    event_ids.add(event_name)
+
+
 events = []
 actors = []
 nodes = []
 edges = []
 event_ids = set()
+imported_names = {}
+event_sources = {}
+
+for node in tree.body:
+    register_import(node, imported_names)
+
+    if isinstance(node, ast.ClassDef):
+        if any(is_event_decorator(d) for d in node.decorator_list):
+            event_sources[node.name] = resolve_main_source(node.lineno)
+
 
 for node in tree.body:
     if isinstance(node, ast.ClassDef):
         if any(is_event_decorator(d) for d in node.decorator_list):
-            events.append({'id': node.name, 'name': node.name})
-            nodes.append({'id': node.name, 'type': 'event', 'label': node.name})
-            event_ids.add(node.name)
+            append_event(
+                node.name,
+                event_ids,
+                event_sources,
+                imported_names,
+                events,
+                nodes,
+            )
 
     if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
         actor_decorators = [d for d in node.decorator_list if is_actor_decorator(d)]
@@ -892,25 +986,42 @@ for node in tree.body:
                 'name': node.name,
                 'receives': receives,
                 'sends': sends,
+                **resolve_actor_source(node, imported_names),
             }
         )
-        nodes.append({'id': node.name, 'type': 'actor', 'label': node.name})
+        nodes.append(
+            {
+                'id': node.name,
+                'type': 'actor',
+                'label': node.name,
+                **resolve_actor_source(node, imported_names),
+            }
+        )
 
         for receive in receives:
             receive_name = str(receive)
 
-            if receive_name not in event_ids:
-                events.append({'id': receive_name, 'name': receive_name})
-                nodes.append(
-                    {
-                        'id': receive_name,
-                        'type': 'event',
-                        'label': receive_name,
-                    }
-                )
-                event_ids.add(receive_name)
+            append_event(
+                receive_name,
+                event_ids,
+                event_sources,
+                imported_names,
+                events,
+                nodes,
+            )
 
             edges.append({'from': receive_name, 'to': node.name})
+
+        for send in sends:
+            send_name = str(send)
+            append_event(
+                send_name,
+                event_ids,
+                event_sources,
+                imported_names,
+                events,
+                nodes,
+            )
 
 print(
     json.dumps(

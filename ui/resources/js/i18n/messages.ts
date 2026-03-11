@@ -338,6 +338,11 @@ export const messages = {
                 zoom_in: 'Zoom in',
                 zoom_out: 'Zoom out',
                 reset_view: 'Reset view',
+                source_main: 'Implementation in flow code',
+                source_import: 'Imported into flow code',
+                source_module: 'Module: {module}',
+                no_source: 'Code location is unavailable',
+                open_code_line: 'Line {line} code',
             },
             logs: {
                 empty_dev: 'Logs will appear after the test deployment starts.',
@@ -870,6 +875,11 @@ export const messages = {
                 zoom_in: 'Увеличить',
                 zoom_out: 'Уменьшить',
                 reset_view: 'Сбросить вид',
+                source_main: 'Реализация в коде потока',
+                source_import: 'Импортировано в код потока',
+                source_module: 'Модуль: {module}',
+                no_source: 'Позиция в коде недоступна',
+                open_code_line: '{line} строка код',
             },
             logs: {
                 empty_dev: 'Логи появятся после старта тестового деплоя.',

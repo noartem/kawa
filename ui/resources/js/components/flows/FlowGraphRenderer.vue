@@ -5,6 +5,7 @@ import Sigma from 'sigma';
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 type GraphNodeType = 'event' | 'actor' | 'other';
+type GraphSourceKind = 'main' | 'import';
 
 interface BaseNode {
     id: string;
@@ -12,6 +13,9 @@ interface BaseNode {
     shortLabel: string;
     type: GraphNodeType;
     order: number;
+    sourceLine: number | null;
+    sourceKind: GraphSourceKind | null;
+    sourceModule: string | null;
 }
 
 interface NormalizedNode extends BaseNode {
@@ -37,6 +41,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     (event: 'zoom-change', value: number): void;
+    (event: 'node-click', value: BaseNode): void;
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -97,6 +102,28 @@ const shortenLabel = (label: string): string => {
     return label.length > 24 ? `${label.slice(0, 21)}...` : label;
 };
 
+const resolveSourceLine = (value: unknown): number | null => {
+    if (!Number.isInteger(value)) {
+        return null;
+    }
+
+    return value > 0 ? value : null;
+};
+
+const resolveSourceKind = (value: unknown): GraphSourceKind | null => {
+    return value === 'main' || value === 'import' ? value : null;
+};
+
+const resolveSourceModule = (value: unknown): string | null => {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const moduleName = value.trim();
+
+    return moduleName.length > 0 ? moduleName : null;
+};
+
 const buildNodes = (graph?: Record<string, unknown> | null): BaseNode[] => {
     const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
     const normalizedNodes: BaseNode[] = [];
@@ -126,6 +153,9 @@ const buildNodes = (graph?: Record<string, unknown> | null): BaseNode[] => {
             shortLabel: shortenLabel(label),
             type,
             order,
+            sourceLine: resolveSourceLine(node.source_line),
+            sourceKind: resolveSourceKind(node.source_kind),
+            sourceModule: resolveSourceModule(node.source_module),
         });
 
         order += 1;
@@ -387,7 +417,10 @@ const buildGraphSignature = (
 ): string => {
     const nodes = buildNodes(graph);
     const nodeSignature = nodes
-        .map((node) => `${node.id}:${node.type}:${node.label}`)
+        .map(
+            (node) =>
+                `${node.id}:${node.type}:${node.label}:${node.sourceLine ?? ''}:${node.sourceKind ?? ''}:${node.sourceModule ?? ''}`,
+        )
         .sort();
     const edgeSignature = buildEdges(graph, nodes)
         .map((edge) => `${edge.from}->${edge.to}`)
@@ -423,6 +456,7 @@ const destroyRenderer = (): void => {
 const buildSigmaGraph = (): {
     sigmaGraph: Graph;
     edgeIdsByNode: Map<string, Set<string>>;
+    nodeById: Map<string, BaseNode>;
 } => {
     const nodes = buildNodes(props.graph);
     const edges = buildEdges(props.graph, nodes);
@@ -433,6 +467,7 @@ const buildSigmaGraph = (): {
         allowSelfLoops: false,
     });
     const edgeIdsByNode = new Map<string, Set<string>>();
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
     for (const node of positionedNodes) {
         sigmaGraph.addNode(node.id, {
@@ -465,7 +500,7 @@ const buildSigmaGraph = (): {
         edgeIdsByNode.set(edge.to, toEdgeIds);
     }
 
-    return { sigmaGraph, edgeIdsByNode };
+    return { sigmaGraph, edgeIdsByNode, nodeById };
 };
 
 const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
@@ -494,7 +529,7 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
 
     destroyRenderer();
 
-    const { sigmaGraph, edgeIdsByNode } = buildSigmaGraph();
+    const { sigmaGraph, edgeIdsByNode, nodeById } = buildSigmaGraph();
     sigmaRenderer = new Sigma(sigmaGraph, container, {
         hideEdgesOnMove: false,
         hideLabelsOnMove: false,
@@ -561,11 +596,22 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
         sigmaRenderer?.refresh();
     };
 
+    const onClickNode = ({ node }: { node: string }): void => {
+        const selectedNode = nodeById.get(node);
+        if (!selectedNode) {
+            return;
+        }
+
+        emit('node-click', selectedNode);
+    };
+
     sigmaRenderer.on('enterNode', onEnterNode);
     sigmaRenderer.on('leaveNode', onLeaveNode);
+    sigmaRenderer.on('clickNode', onClickNode);
     releaseInteractionListeners = () => {
         sigmaRenderer?.off('enterNode', onEnterNode);
         sigmaRenderer?.off('leaveNode', onLeaveNode);
+        sigmaRenderer?.off('clickNode', onClickNode);
     };
 
     camera.setState(cameraState ?? DEFAULT_CAMERA_STATE);

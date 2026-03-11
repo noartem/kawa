@@ -7,9 +7,20 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Expand, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import {
+    Expand,
+    RotateCcw,
+    X,
+    ZoomIn,
+    ZoomOut,
+} from 'lucide-vue-next';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+interface GraphNodePayload {
+    id: string;
+    sourceLine: number | null;
+}
 
 interface GraphMeta {
     actors?: number;
@@ -37,6 +48,10 @@ const props = withDefaults(
         outdated: false,
     },
 );
+
+const emit = defineEmits<{
+    (event: 'jump-to-code', line: number): void;
+}>();
 
 const { t } = useI18n();
 
@@ -114,6 +129,14 @@ const zoomOut = (target: FlowGraphRendererExpose | null): void => {
 const resetView = (target: FlowGraphRendererExpose | null): void => {
     target?.resetView();
 };
+
+const selectNode = (node: GraphNodePayload): void => {
+    if (node.sourceLine === null) {
+        return;
+    }
+
+    emit('jump-to-code', node.sourceLine);
+};
 </script>
 
 <template>
@@ -187,6 +210,7 @@ const resetView = (target: FlowGraphRendererExpose | null): void => {
                     ref="inlineRenderer"
                     class="h-full w-full"
                     :graph="props.graph"
+                    @node-click="selectNode"
                     @zoom-change="inlineZoom = $event"
                 />
             </div>
@@ -303,6 +327,7 @@ const resetView = (target: FlowGraphRendererExpose | null): void => {
                             ref="modalRenderer"
                             class="h-full w-full"
                             :graph="props.graph"
+                            @node-click="selectNode"
                             @zoom-change="modalZoom = $event"
                         />
 

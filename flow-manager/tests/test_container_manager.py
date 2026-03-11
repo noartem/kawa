@@ -127,9 +127,43 @@ class TestContainerManager:
         container_manager.docker_client.containers.get.return_value = mock_container
 
         graph_payload = {
-            "events": [{"id": "CronEvent", "name": "CronEvent"}],
-            "actors": [{"id": "Starter", "name": "Starter", "receives": []}],
-            "nodes": [{"id": "Starter", "type": "actor", "label": "Starter"}],
+            "events": [
+                {
+                    "id": "CronEvent",
+                    "name": "CronEvent",
+                    "source_line": 4,
+                    "source_kind": "import",
+                    "source_module": "flows.events",
+                }
+            ],
+            "actors": [
+                {
+                    "id": "Starter",
+                    "name": "Starter",
+                    "receives": [],
+                    "source_line": 16,
+                    "source_kind": "main",
+                    "source_module": None,
+                }
+            ],
+            "nodes": [
+                {
+                    "id": "CronEvent",
+                    "type": "event",
+                    "label": "CronEvent",
+                    "source_line": 4,
+                    "source_kind": "import",
+                    "source_module": "flows.events",
+                },
+                {
+                    "id": "Starter",
+                    "type": "actor",
+                    "label": "Starter",
+                    "source_line": 16,
+                    "source_kind": "main",
+                    "source_module": None,
+                },
+            ],
             "edges": [],
         }
         mock_container.exec_run.return_value = MagicMock(

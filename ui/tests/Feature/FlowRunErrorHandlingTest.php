@@ -191,13 +191,20 @@ class FlowRunErrorHandlingTest extends TestCase
             ->with('container-id-1')
             ->andReturn([
                 'events' => [
-                    ['id' => 'CronEvent'],
+                    [
+                        'id' => 'CronEvent',
+                        'source_line' => 6,
+                        'source_kind' => 'import',
+                        'source_module' => 'app.events',
+                    ],
                 ],
                 'actors' => [
                     [
                         'id' => 'StarterActor',
                         'receives' => ['CronEvent'],
                         'sends' => ['PreparedEvent'],
+                        'source_line' => 16,
+                        'source_kind' => 'main',
                     ],
                 ],
             ]);
@@ -217,6 +224,14 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertNotEmpty($flow->graph['edges'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
+        $cronEventNode = collect($flow->graph['nodes'])->firstWhere('id', 'CronEvent');
+        $this->assertSame(6, $cronEventNode['source_line'] ?? null);
+        $this->assertSame('import', $cronEventNode['source_kind'] ?? null);
+        $this->assertSame('app.events', $cronEventNode['source_module'] ?? null);
+        $this->assertSame(16, $flow->graph['nodes'][1]['source_line'] ?? null);
+        $this->assertSame('main', $flow->graph['nodes'][1]['source_kind'] ?? null);
+        $this->assertSame(16, $run->graph_snapshot['nodes'][1]['source_line'] ?? null);
+        $this->assertSame('main', $run->graph_snapshot['nodes'][1]['source_kind'] ?? null);
     }
 
     public function test_container_crashed_event_does_not_override_intentional_stop(): void
