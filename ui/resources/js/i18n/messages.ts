@@ -403,6 +403,7 @@ export const messages = {
                     starting: 'Starting...',
                     stopping: 'Stopping...',
                 },
+                last_development: 'Last test run',
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
@@ -935,6 +936,7 @@ export const messages = {
                     starting: 'Запуск...',
                     stopping: 'Остановка...',
                 },
+                last_development: 'Последний тестовый запуск',
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',

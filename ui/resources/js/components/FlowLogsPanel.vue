@@ -30,10 +30,12 @@ const props = withDefaults(
         emptyMessage: string;
         compact?: boolean;
         dense?: boolean;
+        muted?: boolean;
     }>(),
     {
         compact: false,
         dense: false,
+        muted: false,
     },
 );
 
@@ -518,6 +520,14 @@ const messageClass = computed(() =>
         : 'mt-2 text-xs text-foreground',
 );
 
+const containerClass = computed(() => {
+    if (props.muted) {
+        return 'divide-y overflow-y-auto rounded-md border bg-muted/30 opacity-65 saturate-0';
+    }
+
+    return 'divide-y overflow-y-auto rounded-md border bg-muted/40';
+});
+
 const isScrolledToBottom = (): boolean => {
     const container = logsContainerRef.value;
 
@@ -578,7 +588,7 @@ watch(
     <div
         v-if="logs.length"
         ref="logsContainerRef"
-        class="divide-y overflow-y-auto rounded-md border bg-muted/40"
+        :class="containerClass"
     >
         <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
             <div

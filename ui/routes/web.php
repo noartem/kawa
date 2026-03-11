@@ -5,11 +5,16 @@ use App\Http\Controllers\FlowActionController;
 use App\Http\Controllers\FlowController;
 use App\Http\Controllers\FlowLogController;
 use App\Models\Flow;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features as FortifyFeatures;
 
 Route::get('/', static function () {
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+
     return Inertia::render('Welcome', [
         'canRegister' => FortifyFeatures::enabled(FortifyFeatures::registration()),
     ]);

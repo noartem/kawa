@@ -150,6 +150,51 @@ const refreshOnlyProps = [
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.developmentRun);
 const deployments = computed(() => props.deployments ?? []);
+const latestDevelopmentDeployment = computed<FlowDeployment | null>(() => {
+    return (
+        deployments.value.find(
+            (deployment) => deployment.type === 'development',
+        ) ?? null
+    );
+});
+const hasStableFlowGraph = computed(() => {
+    const graph = stableFlowGraph.value;
+    if (!graph || typeof graph !== 'object') {
+        return false;
+    }
+
+    const nodes = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
+    const edges = Array.isArray(graph.edges) ? graph.edges.length : 0;
+
+    return nodes > 0 || edges > 0;
+});
+const displayGraph = computed<Record<string, unknown> | null>(() => {
+    if (hasStableFlowGraph.value) {
+        return stableFlowGraph.value;
+    }
+
+    return latestDevelopmentDeployment.value?.graph ?? null;
+});
+const displayDevelopmentStatus = computed(() => {
+    return (
+        currentDevelopment.value?.status ??
+        latestDevelopmentDeployment.value?.status ??
+        null
+    );
+});
+const displayDevelopmentLogs = computed<FlowLog[]>(() => {
+    if (currentDevelopment.value?.active) {
+        return props.developmentLogs;
+    }
+
+    return latestDevelopmentDeployment.value?.logs ?? props.developmentLogs;
+});
+const isShowingHistoricalDevelopment = computed(() => {
+    return Boolean(
+        !currentDevelopment.value?.active &&
+            latestDevelopmentDeployment.value?.type === 'development',
+    );
+});
 const recentDeployments = computed(() => deployments.value.slice(0, 5));
 const allDeploymentsUrl = computed(() => {
     return flowDeployments({ flow: props.flow.id ?? 0 }).url;
@@ -346,14 +391,22 @@ const graphIsOutdated = computed(() => {
 });
 
 const graphMeta = computed(() => {
+    const latestDevelopmentTimestamp =
+        latestDevelopmentDeployment.value?.finished_at ??
+        latestDevelopmentDeployment.value?.started_at ??
+        latestDevelopmentDeployment.value?.created_at ??
+        null;
+
     return {
-        actors: countGraphNodesByType(stableFlowGraph.value, 'actor'),
-        events: countGraphNodesByType(stableFlowGraph.value, 'event'),
-        status: statusLabel(currentDevelopment.value?.status),
+        actors: countGraphNodesByType(displayGraph.value, 'actor'),
+        events: countGraphNodesByType(displayGraph.value, 'event'),
+        status: statusLabel(displayDevelopmentStatus.value),
         freshnessLabel: graphIsOutdated.value
             ? t('common.outdated')
             : t('common.updated_at'),
-        updatedAt: formatRecentDate(props.flow.graph_generated_at),
+        updatedAt: formatRecentDate(
+            props.flow.graph_generated_at ?? latestDevelopmentTimestamp,
+        ),
     };
 });
 
@@ -677,16 +730,20 @@ onBeforeUnmount(() => {
                 :current-development-active="
                     Boolean(currentDevelopment?.active)
                 "
-                :current-development-status="currentDevelopment?.status"
+                :current-development-status="displayDevelopmentStatus"
+                :showing-historical-development="
+                    isShowingHistoricalDevelopment
+                "
                 :status-tone="statusTone"
                 :status-label="statusLabel"
                 :code-updated-at="props.flow.code_updated_at"
                 :code-error-messages="codeErrorMessages"
                 :history-cards="historyCards"
-                :graph="stableFlowGraph"
+                :graph="displayGraph"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
-                :development-logs="props.developmentLogs"
+                :development-logs="displayDevelopmentLogs"
+                :development-logs-muted="isShowingHistoricalDevelopment"
                 :format-recent-date="formatRecentDate"
                 :format-date="formatDate"
                 @run-flow="runFlow"
