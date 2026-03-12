@@ -375,11 +375,13 @@ class EventHandler:
         try:
             old_state_value = getattr(old_state, "value", old_state)
             new_state_value = getattr(new_state, "value", new_state)
+            metadata = self._get_container_event_metadata(container_id)
 
             await self.messaging.publish_event(
                 "status_changed",
                 {
                     "container_id": container_id,
+                    **metadata,
                     "old_state": str(old_state_value),
                     "new_state": str(new_state_value),
                     "timestamp": asyncio.get_event_loop().time(),
@@ -393,6 +395,54 @@ class EventHandler:
                     "container_id": container_id,
                 },
             )
+
+    def _get_container_event_metadata(self, container_id: str) -> Dict[str, Any]:
+        try:
+            container = self.container_manager.docker_client.containers.get(
+                container_id
+            )
+        except (NotFound, APIError) as exc:
+            self.logger.error(
+                exc,
+                {
+                    "callback": "_get_container_event_metadata",
+                    "container_id": container_id,
+                },
+            )
+            return {}
+
+        labels = getattr(container, "labels", None)
+
+        if not isinstance(labels, dict):
+            attrs = getattr(container, "attrs", {})
+            config = attrs.get("Config", {}) if isinstance(attrs, dict) else {}
+            labels = config.get("Labels", {}) if isinstance(config, dict) else {}
+
+        if not isinstance(labels, dict):
+            return {}
+
+        metadata: Dict[str, Any] = {}
+
+        flow_id = labels.get("kawaflow.flow_id")
+        if flow_id is not None:
+            metadata["flow_id"] = int(flow_id) if flow_id.isdigit() else flow_id
+
+        flow_run_id = labels.get("kawaflow.flow_run_id")
+        if flow_run_id is not None:
+            metadata["flow_run_id"] = (
+                int(flow_run_id) if flow_run_id.isdigit() else flow_run_id
+            )
+
+        for label_key, payload_key in [
+            ("kawaflow.flow_name", "flow_name"),
+            ("kawaflow.graph_hash", "graph_hash"),
+            ("kawaflow.test_run_id", "test_run_id"),
+        ]:
+            value = labels.get(label_key)
+            if value:
+                metadata[payload_key] = value
+
+        return metadata
 
     async def _on_health_check_failure(self, container_id: str, health: str) -> None:
         try:

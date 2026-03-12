@@ -124,7 +124,16 @@ async def test_handle_get_container_graph_success():
 
 @pytest.mark.asyncio
 async def test_status_change_callback_publishes_only_domain_event():
-    handler, messaging, _, _, user_logger = _make_handler()
+    handler, messaging, container_manager, _, user_logger = _make_handler()
+    container = Mock()
+    container.labels = {
+        "kawaflow.flow_id": "7",
+        "kawaflow.flow_run_id": "11",
+        "kawaflow.graph_hash": "graph-hash",
+    }
+    container_manager.docker_client = Mock()
+    container_manager.docker_client.containers = Mock()
+    container_manager.docker_client.containers.get.return_value = container
 
     user_logger.user_activity = AsyncMock()
 
@@ -132,6 +141,15 @@ async def test_status_change_callback_publishes_only_domain_event():
 
     assert len(messaging.published_events) == 1
     assert messaging.published_events[0]["event"] == "status_changed"
+    assert messaging.published_events[0]["payload"] == {
+        "container_id": "cid",
+        "flow_id": 7,
+        "flow_run_id": 11,
+        "graph_hash": "graph-hash",
+        "old_state": "running",
+        "new_state": "exited",
+        "timestamp": messaging.published_events[0]["payload"]["timestamp"],
+    }
     user_logger.user_activity.assert_not_called()
 
 

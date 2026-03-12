@@ -101,6 +101,10 @@ class TestContainerManager:
         assert result.id == "test-container-id"
         assert result.name == "test-container"
         assert result.status == "running"
+        assert (
+            container_manager._container_states["test-container-id"]
+            == ContainerState.CREATED
+        )
 
         # Verify Docker client was called correctly
         container_manager.docker_client.containers.create.assert_called_once()

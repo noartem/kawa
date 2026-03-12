@@ -316,4 +316,37 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame('stopped', $run->status);
         $this->assertFalse($run->active);
     }
+
+    public function test_status_changed_event_can_resolve_run_by_flow_run_id_before_container_binding(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'created',
+            'started_at' => now()->subMinute(),
+            'container_id' => null,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManagerEvent('status_changed', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-2',
+            'old_state' => 'created',
+            'new_state' => 'running',
+        ]);
+        $job->handle();
+
+        $run->refresh();
+
+        $this->assertSame('running', $run->status);
+        $this->assertTrue($run->active);
+    }
 }

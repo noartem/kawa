@@ -154,6 +154,7 @@ class ContainerManager:
                 working_dir=config.working_dir,
                 detach=True,
             )
+            self._container_states[container.id] = ContainerState.CREATED
             container.start()
             container.reload()
 
