@@ -39,11 +39,7 @@ import {
 } from '@/routes/flows';
 import type { BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
-import {
-    ArrowDown,
-    ArrowDownUp,
-    ArrowUp,
-} from 'lucide-vue-next';
+import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -129,6 +125,10 @@ const runTypeLabel = (type?: FlowRun['type'] | null): string => {
 
 const statusTone = (status?: string | null): string => {
     switch (status) {
+        case 'creating':
+        case 'created':
+        case 'stopping':
+            return 'border-sky-500/40 bg-sky-500/10 text-sky-300';
         case 'running':
         case 'ready':
         case 'locked':
@@ -397,7 +397,9 @@ const clearQueryDebounce = (): void => {
     }
 };
 
-const scheduleApplyQuery = (overrides: Partial<DeploymentsQuery> = {}): void => {
+const scheduleApplyQuery = (
+    overrides: Partial<DeploymentsQuery> = {},
+): void => {
     clearQueryDebounce();
     queryDebounceTimer = setTimeout(() => {
         applyQuery(overrides);
@@ -406,7 +408,10 @@ const scheduleApplyQuery = (overrides: Partial<DeploymentsQuery> = {}): void => 
 };
 
 const onSearchInput = (): void => {
-    scheduleApplyQuery({ search: searchValue.value.trim() || undefined, page: 1 });
+    scheduleApplyQuery({
+        search: searchValue.value.trim() || undefined,
+        page: 1,
+    });
 };
 
 const onStatusFilterChange = (value: string): void => {
@@ -524,7 +529,9 @@ onBeforeUnmount(() => {
                         v-model="searchValue"
                         class="w-full md:max-w-xl"
                         :placeholder="
-                            t('flows.deployments_page.filters.search_placeholder')
+                            t(
+                                'flows.deployments_page.filters.search_placeholder',
+                            )
                         "
                         :clear-label="t('flows.deployments_page.filters.reset')"
                         clearable

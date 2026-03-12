@@ -74,14 +74,20 @@ class ProcessFlowManagerEvent implements ShouldQueue
 
         if ($this->event === 'container_created') {
             $containerId = $this->payload['container_id'] ?? null;
-            if ($containerId) {
-                if ($flowRun) {
-                    $flowRun->update([
-                        'container_id' => $containerId,
-                        'meta' => $this->payload,
-                    ]);
+            if ($flowRun) {
+                $updates = [
+                    'status' => 'created',
+                    'meta' => $this->payload,
+                ];
+
+                if ($containerId) {
+                    $updates['container_id'] = $containerId;
                 }
 
+                $flowRun->update($updates);
+            }
+
+            if ($containerId) {
                 $flow->update([
                     'container_id' => $containerId,
                 ]);
@@ -136,6 +142,7 @@ class ProcessFlowManagerEvent implements ShouldQueue
         if ($status === 'running') {
             if ($flowRun) {
                 $flowRun->update([
+                    'active' => true,
                     'status' => 'running',
                     'started_at' => now(),
                     'meta' => $this->payload,
@@ -147,9 +154,38 @@ class ProcessFlowManagerEvent implements ShouldQueue
             return;
         }
 
+        if ($status === 'created') {
+            if ($flowRun) {
+                $flowRun->update([
+                    'active' => true,
+                    'status' => 'created',
+                    'meta' => $this->payload,
+                ]);
+            }
+
+            $this->syncFlowStatusFromRun($flow, $flowRun, 'created');
+
+            return;
+        }
+
+        if ($status === 'stopping') {
+            if ($flowRun) {
+                $flowRun->update([
+                    'active' => true,
+                    'status' => 'stopping',
+                    'meta' => $this->payload,
+                ]);
+            }
+
+            $this->syncFlowStatusFromRun($flow, $flowRun, 'stopping');
+
+            return;
+        }
+
         if (in_array($status, ['stopped', 'exited', 'finished', 'dead'], true)) {
             if ($flowRun) {
                 $flowRun->update([
+                    'active' => false,
                     'status' => 'stopped',
                     'finished_at' => now(),
                     'meta' => $this->payload,
@@ -162,13 +198,19 @@ class ProcessFlowManagerEvent implements ShouldQueue
 
     private function syncFlowStatusFromRun(Flow $flow, ?FlowRun $run, string $status): void
     {
-        if (! $run || $run->type !== 'production' || ! $run->active) {
+        if (! $run || $run->type !== 'production') {
             return;
         }
 
-        $payload = $status === 'running'
-            ? ['status' => $status, 'last_started_at' => now()]
-            : ['status' => $status, 'last_finished_at' => now()];
+        if ($status !== 'stopped' && ! $run->active) {
+            return;
+        }
+
+        $payload = match ($status) {
+            'running' => ['status' => $status, 'last_started_at' => now()],
+            'stopped' => ['status' => $status, 'last_finished_at' => now()],
+            default => ['status' => $status],
+        };
 
         $flow->update($payload);
     }
@@ -210,11 +252,11 @@ class ProcessFlowManagerEvent implements ShouldQueue
             return;
         }
 
-        $existingGraph = is_array($flow->graph) ? $flow->graph : [];
+        $existingGraph = is_array($flowRun?->graph_snapshot) ? $flowRun->graph_snapshot : [];
         $graphEvents = is_array($events) ? $events : ($existingGraph['events'] ?? []);
         $graphActors = is_array($actors) ? $actors : ($existingGraph['actors'] ?? []);
 
-        $this->updateFlowGraph($flow, $flowRun, $graphEvents, $graphActors);
+        $this->updateFlowGraph($flowRun, $graphEvents, $graphActors);
     }
 
     private function syncFlowGraphFromRuntime(Flow $flow, ?FlowRun $flowRun): void
@@ -234,15 +276,18 @@ class ProcessFlowManagerEvent implements ShouldQueue
         $graphEvents = is_array($graph['events'] ?? null) ? $graph['events'] : [];
         $graphActors = is_array($graph['actors'] ?? null) ? $graph['actors'] : [];
 
-        $this->updateFlowGraph($flow, $flowRun, $graphEvents, $graphActors);
+        $this->updateFlowGraph($flowRun, $graphEvents, $graphActors);
     }
 
     /**
      * @param  list<mixed>  $graphEvents
      * @param  list<mixed>  $graphActors
      */
-    private function updateFlowGraph(Flow $flow, ?FlowRun $flowRun, array $graphEvents, array $graphActors): void
+    private function updateFlowGraph(?FlowRun $flowRun, array $graphEvents, array $graphActors): void
     {
+        if (! $flowRun) {
+            return;
+        }
 
         $nodesById = [];
         $edgesById = [];
@@ -300,16 +345,9 @@ class ProcessFlowManagerEvent implements ShouldQueue
             'edges' => array_values($edgesById),
         ];
 
-        $flow->update([
-            'graph' => $graph,
-            'graph_generated_at' => now(),
+        $flowRun->update([
+            'graph_snapshot' => $graph,
         ]);
-
-        if ($flowRun) {
-            $flowRun->update([
-                'graph_snapshot' => $graph,
-            ]);
-        }
     }
 
     private function resolveEntityId(mixed $value): ?string

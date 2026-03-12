@@ -28,7 +28,10 @@ class FlowDeploymentsIndexRequest extends FormRequest
      */
     private const STATUSES = [
         'pending',
+        'creating',
+        'created',
         'running',
+        'stopping',
         'success',
         'failed',
         'error',
@@ -47,7 +50,10 @@ class FlowDeploymentsIndexRequest extends FormRequest
     private const STATUS_GROUPS = [
         'status_working' => [
             'pending',
+            'creating',
+            'created',
             'running',
+            'stopping',
             'deploying',
             'locking',
             'ready',

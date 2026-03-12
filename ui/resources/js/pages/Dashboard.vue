@@ -46,6 +46,10 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
 
 const statusTone = (status?: string | null) => {
     switch (status) {
+        case 'creating':
+        case 'created':
+        case 'stopping':
+            return 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/25';
         case 'running':
             return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25';
         case 'error':

@@ -104,7 +104,6 @@ PY
             'description' => $data['description'] ?? null,
             'code' => $code,
             'code_updated_at' => now(),
-            'graph' => $this->defaultGraph(),
             'user_id' => $request->user()->id,
             'status' => 'draft',
             'slug' => $slug,
@@ -119,9 +118,8 @@ PY
         $flow->load('user')->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
-        $developmentRun = $flow->activeRun('development');
+        $lastDevelopmentDeployment = $this->resolveLatestDeploymentOfType($flow, 'development');
         $productionLogsCount = $productionRun?->logs()->count() ?? 0;
-        $developmentLogs = $developmentRun?->logs()->latest()->limit(50)->get() ?? collect();
         $history = $flow->histories()->latest()->limit(10)->get();
         $deployments = $this->buildDeployments($flow, self::EDITOR_DEPLOYMENTS_LIMIT);
 
@@ -130,9 +128,8 @@ PY
             'flow' => $flow,
             'deployments' => $deployments,
             'productionRun' => $productionRun,
-            'developmentRun' => $developmentRun,
+            'lastDevelopmentDeployment' => $lastDevelopmentDeployment,
             'productionLogsCount' => $productionLogsCount,
-            'developmentLogs' => $developmentLogs,
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
@@ -219,17 +216,6 @@ PY
     }
 
     /**
-     * @return array{nodes: array<int, mixed>, edges: array<int, mixed>}
-     */
-    private function defaultGraph(): array
-    {
-        return [
-            'nodes' => [],
-            'edges' => [],
-        ];
-    }
-
-    /**
      * @return array<int, array{status: string, total: int}>
      */
     private function runStats(Flow $flow): array
@@ -258,6 +244,24 @@ PY
             ->get();
 
         return $this->buildDeploymentsFromRuns($flow, $runs);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveLatestDeploymentOfType(Flow $flow, string $type): ?array
+    {
+        $run = $flow->runs()
+            ->where('type', $type)
+            ->latest('created_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $run instanceof FlowRun) {
+            return null;
+        }
+
+        return $this->buildDeploymentsFromRuns($flow, collect([$run]))[0] ?? null;
     }
 
     /**

@@ -15,7 +15,6 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->string('description')->nullable();
             $table->text('code')->nullable();
-            $table->json('graph')->nullable();
             $table->string('status')->default('draft');
             $table->string('container_id')->nullable()->index();
             $table->string('entrypoint')->default('main.py');

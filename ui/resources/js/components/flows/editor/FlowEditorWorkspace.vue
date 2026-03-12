@@ -43,7 +43,6 @@ const props = defineProps<{
     actionInProgress: string | null;
     currentDevelopmentActive: boolean;
     currentDevelopmentStatus?: string | null;
-    showingHistoricalDevelopment: boolean;
     statusTone: (status?: string | null) => string;
     statusLabel: (status?: string | null) => string;
     codeUpdatedAt?: string | null;
@@ -60,7 +59,6 @@ const props = defineProps<{
         context?: Record<string, unknown> | null;
         created_at: string;
     }>;
-    developmentLogsMuted: boolean;
     formatRecentDate: (value?: string | null) => string;
     formatDate: (value?: string | null) => string;
 }>();
@@ -79,20 +77,30 @@ const isStatusTransitioning = computed(() => {
 });
 
 const showStatusChip = computed(() => {
+    const visibleStatuses = new Set([
+        'creating',
+        'created',
+        'running',
+        'stopping',
+        'error',
+        'failed',
+        'lock_failed',
+    ]);
+
     return (
         props.currentDevelopmentActive ||
         isStatusTransitioning.value ||
-        Boolean(props.currentDevelopmentStatus)
+        visibleStatuses.has(props.currentDevelopmentStatus ?? '')
     );
 });
 
 const statusChipStatus = computed<string>(() => {
     if (props.actionInProgress === 'run') {
-        return 'running';
+        return 'creating';
     }
 
     if (props.actionInProgress === 'stop') {
-        return 'stopped';
+        return 'stopping';
     }
 
     if (props.currentDevelopmentStatus) {
@@ -103,14 +111,6 @@ const statusChipStatus = computed<string>(() => {
 });
 
 const statusChipLabel = computed(() => {
-    if (props.actionInProgress === 'run') {
-        return t('flows.editor.status.starting');
-    }
-
-    if (props.actionInProgress === 'stop') {
-        return t('flows.editor.status.stopping');
-    }
-
     return props.statusLabel(statusChipStatus.value);
 });
 
@@ -315,14 +315,6 @@ watch(
                             class="size-3.5"
                         />
                         {{ statusChipLabel }}
-                    </Badge>
-
-                    <Badge
-                        v-if="showingHistoricalDevelopment"
-                        variant="secondary"
-                        class="text-muted-foreground"
-                    >
-                        {{ t('flows.editor.last_development') }}
                     </Badge>
 
                     <Button
@@ -543,7 +535,6 @@ watch(
                 class="col-start-2 row-start-3 h-full min-h-0"
                 :logs="developmentLogs"
                 :empty-message="t('flows.logs.empty_dev')"
-                :muted="developmentLogsMuted"
                 compact
             />
         </div>

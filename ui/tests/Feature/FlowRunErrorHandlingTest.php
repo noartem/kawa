@@ -104,7 +104,21 @@ class FlowRunErrorHandlingTest extends TestCase
             'status' => 'draft',
             'container_id' => null,
             'image' => 'flow:dev',
-            'graph' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $previousRun = $flow->runs()->create([
+            'type' => 'development',
+            'active' => false,
+            'status' => 'stopped',
+            'started_at' => now()->subMinutes(5),
+            'finished_at' => now()->subMinutes(4),
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [
+                    ['id' => 'previous.event', 'type' => 'event', 'label' => 'previous.event'],
+                ],
+                'edges' => [],
+            ],
         ]);
 
         $client = $this->mock(FlowManagerClient::class);
@@ -127,11 +141,50 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $run = $flow->runs()->latest('id')->first();
         $this->assertNotNull($run);
+        $this->assertSame('creating', $run->status);
         $this->assertSame($flow->code, $run->code_snapshot);
-        $this->assertSame($flow->graph, $run->graph_snapshot);
+        $this->assertSame($previousRun->graph_snapshot, $run->graph_snapshot);
+    }
 
-        $flow->refresh();
-        $this->assertSame(['nodes' => [], 'edges' => []], $flow->graph);
+    public function test_flow_service_marks_run_as_stopping_until_runtime_confirms_stop(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => null,
+            'image' => 'flow:dev',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-1',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('stopContainer')
+            ->once()
+            ->with('container-id-1');
+
+        $service = app(FlowService::class);
+        $result = $service->stop($flow);
+
+        $this->assertTrue($result['ok']);
+
+        $run->refresh();
+
+        $this->assertSame('stopping', $run->status);
+        $this->assertTrue($run->active);
+        $this->assertNull($run->finished_at);
+
     }
 
     public function test_flow_service_passes_timezone_to_flow_manager_payload(): void
@@ -171,14 +224,12 @@ class FlowRunErrorHandlingTest extends TestCase
         $flow = Flow::factory()->forUser($user)->createOne([
             'container_id' => 'container-id-1',
             'code_updated_at' => now(),
-            'graph' => ['nodes' => [], 'edges' => []],
-            'graph_generated_at' => null,
         ]);
 
         $run = $flow->runs()->create([
             'type' => 'development',
             'active' => true,
-            'status' => 'running',
+            'status' => 'creating',
             'started_at' => now(),
             'code_snapshot' => $flow->code,
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
@@ -219,17 +270,16 @@ class FlowRunErrorHandlingTest extends TestCase
         $flow->refresh();
         $run->refresh();
 
-        $this->assertNotNull($flow->graph_generated_at);
-        $this->assertNotEmpty($flow->graph['nodes'] ?? []);
-        $this->assertNotEmpty($flow->graph['edges'] ?? []);
+        $this->assertSame('created', $run->status);
+        $this->assertSame('container-id-1', $run->container_id);
         $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
-        $cronEventNode = collect($flow->graph['nodes'])->firstWhere('id', 'CronEvent');
+        $this->assertArrayNotHasKey('graph', $flow->getAttributes());
+        $this->assertArrayNotHasKey('graph_generated_at', $flow->getAttributes());
+        $cronEventNode = collect($run->graph_snapshot['nodes'])->firstWhere('id', 'CronEvent');
         $this->assertSame(6, $cronEventNode['source_line'] ?? null);
         $this->assertSame('import', $cronEventNode['source_kind'] ?? null);
         $this->assertSame('app.events', $cronEventNode['source_module'] ?? null);
-        $this->assertSame(16, $flow->graph['nodes'][1]['source_line'] ?? null);
-        $this->assertSame('main', $flow->graph['nodes'][1]['source_kind'] ?? null);
         $this->assertSame(16, $run->graph_snapshot['nodes'][1]['source_line'] ?? null);
         $this->assertSame('main', $run->graph_snapshot['nodes'][1]['source_kind'] ?? null);
     }

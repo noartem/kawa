@@ -1,10 +1,7 @@
 import { python } from '@codemirror/lang-python';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import {
-    githubDark,
-    githubLight,
-} from '@uiw/codemirror-theme-github';
+import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 
 interface CreateFlowCodeEditorExtensionsOptions {
     language?: 'python' | 'text';

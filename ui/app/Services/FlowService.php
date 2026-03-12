@@ -127,7 +127,7 @@ final readonly class FlowService
 
     private function deployDevelopment(Flow $flow): array
     {
-        $run = $this->createDeployment($flow, 'development', 'running');
+        $run = $this->createDeployment($flow, 'development', 'creating');
         $deploymentRoot = $this->deploymentRoot($flow, $run);
         $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
 
@@ -220,15 +220,12 @@ final readonly class FlowService
         }
 
         $run->update([
-            'active' => false,
-            'status' => 'stopped',
-            'finished_at' => now(),
+            'status' => 'stopping',
         ]);
 
-        if ($type === 'production' && $flow->status === 'running') {
+        if ($type === 'production' && in_array($flow->status, ['running', 'stopping'], true)) {
             $flow->update([
-                'status' => 'stopped',
-                'last_finished_at' => now(),
+                'status' => 'stopping',
             ]);
         }
 
@@ -244,6 +241,19 @@ final readonly class FlowService
         }
         if ($containerId) {
             $this->client->stopContainer($containerId);
+        } else {
+            $run->update([
+                'active' => false,
+                'status' => 'stopped',
+                'finished_at' => now(),
+            ]);
+
+            if ($type === 'production') {
+                $flow->update([
+                    'status' => 'stopped',
+                    'last_finished_at' => now(),
+                ]);
+            }
         }
 
         $run->logs()->create([
@@ -262,6 +272,8 @@ final readonly class FlowService
 
     private function createDeployment(Flow $flow, string $type, string $status): FlowRun
     {
+        $graphSnapshot = $this->latestGraphSnapshot($flow);
+
         $flow->runs()
             ->where('type', $type)
             ->where('active', true)
@@ -275,7 +287,7 @@ final readonly class FlowService
             'active' => true,
             'status' => $status,
             'code_snapshot' => $flow->code ?? '',
-            'graph_snapshot' => $flow->graph,
+            'graph_snapshot' => $graphSnapshot,
             'started_at' => now(),
         ]);
 
@@ -1001,10 +1013,27 @@ PY;
 
     private function graphHash(Flow $flow): string
     {
-        $graph = $flow->graph ?? [];
-        $encodedGraph = json_encode($graph, JSON_THROW_ON_ERROR);
+        return hash('sha256', (string) ($flow->code ?? ''));
+    }
 
-        return hash('sha256', ($flow->code ?? '').'::'.$encodedGraph);
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function latestGraphSnapshot(Flow $flow): ?array
+    {
+        $run = $flow->runs()
+            ->whereNotNull('graph_snapshot')
+            ->latest('updated_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $run instanceof FlowRun) {
+            return null;
+        }
+
+        $graphSnapshot = $run->graph_snapshot;
+
+        return is_array($graphSnapshot) && $graphSnapshot !== [] ? $graphSnapshot : null;
     }
 
     private function resolveFlowManagerError(array $response, string $fallback): string

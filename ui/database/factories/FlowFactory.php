@@ -30,15 +30,6 @@ class FlowFactory extends Factory
             'slug' => Str::slug($name) ?: Str::uuid()->toString(),
             'description' => fake()->sentence(12),
             'code' => "# kawaflow demo\nprint('flow: {$name}')\n",
-            'graph' => [
-                'nodes' => [
-                    ['id' => 'source', 'label' => 'Source'],
-                    ['id' => 'worker', 'label' => 'Worker'],
-                ],
-                'edges' => [
-                    ['from' => 'source', 'to' => 'worker'],
-                ],
-            ],
             'status' => $status,
             'container_id' => $status === 'draft' ? null : 'flow-'.Str::lower(Str::random(8)),
             'entrypoint' => 'main.py',

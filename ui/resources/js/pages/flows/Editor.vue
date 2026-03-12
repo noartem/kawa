@@ -28,9 +28,8 @@ import { useI18n } from 'vue-i18n';
 const props = defineProps<{
     flow: FlowDetail;
     productionRun: FlowRun | null;
-    developmentRun: FlowRun | null;
+    lastDevelopmentDeployment: FlowDeployment | null;
     productionLogsCount: number;
-    developmentLogs: FlowLog[];
     deployments?: FlowDeployment[];
     status?: string | null;
     runStats: RunStat[];
@@ -55,145 +54,11 @@ const form = useForm({
     timezone: props.flow.timezone || 'UTC',
 });
 
-const resolveGraphId = (value: unknown): string | null => {
-    if (typeof value === 'string' && value.trim().length > 0) {
-        return value.trim();
-    }
-
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return String(value);
-    }
-
-    return null;
-};
-
-const buildGraphSnapshotSignature = (
-    graph: Record<string, unknown> | null | undefined,
-): string => {
-    const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-    const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
-    const rawActors = Array.isArray(graph?.actors) ? graph.actors : [];
-    const rawEvents = Array.isArray(graph?.events) ? graph.events : [];
-
-    const nodes = rawNodes
-        .flatMap((rawNode) => {
-            if (!rawNode || typeof rawNode !== 'object') {
-                return [];
-            }
-
-            const node = rawNode as Record<string, unknown>;
-            const id = resolveGraphId(node.id ?? node.name);
-            if (!id) {
-                return [];
-            }
-
-            const nodeType =
-                typeof node.type === 'string'
-                    ? node.type.toLowerCase()
-                    : 'other';
-            const label =
-                resolveGraphId(node.label ?? node.id ?? node.name) ?? id;
-
-            const sourceLine =
-                Number.isInteger(node.source_line) && Number(node.source_line) > 0
-                    ? Number(node.source_line)
-                    : null;
-            const sourceKind =
-                node.source_kind === 'main' || node.source_kind === 'import'
-                    ? node.source_kind
-                    : null;
-            const sourceModule =
-                typeof node.source_module === 'string'
-                    ? node.source_module.trim()
-                    : '';
-
-            return [
-                `${id}:${nodeType}:${label}:${sourceLine ?? ''}:${sourceKind ?? ''}:${sourceModule}`,
-            ];
-        })
-        .sort();
-
-    const actors = rawActors
-        .flatMap((rawActor) => {
-            if (!rawActor || typeof rawActor !== 'object') {
-                return [];
-            }
-
-            const actor = rawActor as Record<string, unknown>;
-            const id = resolveGraphId(actor.id ?? actor.name);
-            if (!id) {
-                return [];
-            }
-
-            const receives = Array.isArray(actor.receives)
-                ? actor.receives.map((item) => resolveGraphId(item) ?? '').sort()
-                : [];
-            const sends = Array.isArray(actor.sends)
-                ? actor.sends.map((item) => resolveGraphId(item) ?? '').sort()
-                : [];
-
-            return [
-                `${id}:${receives.join(',')}:${sends.join(',')}:${actor.source_line ?? ''}:${actor.source_kind ?? ''}:${typeof actor.source_module === 'string' ? actor.source_module : ''}`,
-            ];
-        })
-        .sort();
-
-    const events = rawEvents
-        .flatMap((rawEvent) => {
-            if (rawEvent === null || rawEvent === undefined) {
-                return [];
-            }
-
-            if (typeof rawEvent !== 'object') {
-                const id = resolveGraphId(rawEvent);
-
-                return id ? [id] : [];
-            }
-
-            const event = rawEvent as Record<string, unknown>;
-            const id = resolveGraphId(event.id ?? event.name);
-            if (!id) {
-                return [];
-            }
-
-            return [
-                `${id}:${event.source_line ?? ''}:${event.source_kind ?? ''}:${typeof event.source_module === 'string' ? event.source_module : ''}`,
-            ];
-        })
-        .sort();
-
-    const edges = rawEdges
-        .flatMap((rawEdge) => {
-            if (!rawEdge || typeof rawEdge !== 'object') {
-                return [];
-            }
-
-            const edge = rawEdge as Record<string, unknown>;
-            const from = resolveGraphId(edge.from);
-            const to = resolveGraphId(edge.to);
-            if (!from || !to) {
-                return [];
-            }
-
-            return [`${from}->${to}`];
-        })
-        .sort();
-
-    return `n:${nodes.join('|')}|e:${edges.join('|')}|a:${actors.join('|')}|v:${events.join('|')}`;
-};
-
 const buildHistorySnapshotSignature = (history: FlowHistory[]): string => {
     return history
         .map((historyItem) => `${historyItem.id}:${historyItem.created_at}`)
         .join('|');
 };
-
-const stableFlowGraph = shallowRef<Record<string, unknown> | null>(
-    props.flow.graph ?? null,
-);
-const stableFlowGraphSignature = ref(
-    buildGraphSnapshotSignature(props.flow.graph),
-);
 
 const stableHistory = shallowRef<FlowHistory[]>(props.history);
 const stableHistorySignature = ref(
@@ -203,9 +68,8 @@ const stableHistorySignature = ref(
 const refreshOnlyProps = [
     'flow',
     'productionRun',
-    'developmentRun',
     'productionLogsCount',
-    'developmentLogs',
+    'lastDevelopmentDeployment',
     'deployments',
     'runStats',
     'history',
@@ -214,52 +78,16 @@ const refreshOnlyProps = [
 ] as const;
 
 const currentProduction = computed(() => props.productionRun);
-const currentDevelopment = computed(() => props.developmentRun);
+const currentDevelopment = computed(() => props.lastDevelopmentDeployment);
 const deployments = computed(() => props.deployments ?? []);
-const latestDevelopmentDeployment = computed<FlowDeployment | null>(() => {
-    return (
-        deployments.value.find(
-            (deployment) => deployment.type === 'development',
-        ) ?? null
-    );
-});
-const hasStableFlowGraph = computed(() => {
-    const graph = stableFlowGraph.value;
-    if (!graph || typeof graph !== 'object') {
-        return false;
-    }
-
-    const nodes = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
-    const edges = Array.isArray(graph.edges) ? graph.edges.length : 0;
-
-    return nodes > 0 || edges > 0;
-});
 const displayGraph = computed<Record<string, unknown> | null>(() => {
-    if (hasStableFlowGraph.value) {
-        return stableFlowGraph.value;
-    }
-
-    return latestDevelopmentDeployment.value?.graph ?? null;
+    return currentDevelopment.value?.graph ?? null;
 });
 const displayDevelopmentStatus = computed(() => {
-    return (
-        currentDevelopment.value?.status ??
-        latestDevelopmentDeployment.value?.status ??
-        null
-    );
+    return currentDevelopment.value?.status ?? null;
 });
 const displayDevelopmentLogs = computed<FlowLog[]>(() => {
-    if (currentDevelopment.value?.active) {
-        return props.developmentLogs;
-    }
-
-    return latestDevelopmentDeployment.value?.logs ?? props.developmentLogs;
-});
-const isShowingHistoricalDevelopment = computed(() => {
-    return Boolean(
-        !currentDevelopment.value?.active &&
-            latestDevelopmentDeployment.value?.type === 'development',
-    );
+    return currentDevelopment.value?.logs ?? [];
 });
 const recentDeployments = computed(() => deployments.value.slice(0, 5));
 const allDeploymentsUrl = computed(() => {
@@ -317,6 +145,10 @@ const runTypeLabel = (type?: FlowRun['type'] | null): string => {
 
 const statusTone = (status?: string | null): string => {
     switch (status) {
+        case 'creating':
+        case 'created':
+        case 'stopping':
+            return 'border-sky-500/40 bg-sky-500/10 text-sky-300';
         case 'running':
         case 'ready':
         case 'locked':
@@ -446,23 +278,28 @@ const countGraphNodesByType = (
     return count;
 };
 
+const latestDevelopmentSnapshotAt = computed(() => {
+    return (
+        currentDevelopment.value?.updated_at ??
+        currentDevelopment.value?.finished_at ??
+        currentDevelopment.value?.started_at ??
+        currentDevelopment.value?.created_at ??
+        null
+    );
+});
+
 const graphIsOutdated = computed(() => {
     const codeUpdated = parseDateMs(props.flow.code_updated_at);
-    const graphGenerated = parseDateMs(props.flow.graph_generated_at);
+    const graphGenerated = parseDateMs(latestDevelopmentSnapshotAt.value);
 
     return (
         codeUpdated !== null &&
-        (graphGenerated === null || graphGenerated < codeUpdated)
+        graphGenerated !== null &&
+        graphGenerated < codeUpdated
     );
 });
 
 const graphMeta = computed(() => {
-    const latestDevelopmentTimestamp =
-        latestDevelopmentDeployment.value?.finished_at ??
-        latestDevelopmentDeployment.value?.started_at ??
-        latestDevelopmentDeployment.value?.created_at ??
-        null;
-
     return {
         actors: countGraphNodesByType(displayGraph.value, 'actor'),
         events: countGraphNodesByType(displayGraph.value, 'event'),
@@ -470,9 +307,7 @@ const graphMeta = computed(() => {
         freshnessLabel: graphIsOutdated.value
             ? t('common.outdated')
             : t('common.updated_at'),
-        updatedAt: formatRecentDate(
-            props.flow.graph_generated_at ?? latestDevelopmentTimestamp,
-        ),
+        updatedAt: formatRecentDate(latestDevelopmentSnapshotAt.value),
     };
 });
 
@@ -542,20 +377,6 @@ const deploymentCards = computed<DeploymentCard[]>(() => {
         };
     });
 });
-
-watch(
-    () => props.flow.graph,
-    (nextGraph) => {
-        const nextSignature = buildGraphSnapshotSignature(nextGraph);
-        if (nextSignature === stableFlowGraphSignature.value) {
-            return;
-        }
-
-        stableFlowGraphSignature.value = nextSignature;
-        stableFlowGraph.value = nextGraph ?? null;
-    },
-    { deep: true },
-);
 
 watch(
     () => props.history,
@@ -797,9 +618,6 @@ onBeforeUnmount(() => {
                     Boolean(currentDevelopment?.active)
                 "
                 :current-development-status="displayDevelopmentStatus"
-                :showing-historical-development="
-                    isShowingHistoricalDevelopment
-                "
                 :status-tone="statusTone"
                 :status-label="statusLabel"
                 :code-updated-at="props.flow.code_updated_at"
@@ -809,7 +627,6 @@ onBeforeUnmount(() => {
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
                 :development-logs="displayDevelopmentLogs"
-                :development-logs-muted="isShowingHistoricalDevelopment"
                 :format-recent-date="formatRecentDate"
                 :format-date="formatDate"
                 @run-flow="runFlow"

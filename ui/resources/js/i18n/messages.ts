@@ -59,7 +59,10 @@ export const messages = {
             ru: 'Russian',
         },
         statuses: {
+            creating: 'creating',
+            created: 'created',
             running: 'running',
+            stopping: 'stopping',
             stopped: 'stopped',
             pending: 'pending',
             error: 'error',
@@ -404,11 +407,6 @@ export const messages = {
             editor: {
                 title: 'Flow editor',
                 description: 'Test run, code, graph, and chat',
-                status: {
-                    starting: 'Starting...',
-                    stopping: 'Stopping...',
-                },
-                last_development: 'Last test run',
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
@@ -611,7 +609,10 @@ export const messages = {
             ru: 'Русский',
         },
         statuses: {
+            creating: 'создается',
+            created: 'создан',
             running: 'в работе',
+            stopping: 'останавливается',
             stopped: 'остановлен',
             pending: 'в ожидании',
             error: 'ошибка',
@@ -956,11 +957,6 @@ export const messages = {
             editor: {
                 title: 'Редактор Потока',
                 description: 'Тестовый запуск, код, граф и чат',
-                status: {
-                    starting: 'Запуск...',
-                    stopping: 'Остановка...',
-                },
-                last_development: 'Последний тестовый запуск',
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',

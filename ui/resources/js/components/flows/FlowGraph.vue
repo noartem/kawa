@@ -7,13 +7,7 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
-import {
-    Expand,
-    RotateCcw,
-    X,
-    ZoomIn,
-    ZoomOut,
-} from 'lucide-vue-next';
+import { Expand, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -50,7 +44,10 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-    (event: 'node-select', payload: { id: string; type: 'event' | 'actor' }): void;
+    (
+        event: 'node-select',
+        payload: { id: string; type: 'event' | 'actor' },
+    ): void;
 }>();
 
 const { t } = useI18n();
@@ -94,8 +91,10 @@ const hasGraphData = computed(() => {
 
 const graphMeta = computed(() => {
     return {
-        actors: props.meta?.actors ?? countGraphNodesByType(props.graph, 'actor'),
-        events: props.meta?.events ?? countGraphNodesByType(props.graph, 'event'),
+        actors:
+            props.meta?.actors ?? countGraphNodesByType(props.graph, 'actor'),
+        events:
+            props.meta?.events ?? countGraphNodesByType(props.graph, 'event'),
         status: props.meta?.status ?? t('common.empty'),
         freshnessLabel:
             props.meta?.freshnessLabel ??
@@ -185,7 +184,7 @@ const selectNode = (node: GraphNodePayload): void => {
                     <RotateCcw class="size-4" />
                 </Button>
                 <span
-                    class="min-w-10 px-1 text-center text-[11px] font-medium tabular-nums text-muted-foreground"
+                    class="min-w-10 px-1 text-center text-[11px] font-medium text-muted-foreground tabular-nums"
                 >
                     {{ formatZoom(inlineZoom) }}
                 </span>
@@ -205,7 +204,7 @@ const selectNode = (node: GraphNodePayload): void => {
         </div>
 
         <div
-            class="transition-all h-full"
+            class="h-full transition-all"
             :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
         >
             <div v-if="hasGraphData" class="h-full w-full">
@@ -220,7 +219,7 @@ const selectNode = (node: GraphNodePayload): void => {
 
             <div
                 v-else
-                class="flex w-full aspect-[16/9] items-center justify-center text-sm text-muted-foreground"
+                class="flex aspect-[16/9] w-full items-center justify-center text-sm text-muted-foreground"
             >
                 {{ t('common.empty') }}
             </div>
@@ -231,22 +230,30 @@ const selectNode = (node: GraphNodePayload): void => {
         >
             <span class="whitespace-nowrap">
                 {{ t('flows.metrics.actors') }}:
-                <span class="font-medium text-foreground">{{ graphMeta.actors }}</span>
+                <span class="font-medium text-foreground">{{
+                    graphMeta.actors
+                }}</span>
             </span>
             <span class="text-border">|</span>
             <span class="whitespace-nowrap">
                 {{ t('flows.metrics.events') }}:
-                <span class="font-medium text-foreground">{{ graphMeta.events }}</span>
+                <span class="font-medium text-foreground">{{
+                    graphMeta.events
+                }}</span>
             </span>
             <span class="text-border">|</span>
             <span class="whitespace-nowrap">
                 {{ t('common.status') }}:
-                <span class="font-medium text-foreground">{{ graphMeta.status }}</span>
+                <span class="font-medium text-foreground">{{
+                    graphMeta.status
+                }}</span>
             </span>
             <span class="text-border">|</span>
             <span class="whitespace-nowrap">
                 {{ graphMeta.freshnessLabel }}:
-                <span class="font-medium text-foreground">{{ graphMeta.updatedAt }}</span>
+                <span class="font-medium text-foreground">{{
+                    graphMeta.updatedAt
+                }}</span>
             </span>
         </div>
     </div>
@@ -255,7 +262,9 @@ const selectNode = (node: GraphNodePayload): void => {
         <DialogContent
             class="h-[90vh] w-[95vw] max-w-[95vw] overflow-hidden p-0 sm:max-w-[95vw] lg:max-w-[88vw] xl:max-w-[84vw]"
         >
-            <DialogTitle class="sr-only">{{ t('flows.graph.fullscreen_title') }}</DialogTitle>
+            <DialogTitle class="sr-only">{{
+                t('flows.graph.fullscreen_title')
+            }}</DialogTitle>
             <DialogDescription class="sr-only">
                 {{ t('flows.graph.interaction_hint') }}
             </DialogDescription>
@@ -299,7 +308,7 @@ const selectNode = (node: GraphNodePayload): void => {
                             <RotateCcw class="size-4" />
                         </Button>
                         <span
-                            class="min-w-10 px-1 text-center text-[11px] font-medium tabular-nums text-muted-foreground"
+                            class="min-w-10 px-1 text-center text-[11px] font-medium text-muted-foreground tabular-nums"
                         >
                             {{ formatZoom(modalZoom) }}
                         </span>
@@ -347,22 +356,30 @@ const selectNode = (node: GraphNodePayload): void => {
                     >
                         <span class="whitespace-nowrap">
                             {{ t('flows.metrics.actors') }}:
-                            <span class="font-medium text-foreground">{{ graphMeta.actors }}</span>
+                            <span class="font-medium text-foreground">{{
+                                graphMeta.actors
+                            }}</span>
                         </span>
                         <span class="text-border">|</span>
                         <span class="whitespace-nowrap">
                             {{ t('flows.metrics.events') }}:
-                            <span class="font-medium text-foreground">{{ graphMeta.events }}</span>
+                            <span class="font-medium text-foreground">{{
+                                graphMeta.events
+                            }}</span>
                         </span>
                         <span class="text-border">|</span>
                         <span class="whitespace-nowrap">
                             {{ t('common.status') }}:
-                            <span class="font-medium text-foreground">{{ graphMeta.status }}</span>
+                            <span class="font-medium text-foreground">{{
+                                graphMeta.status
+                            }}</span>
                         </span>
                         <span class="text-border">|</span>
                         <span class="whitespace-nowrap">
                             {{ graphMeta.freshnessLabel }}:
-                            <span class="font-medium text-foreground">{{ graphMeta.updatedAt }}</span>
+                            <span class="font-medium text-foreground">{{
+                                graphMeta.updatedAt
+                            }}</span>
                         </span>
                     </div>
                 </div>

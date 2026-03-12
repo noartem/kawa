@@ -30,12 +30,10 @@ const props = withDefaults(
         emptyMessage: string;
         compact?: boolean;
         dense?: boolean;
-        muted?: boolean;
     }>(),
     {
         compact: false,
         dense: false,
-        muted: false,
     },
 );
 
@@ -521,10 +519,6 @@ const messageClass = computed(() =>
 );
 
 const containerClass = computed(() => {
-    if (props.muted) {
-        return 'divide-y overflow-y-auto rounded-md border bg-muted/30 opacity-65 saturate-0';
-    }
-
     return 'divide-y overflow-y-auto rounded-md border bg-muted/40';
 });
 
@@ -585,11 +579,7 @@ watch(
 </script>
 
 <template>
-    <div
-        v-if="logs.length"
-        ref="logsContainerRef"
-        :class="containerClass"
-    >
+    <div v-if="logs.length" ref="logsContainerRef" :class="containerClass">
         <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
             <div
                 class="flex items-center justify-between text-xs text-muted-foreground"

@@ -22,7 +22,6 @@ class FlowDeploymentsPayloadTest extends TestCase
 
         $flow = Flow::factory()->forUser($user)->createOne([
             'code' => 'print("latest")',
-            'graph' => ['nodes' => [], 'edges' => []],
         ]);
 
         FlowHistory::query()->create([
@@ -87,6 +86,10 @@ class FlowDeploymentsPayloadTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $newRun->id)
+            ->where('lastDevelopmentDeployment.code', 'print("snapshot")')
+            ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'node.snapshot')
+            ->has('lastDevelopmentDeployment.logs', 50)
             ->has('deployments', 2)
             ->where('productionLogsCount', 0)
             ->where('deployments.0.id', $newRun->id)
@@ -109,21 +112,36 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->where('deployments.1.logs.0.message', 'Old deployment log')
             ->missing('productionLogs')
             ->missing('productionRuns')
+            ->missing('developmentRun')
+            ->missing('developmentLogs')
             ->missing('developmentRuns')
             ->missing('viewMode')
             ->missing('requiresDeletePassword')
         );
     }
 
-    public function test_editor_payload_contains_only_five_latest_deployments(): void
+    public function test_editor_payload_keeps_last_development_deployment_separate_from_recent_deployments(): void
     {
         /** @var User $user */
         $user = User::factory()->createOne();
 
         $flow = Flow::factory()->forUser($user)->createOne();
 
+        $developmentRun = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'stopped',
+            'active' => false,
+            'graph_snapshot' => [
+                'nodes' => [['id' => 'node.latest-dev', 'type' => 'event', 'label' => 'node.latest-dev']],
+                'edges' => [],
+            ],
+            'created_at' => now()->subMinutes(8),
+            'updated_at' => now()->subMinutes(8),
+        ]);
+
         $runs = FlowRun::factory()->count(7)->forFlow($flow)->sequence(
             fn ($sequence) => [
+                'type' => 'production',
                 'created_at' => now()->subMinutes(7 - $sequence->index),
                 'updated_at' => now()->subMinutes(7 - $sequence->index),
             ],
@@ -134,6 +152,8 @@ class FlowDeploymentsPayloadTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $developmentRun->id)
+            ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'node.latest-dev')
             ->has('deployments', 5)
             ->where('deployments.0.id', $runs[6]->id)
             ->where('deployments.4.id', $runs[2]->id)

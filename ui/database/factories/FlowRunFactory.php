@@ -19,9 +19,18 @@ class FlowRunFactory extends Factory
      */
     public function definition(): array
     {
-        $status = fake()->randomElement(['pending', 'running', 'success', 'failed']);
+        $status = fake()->randomElement([
+            'pending',
+            'creating',
+            'created',
+            'running',
+            'stopping',
+            'stopped',
+            'success',
+            'failed',
+        ]);
         $startedAt = fake()->optional(0.9)->dateTimeBetween('-10 days', 'now');
-        $finishedAt = in_array($status, ['success', 'failed'], true)
+        $finishedAt = in_array($status, ['stopped', 'success', 'failed'], true)
             ? fake()->optional(0.8)->dateTimeBetween($startedAt, 'now')
             : null;
 

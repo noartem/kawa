@@ -20,6 +20,7 @@ export interface FlowRun {
     started_at?: string | null;
     finished_at?: string | null;
     created_at?: string | null;
+    updated_at?: string | null;
 }
 
 export interface FlowDeployment extends FlowRun {
@@ -42,8 +43,6 @@ export interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
     description?: string | null;
     code?: string | null;
     code_updated_at?: string | null;
-    graph?: Record<string, unknown>;
-    graph_generated_at?: string | null;
     runs_count?: number;
     container_id?: string | null;
     entrypoint?: string | null;
