@@ -1,12 +1,8 @@
 <script setup lang="ts">
-import { EditorSelection, StateEffect, StateField } from '@codemirror/state';
-import {
-    Decoration,
-    type DecorationSet,
-    EditorView,
-} from '@codemirror/view';
 import { createFlowCodeEditorExtensions } from '@/components/flows/codeEditorExtensions';
 import { useDarkThemeClass } from '@/composables/useDarkThemeClass';
+import { EditorSelection, StateEffect, StateField } from '@codemirror/state';
+import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
 import { computed, onBeforeUnmount, ref, useAttrs } from 'vue';
 import { Codemirror } from 'vue-codemirror';
 
@@ -36,7 +32,9 @@ const highlightedLineField = StateField.define<DecorationSet>({
             );
             const line = transaction.state.doc.line(lineNumber);
             nextDecorations = Decoration.set([
-                Decoration.line({ class: 'cm-flow-jump-line' }).range(line.from),
+                Decoration.line({ class: 'cm-flow-jump-line' }).range(
+                    line.from,
+                ),
             ]);
         }
 
@@ -131,7 +129,7 @@ const focusLine = (line: number, flash = true): boolean => {
         view.state.doc.lines,
     );
     const lineInfo = view.state.doc.line(lineNumber);
-    const effects = [EditorView.scrollIntoView(lineInfo.from, { y: 'center' })];
+    const effects = [];
 
     if (flash) {
         effects.push(highlightLineEffect.of(lineNumber));
@@ -140,6 +138,25 @@ const focusLine = (line: number, flash = true): boolean => {
     view.dispatch({
         selection: EditorSelection.cursor(lineInfo.from),
         effects,
+    });
+
+    const lineBlock = view.lineBlockAt(lineInfo.from);
+    const scrollViewportHeight = view.scrollDOM.clientHeight;
+    const maxScrollTop = Math.max(
+        view.scrollDOM.scrollHeight - scrollViewportHeight,
+        0,
+    );
+    const targetScrollTop = Math.min(
+        Math.max(
+            lineBlock.top + lineBlock.height / 2 - scrollViewportHeight / 2,
+            0,
+        ),
+        maxScrollTop,
+    );
+
+    view.scrollDOM.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth',
     });
 
     try {
