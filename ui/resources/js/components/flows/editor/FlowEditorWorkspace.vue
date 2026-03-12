@@ -3,6 +3,7 @@ import FlowLogsPanel from '@/components/FlowLogsPanel.vue';
 import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import FlowCodeMergeView from '@/components/flows/FlowCodeMergeView.vue';
 import FlowGraph from '@/components/flows/FlowGraph.vue';
+import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue';
 import type { GraphMeta, HistoryCard } from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,12 @@ import { useI18n } from 'vue-i18n';
 
 interface FlowCodeEditorExpose {
     focusLine: (line: number, flash?: boolean) => boolean;
+}
+
+interface DiscoverySelectionTarget {
+    id: string;
+    type: 'actor' | 'event';
+    requestKey: number;
 }
 
 const code = defineModel<string>('code', { required: true });
@@ -66,7 +73,9 @@ defineEmits<{
 const { t } = useI18n();
 
 const isStatusTransitioning = computed(() => {
-    return props.actionInProgress === 'run' || props.actionInProgress === 'stop';
+    return (
+        props.actionInProgress === 'run' || props.actionInProgress === 'stop'
+    );
 });
 
 const showStatusChip = computed(() => {
@@ -123,10 +132,11 @@ const statusChipIcon = computed(() => {
     }
 });
 
-const activeTab = ref<'editor' | 'chat' | 'changes'>('editor');
+const activeTab = ref<'editor' | 'chat' | 'discovery' | 'changes'>('editor');
 const expandedHistoryIds = ref<Set<number>>(new Set());
 const workspaceSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
+const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
 
 let suppressWorkspaceScroll = false;
 let restoreWorkspaceScrollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -191,6 +201,20 @@ const jumpToCode = async (line: number): Promise<void> => {
     });
 };
 
+const openDiscoveryNode = async (payload: {
+    id: string;
+    type: 'actor' | 'event';
+}): Promise<void> => {
+    suppressNextWorkspaceScroll();
+
+    selectedDiscoveryTarget.value = {
+        ...payload,
+        requestKey: Date.now(),
+    };
+    activeTab.value = 'discovery';
+    await nextTick();
+};
+
 watch(
     () => props.historyCards,
     (nextHistoryCards) => {
@@ -250,6 +274,18 @@ watch(
                         type="button"
                         class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
                         :class="
+                            activeTab === 'discovery'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        @click="activeTab = 'discovery'"
+                    >
+                        {{ t('flows.editor.tabs.discovery') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
+                        :class="
                             activeTab === 'changes'
                                 ? 'bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
@@ -269,8 +305,15 @@ watch(
                             statusTone(statusChipStatus),
                         ]"
                     >
-                        <Spinner v-if="isStatusTransitioning" class="size-3.5" />
-                        <component :is="statusChipIcon" v-else class="size-3.5" />
+                        <Spinner
+                            v-if="isStatusTransitioning"
+                            class="size-3.5"
+                        />
+                        <component
+                            :is="statusChipIcon"
+                            v-else
+                            class="size-3.5"
+                        />
                         {{ statusChipLabel }}
                     </Badge>
 
@@ -368,6 +411,15 @@ watch(
                             {{ t('flows.editor.chat.example_answer') }}
                         </p>
                     </div>
+                </div>
+
+                <div v-else-if="activeTab === 'discovery'" class="h-full">
+                    <FlowDiscoveryPanel
+                        :graph="graph"
+                        :outdated="graphIsOutdated"
+                        :selected-target="selectedDiscoveryTarget"
+                        @jump-to-code="jumpToCode"
+                    />
                 </div>
 
                 <template v-else>
@@ -484,7 +536,7 @@ watch(
                 :graph="graph"
                 :meta="graphMeta"
                 :outdated="graphIsOutdated"
-                @jump-to-code="jumpToCode"
+                @node-select="openDiscoveryNode"
             />
 
             <FlowLogsPanel

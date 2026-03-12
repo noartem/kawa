@@ -19,7 +19,7 @@ import { useI18n } from 'vue-i18n';
 
 interface GraphNodePayload {
     id: string;
-    sourceLine: number | null;
+    type: 'event' | 'actor' | 'other';
 }
 
 interface GraphMeta {
@@ -50,7 +50,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-    (event: 'jump-to-code', line: number): void;
+    (event: 'node-select', payload: { id: string; type: 'event' | 'actor' }): void;
 }>();
 
 const { t } = useI18n();
@@ -131,11 +131,14 @@ const resetView = (target: FlowGraphRendererExpose | null): void => {
 };
 
 const selectNode = (node: GraphNodePayload): void => {
-    if (node.sourceLine === null) {
+    if (node.type !== 'actor' && node.type !== 'event') {
         return;
     }
 
-    emit('jump-to-code', node.sourceLine);
+    emit('node-select', {
+        id: node.id,
+        type: node.type,
+    });
 };
 </script>
 

@@ -412,6 +412,7 @@ export const messages = {
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
+                    discovery: 'Discovery',
                     changes: 'Changes',
                     hint: 'Write code or chat to update it.',
                 },
@@ -424,6 +425,19 @@ export const messages = {
                         'Last question: “How do I optimize the actor?”',
                     example_answer:
                         'Answer: “Try moving IO into a separate step.”',
+                },
+                discovery: {
+                    actors_title: 'Actors',
+                    events_title: 'Events',
+                    actor_label: 'Actor',
+                    event_label: 'Event',
+                    receives: 'Receives',
+                    sends: 'Sends',
+                    consumed_by: 'Consumed by',
+                    produced_by: 'Produced by',
+                    implementation_line: 'Implementation · Line {line}',
+                    empty_actors: 'No actors discovered yet.',
+                    empty_events: 'No events discovered yet.',
                 },
                 changes: {
                     empty_title: 'No changes yet',
@@ -950,6 +964,7 @@ export const messages = {
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',
+                    discovery: 'Обзор',
                     changes: 'Изменения',
                     hint: 'Пишите код или общайтесь с чатом, который его изменит.',
                 },
@@ -962,6 +977,19 @@ export const messages = {
                         'Последний вопрос: «Как оптимизировать актор?»',
                     example_answer:
                         'Ответ: «Попробуйте вынести IO в отдельный шаг»',
+                },
+                discovery: {
+                    actors_title: 'Акторы',
+                    events_title: 'События',
+                    actor_label: 'Актор',
+                    event_label: 'Событие',
+                    receives: 'Получает',
+                    sends: 'Отдает',
+                    consumed_by: 'Получают',
+                    produced_by: 'Создают',
+                    implementation_line: 'Реализация · Строка {line}',
+                    empty_actors: 'Пока нет обнаруженных акторов.',
+                    empty_events: 'Пока нет обнаруженных событий.',
                 },
                 changes: {
                     empty_title: 'Пока нет изменений',

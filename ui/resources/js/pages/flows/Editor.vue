@@ -72,6 +72,8 @@ const buildGraphSnapshotSignature = (
 ): string => {
     const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
     const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+    const rawActors = Array.isArray(graph?.actors) ? graph.actors : [];
+    const rawEvents = Array.isArray(graph?.events) ? graph.events : [];
 
     const nodes = rawNodes
         .flatMap((rawNode) => {
@@ -92,7 +94,71 @@ const buildGraphSnapshotSignature = (
             const label =
                 resolveGraphId(node.label ?? node.id ?? node.name) ?? id;
 
-            return [`${id}:${nodeType}:${label}`];
+            const sourceLine =
+                Number.isInteger(node.source_line) && Number(node.source_line) > 0
+                    ? Number(node.source_line)
+                    : null;
+            const sourceKind =
+                node.source_kind === 'main' || node.source_kind === 'import'
+                    ? node.source_kind
+                    : null;
+            const sourceModule =
+                typeof node.source_module === 'string'
+                    ? node.source_module.trim()
+                    : '';
+
+            return [
+                `${id}:${nodeType}:${label}:${sourceLine ?? ''}:${sourceKind ?? ''}:${sourceModule}`,
+            ];
+        })
+        .sort();
+
+    const actors = rawActors
+        .flatMap((rawActor) => {
+            if (!rawActor || typeof rawActor !== 'object') {
+                return [];
+            }
+
+            const actor = rawActor as Record<string, unknown>;
+            const id = resolveGraphId(actor.id ?? actor.name);
+            if (!id) {
+                return [];
+            }
+
+            const receives = Array.isArray(actor.receives)
+                ? actor.receives.map((item) => resolveGraphId(item) ?? '').sort()
+                : [];
+            const sends = Array.isArray(actor.sends)
+                ? actor.sends.map((item) => resolveGraphId(item) ?? '').sort()
+                : [];
+
+            return [
+                `${id}:${receives.join(',')}:${sends.join(',')}:${actor.source_line ?? ''}:${actor.source_kind ?? ''}:${typeof actor.source_module === 'string' ? actor.source_module : ''}`,
+            ];
+        })
+        .sort();
+
+    const events = rawEvents
+        .flatMap((rawEvent) => {
+            if (rawEvent === null || rawEvent === undefined) {
+                return [];
+            }
+
+            if (typeof rawEvent !== 'object') {
+                const id = resolveGraphId(rawEvent);
+
+                return id ? [id] : [];
+            }
+
+            const event = rawEvent as Record<string, unknown>;
+            const id = resolveGraphId(event.id ?? event.name);
+            if (!id) {
+                return [];
+            }
+
+            return [
+                `${id}:${event.source_line ?? ''}:${event.source_kind ?? ''}:${typeof event.source_module === 'string' ? event.source_module : ''}`,
+            ];
         })
         .sort();
 
@@ -113,7 +179,7 @@ const buildGraphSnapshotSignature = (
         })
         .sort();
 
-    return `n:${nodes.join('|')}|e:${edges.join('|')}`;
+    return `n:${nodes.join('|')}|e:${edges.join('|')}|a:${actors.join('|')}|v:${events.join('|')}`;
 };
 
 const buildHistorySnapshotSignature = (history: FlowHistory[]): string => {
