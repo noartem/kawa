@@ -17,7 +17,6 @@ import {
 import {
     AlertCircle,
     ChevronDown,
-    Clock3,
     History,
     Play,
     Square,
@@ -128,7 +127,7 @@ const statusChipIcon = computed(() => {
         case 'success':
             return Square;
         default:
-            return Clock3;
+            return Spinner;
     }
 });
 
