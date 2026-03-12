@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "605bd6ba82dc4ed3d6186324a0be6211d7d6955016bce7cf7a22d6ceb7269030"
     },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
     "laravel-api": {
       "source": "noartem/skills",
       "sourceType": "github",
@@ -175,6 +180,11 @@
       "source": "onmax/nuxt-skills",
       "sourceType": "github",
       "computedHash": "a9ff53d4988a5e4b4c88f3b55f0ae3b6e508e4f2e5d86c7a3c762a2bdcea170c"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "a6a44d5498f7e8f68289902f3dedfc6f38ae0cee1e96527c80724cf27f727c2a"
     }
   }
 }
