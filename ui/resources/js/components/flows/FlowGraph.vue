@@ -220,9 +220,7 @@ const selectNode = (node: GraphNodePayload): void => {
             <div
                 v-else
                 class="flex aspect-[16/9] w-full items-center justify-center text-sm text-muted-foreground"
-            >
-                {{ t('common.empty') }}
-            </div>
+            />
         </div>
 
         <div
@@ -346,9 +344,7 @@ const selectNode = (node: GraphNodePayload): void => {
                         <div
                             v-else
                             class="flex h-full w-full items-center justify-center text-sm text-muted-foreground"
-                        >
-                            {{ t('common.empty') }}
-                        </div>
+                        />
                     </div>
 
                     <div

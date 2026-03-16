@@ -2,7 +2,14 @@
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import Sigma from 'sigma';
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    watch,
+} from 'vue';
 
 type GraphNodeType = 'event' | 'actor' | 'other';
 type GraphSourceKind = 'main' | 'import';
@@ -56,6 +63,10 @@ let hoveredNodeId: string | null = null;
 let highlightedEdgeIds = new Set<string>();
 const hasBeenVisible = ref(false);
 const renderedGraphSignature = ref<string | null>(null);
+
+const hasRenderableGraph = computed(() => {
+    return buildNodes(props.graph).length > 0;
+});
 
 interface CameraStateSnapshot {
     x: number;
@@ -504,6 +515,12 @@ const buildSigmaGraph = (): {
 };
 
 const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
+    if (!hasRenderableGraph.value) {
+        destroyRenderer();
+        emit('zoom-change', 100);
+        return;
+    }
+
     const container = containerRef.value;
     if (!container) {
         return;
@@ -663,6 +680,12 @@ defineExpose({
 watch(
     () => props.graph,
     async () => {
+        if (!hasRenderableGraph.value) {
+            destroyRenderer();
+            emit('zoom-change', 100);
+            return;
+        }
+
         if (!hasBeenVisible.value) {
             return;
         }
