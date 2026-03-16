@@ -535,6 +535,7 @@ watch(
                 :logs="developmentLogs"
                 :empty-message="t('flows.logs.empty_dev')"
                 compact
+                @select-node="openDiscoveryNode"
             />
         </div>
     </section>

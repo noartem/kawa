@@ -351,6 +351,13 @@ export const messages = {
                 empty_dev: 'Logs will appear after the test deployment starts.',
                 empty: 'No logs for the deployment.',
                 node: 'Node: {node}',
+                inline: {
+                    actor_prefix: 'Actor ',
+                    invoked_by: ' invoked by ',
+                    dispatched_event: ' dispatched ',
+                    failed_suffix: ' failed',
+                    cron_template_error_prefix: 'Cron template error for ',
+                },
                 events: {
                     activity_log: 'Activity',
                     activity: 'Activity',
@@ -899,20 +906,29 @@ export const messages = {
             logs: {
                 empty_dev: 'Логи появятся после старта тестового деплоя.',
                 empty: 'У деплоя нет логов.',
-                node: 'Нода: {node}',
+                node: 'Узел: {node}',
+                inline: {
+                    actor_prefix: 'Актор ',
+                    invoked_by: ' вызван событием ',
+                    dispatched_event: ' отправил событие ',
+                    failed_suffix: ' завершился с ошибкой',
+                    cron_template_error_prefix:
+                        'Некорректный cron-шаблон у ',
+                },
                 events: {
                     activity_log: 'Активность',
                     activity: 'Активность',
                     actor_message: 'Сообщение',
                     flow_runtime_event: 'Событие рантайма',
-                    cron_system_event: 'Системное cron-событие',
+                    cron_system_event: 'Системное событие cron',
                     container_created: 'Контейнер создан',
-                    lock_generated: 'Блокировка создана',
-                    lock_failed: 'Ошибка блокировки',
-                    container_health_warning: 'Предупреждение здоровья',
-                    resource_alert: 'Предупреждение ресурса',
-                    container_crashed: 'Краш контейнера',
-                    status_changed: 'Статус изменен',
+                    lock_generated: 'Файл блокировки создан',
+                    lock_failed: 'Не удалось создать файл блокировки',
+                    container_health_warning:
+                        'Предупреждение о состоянии контейнера',
+                    resource_alert: 'Предупреждение о ресурсах',
+                    container_crashed: 'Контейнер аварийно завершился',
+                    status_changed: 'Статус изменён',
                     container_started: 'Контейнер запущен',
                     container_stopped: 'Контейнер остановлен',
                     container_restarted: 'Контейнер перезапущен',
@@ -920,25 +936,27 @@ export const messages = {
                     container_deleted: 'Контейнер удален',
                     container_message: 'Сообщение контейнера',
                     container_error: 'Ошибка контейнера',
-                    status_change: 'Смена статуса',
+                    status_change: 'Изменение статуса',
                     health_warning: 'Предупреждение здоровья',
                     container_crash: 'Сбой контейнера',
                     actor_event: 'Событие актора',
                     actor_invoked: 'Вызов актора',
                     actor_invoked_label:
                         'Актор {actor} вызван событием {event}',
-                    actor_dispatched: 'Актор задиспатчил событие',
-                    actor_dispatched_label: 'Актор {actor} задиспатчил {event}',
+                    actor_dispatched: 'Актор отправил событие',
+                    actor_dispatched_label:
+                        'Актор {actor} отправил событие {event}',
                     runtime_actor_invoked_label:
                         'Актор {actor} вызван событием {event}',
                     runtime_event_dispatched_label:
-                        'Актор {actor} задиспатчил {event}',
-                    runtime_actor_error_label: 'Ошибка актора {actor}',
-                    runtime_runtime_error_label: 'Ошибка рантайма',
+                        'Актор {actor} отправил событие {event}',
+                    runtime_actor_error_label:
+                        'Актор {actor} завершился с ошибкой',
+                    runtime_runtime_error_label: 'Ошибка выполнения',
                     runtime_cron_template_error_label:
-                        'Ошибка cron-шаблона у {actor}',
+                        'Некорректный cron-шаблон у {actor}',
                     cron_system_event_message:
-                        'Сработало акторов: {count}, таймзона {timezone}',
+                        'Запущено акторов: {count}, часовой пояс {timezone}',
                 },
             },
             summary: {
