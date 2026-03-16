@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Broadcasting\SingleLineLogBroadcaster;
+use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Support\ServiceProvider;
+use Psr\Log\LoggerInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +22,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $this->app->make(BroadcastManager::class)->extend(
+            'single-line-log',
+            fn ($app, array $config): SingleLineLogBroadcaster => new SingleLineLogBroadcaster(
+                $app->make(LoggerInterface::class),
+            ),
+        );
     }
 }
