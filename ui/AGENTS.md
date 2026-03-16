@@ -9,7 +9,7 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.4.17
+- php - 8.4.18
 - inertiajs/inertia-laravel (INERTIA) - v2
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v12
@@ -35,6 +35,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 - `pest-testing` — Tests applications using the Pest 4 PHP framework. Activates when writing tests, creating unit or feature tests, adding assertions, testing Livewire components, browser testing, debugging test failures, working with datasets or mocking; or when the user mentions test, spec, TDD, expects, assertion, coverage, or needs to verify functionality works.
 - `inertia-vue-development` — Develops Inertia.js v2 Vue client-side applications. Activates when creating Vue pages, forms, or navigation; using &lt;Link&gt;, &lt;Form&gt;, useForm, or router; working with deferred props, prefetching, or polling; or when user mentions Vue with Inertia, Vue pages, Vue forms, or Vue navigation.
 - `tailwindcss-development` — Styles applications using Tailwind CSS v4 utilities. Activates when adding styles, restyling components, working with gradients, spacing, layout, flex, grid, responsive design, dark mode, colors, typography, or borders; or when the user mentions CSS, styling, classes, Tailwind, restyle, hero section, cards, buttons, or any visual/UI changes.
+- `ai-sdk-development` — Builds AI agents, generates text and chat responses, produces images, synthesizes audio, transcribes speech, generates vector embeddings, reranks documents, and manages files and vector stores using the Laravel AI SDK (laravel/ai). Supports structured output, streaming, tools, conversation memory, middleware, queueing, broadcasting, and provider failover. Use when building, editing, updating, debugging, or testing any AI functionality, including agents, LLMs, chatbots, text generation, image generation, audio, transcription, embeddings, RAG, similarity search, vector stores, prompting, structured output, or any AI provider (OpenAI, Anthropic, Gemini, Cohere, Groq, xAI, ElevenLabs, Jina, OpenRouter).
 - `developing-with-fortify` — Laravel Fortify headless authentication backend development. Activate when implementing authentication features including login, registration, password reset, email verification, two-factor authentication (2FA/TOTP), profile updates, headless auth, authentication scaffolding, or auth guards in Laravel applications.
 
 ## Conventions
@@ -51,19 +52,10 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
-- All integration between `ui/` and `flow-manager/` must go through RabbitMQ (message-broker).
-- Direct HTTP calls from `ui/` to `flow-manager/` are not allowed.
 
 ## Frontend Bundling
 
 - If the user doesn't see a frontend change reflected in the UI, it could mean they need to run `npm run build`, `npm run dev`, or `composer run dev`. Ask them.
-
-## Background Dev Scripts
-
-- Use `bin/start` to launch `composer run dev` in the background.
-- Use `bin/stop` to stop the background dev stack.
-- Use `bin/restart` to restart it.
-- Use `bin/logs [--no-follow] [lines]` to read or follow logs.
 
 ## Documentation Files
 
@@ -121,7 +113,7 @@ This project has domain-specific skills available. You MUST activate the relevan
 ## Constructors
 
 - Use PHP 8 constructor property promotion in `__construct()`.
-    - <code-snippet>public function \_\_construct(public GitHub $github) { }</code-snippet>
+    - <code-snippet>public function __construct(public GitHub $github) { }</code-snippet>
 - Do not allow empty `__construct()` methods with zero parameters unless the constructor is private.
 
 ## Type Declarations
@@ -286,7 +278,6 @@ Wayfinder generates TypeScript functions for Laravel routes. Import from `@/acti
 # Inertia + Vue
 
 Vue components must have a single root element.
-
 - IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
 
 === tailwindcss/core rules ===
@@ -297,6 +288,13 @@ Vue components must have a single root element.
 - IMPORTANT: Always use `search-docs` tool for version-specific Tailwind CSS documentation and updated code examples. Never rely on training data.
 - IMPORTANT: Activate `tailwindcss-development` every time you're working with a Tailwind CSS or styling-related task.
 
+=== laravel/ai rules ===
+
+## Laravel AI SDK
+
+- This application uses the Laravel AI SDK (`laravel/ai`) for all AI functionality.
+- Activate the `developing-with-ai-sdk` skill when building, editing, updating, debugging, or testing AI agents, text generation, chat, streaming, structured output, tools, image generation, audio, transcription, embeddings, reranking, vector stores, files, conversation memory, or any AI provider integration (OpenAI, Anthropic, Gemini, Cohere, Groq, xAI, ElevenLabs, Jina, OpenRouter).
+
 === laravel/fortify rules ===
 
 # Laravel Fortify
@@ -304,4 +302,4 @@ Vue components must have a single root element.
 - Fortify is a headless authentication backend that provides authentication routes and controllers for Laravel applications.
 - IMPORTANT: Always use the `search-docs` tool for detailed Laravel Fortify patterns and documentation.
 - IMPORTANT: Activate `developing-with-fortify` skill when working with Fortify authentication features.
-  </laravel-boost-guidelines>
+</laravel-boost-guidelines>
