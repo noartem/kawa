@@ -236,3 +236,77 @@ it('includes active and past chats in the editor payload', function () {
             ->where('pastChats.0.messages.0.kind', 'compact_summary')
         );
 });
+
+it('renders a csrf meta tag on the flow editor page', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+
+    actingAs($user)
+        ->get(route('flows.show', $flow))
+        ->assertSuccessful()
+        ->assertSee('meta name="csrf-token"', false)
+        ->assertSee(csrf_token(), false);
+});
+
+it('renders a local chat debug page with the composed llm payload', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("debug")',
+    ]);
+
+    $conversation = $flow->conversations()->create([
+        'user_id' => $user->id,
+        'title' => 'Debug thread',
+    ]);
+
+    $conversation->messages()->createMany([
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'user',
+            'content' => 'Explain this flow',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'prompt'],
+        ],
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'assistant',
+            'content' => 'It prints a debug marker.',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'code_suggestion'],
+        ],
+    ]);
+
+    $flow->update([
+        'active_chat_conversation_id' => $conversation->id,
+    ]);
+
+    actingAs($user)
+        ->get(route('flows.chat.debug', [
+            'flow' => $flow,
+            'message' => 'Summarize the current flow',
+            'current_code' => 'print("preview")',
+        ]))
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('flows/ChatDebug')
+            ->where('flow.id', $flow->id)
+            ->where('preview.provider', 'openai')
+            ->where('preview.model', FlowCodeAssistant::MODEL)
+            ->where('preview.user_message', 'Summarize the current flow')
+            ->where('preview.current_code', 'print("preview")')
+            ->where('preview.active_conversation.id', $conversation->id)
+            ->where('preview.history.0.content', 'Explain this flow')
+            ->where('preview.history.1.content', 'It prints a debug marker.')
+            ->where('preview.request_preview.user_message', 'Summarize the current flow')
+        );
+});

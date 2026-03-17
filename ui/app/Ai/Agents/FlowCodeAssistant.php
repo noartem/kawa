@@ -14,11 +14,13 @@ use Laravel\Ai\Promptable;
 use Stringable;
 
 #[Provider('openai')]
-#[Model('qwen/qwen3-coder-next')]
+#[Model(self::MODEL)]
 #[Timeout(120)]
 class FlowCodeAssistant implements Agent, Conversational, HasStructuredOutput
 {
     use Promptable;
+
+    public const MODEL = 'qwen/qwen3-coder-next';
 
     /**
      * @param  array<int, Message>  $messages
@@ -40,9 +42,10 @@ Rules:
 - Keep the code valid Python for the Flow editor.
 - Preserve existing working behavior unless the user asks to change it.
 - Prefer small, targeted edits over broad rewrites.
-- If the best answer is explanation only, still return the original code unchanged.
+- If the user is asking a question, wants an explanation, or no code change is needed, answer normally in `reply` and return the original code unchanged.
+- It is completely valid to leave the code unchanged.
 - Never wrap the code in Markdown fences.
-- In `reply`, explain what changed, what stayed the same, and any important caveats.
+- In `reply`, explain what changed, or clearly say that no code change was needed.
 
 Current code:
 ```python
@@ -61,6 +64,17 @@ PROMPT;
         return [
             'reply' => $schema->string()->required(),
             'code' => $schema->string()->required(),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function schemaPreview(): array
+    {
+        return [
+            'reply' => 'required string',
+            'code' => 'required string',
         ];
     }
 }

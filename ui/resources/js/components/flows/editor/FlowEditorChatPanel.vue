@@ -195,7 +195,7 @@ onMounted(() => {
                         <span class="text-xs text-muted-foreground">
                             {{
                                 message.status === 'pending'
-                                    ? t('common.loading')
+                                    ? ''
                                     : message.status === 'error'
                                     ? t('common.error')
                                     : formatRecentDate(message.created_at)
@@ -204,6 +204,7 @@ onMounted(() => {
                     </div>
 
                     <p
+                        v-if="message.content"
                         class="text-sm leading-6 whitespace-pre-wrap"
                         :class="
                             message.status === 'error'
@@ -216,7 +217,8 @@ onMounted(() => {
 
                     <div
                         v-if="message.status === 'pending'"
-                        class="mt-2 inline-flex items-center gap-1.5 text-muted-foreground"
+                        class="inline-flex items-center gap-1.5 text-muted-foreground"
+                        :class="message.content ? 'mt-2' : 'mt-0'"
                     >
                         <Sparkles class="size-3.5 animate-pulse" />
                         <span
@@ -294,12 +296,6 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <p
-                        v-else-if="!message.transient && message.role === 'assistant'"
-                        class="mt-3 text-xs text-muted-foreground"
-                    >
-                        {{ t('flows.editor.chat.no_changes') }}
-                    </p>
                 </article>
             </div>
 

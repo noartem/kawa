@@ -187,6 +187,71 @@ class FlowChatService
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function debugPayload(Flow $flow, string $message, string $currentCode): array
+    {
+        $flow->loadMissing('activeChatConversation.messages');
+
+        $activeConversation = $flow->activeChatConversation;
+        $history = $activeConversation instanceof AgentConversation
+            ? $activeConversation->messages
+            : collect();
+
+        $assistant = new FlowCodeAssistant(
+            currentCode: $currentCode,
+            messages: $activeConversation instanceof AgentConversation
+                ? $this->conversationMessagesForAgent($activeConversation)
+                : [],
+        );
+
+        $historyPayload = $history
+            ->map(function (AgentConversationMessage $historyMessage): array {
+                $meta = is_array($historyMessage->meta) ? $historyMessage->meta : [];
+
+                return [
+                    'id' => $historyMessage->id,
+                    'role' => $historyMessage->role,
+                    'agent' => $historyMessage->agent,
+                    'content' => $historyMessage->content,
+                    'kind' => is_string($meta['kind'] ?? null) ? $meta['kind'] : null,
+                    'created_at' => optional($historyMessage->created_at)?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'provider' => (string) config('ai.default'),
+            'model' => FlowCodeAssistant::MODEL,
+            'base_url' => config('ai.providers.openai.url'),
+            'user_message' => $message,
+            'current_code' => $currentCode,
+            'instructions' => (string) $assistant->instructions(),
+            'schema' => FlowCodeAssistant::schemaPreview(),
+            'active_conversation' => $activeConversation instanceof AgentConversation
+                ? [
+                    'id' => $activeConversation->id,
+                    'title' => $activeConversation->title,
+                ]
+                : null,
+            'history' => $historyPayload,
+            'request_preview' => [
+                'system_prompt' => (string) $assistant->instructions(),
+                'history_messages' => array_map(
+                    static fn (array $historyItem): array => [
+                        'role' => $historyItem['role'],
+                        'content' => $historyItem['content'],
+                    ],
+                    $historyPayload,
+                ),
+                'user_message' => $message,
+                'structured_output' => FlowCodeAssistant::schemaPreview(),
+            ],
+        ];
+    }
+
     private function resolveActiveConversation(
         Flow $flow,
         User $user,

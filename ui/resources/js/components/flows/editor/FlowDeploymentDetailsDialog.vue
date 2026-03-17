@@ -2,6 +2,7 @@
 import FlowLogsPanel from '@/components/FlowLogsPanel.vue';
 import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import FlowGraph from '@/components/flows/FlowGraph.vue';
+import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue';
 import type { DeploymentCard, FlowRun } from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,7 +11,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+interface FlowCodeEditorExpose {
+    focusLine: (line: number, flash?: boolean) => boolean;
+}
+
+interface DiscoverySelectionTarget {
+    id: string;
+    type: 'actor' | 'event';
+    requestKey: number;
+}
 
 const open = defineModel<boolean>('open', { default: false });
 
@@ -24,11 +36,46 @@ defineProps<{
 }>();
 
 const { t } = useI18n();
+
+const codeSection = ref<HTMLElement | null>(null);
+const overviewSection = ref<HTMLElement | null>(null);
+const codeEditor = ref<FlowCodeEditorExpose | null>(null);
+const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
+
+const jumpToCode = async (line: number): Promise<void> => {
+    codeSection.value?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+    });
+
+    await nextTick();
+
+    requestAnimationFrame(() => {
+        codeEditor.value?.focusLine(line, true);
+    });
+};
+
+const openDiscoveryNode = (payload: {
+    id: string;
+    type: 'actor' | 'event';
+}): void => {
+    overviewSection.value?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+    });
+
+    selectedDiscoveryTarget.value = {
+        ...payload,
+        requestKey: Date.now(),
+    };
+};
 </script>
 
 <template>
     <Dialog v-model:open="open">
-        <DialogContent class="overflow-hidden xl:max-w-[1400px]">
+        <DialogContent
+            class="grid h-[90vh] max-h-[90vh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden xl:max-w-[1400px]"
+        >
             <DialogHeader class="space-y-1 pb-1">
                 <DialogTitle
                     v-if="deploymentCard"
@@ -98,40 +145,43 @@ const { t } = useI18n();
                 </DialogTitle>
             </DialogHeader>
 
-            <div v-if="deploymentCard" class="space-y-4">
+            <div
+                v-if="deploymentCard"
+                class="grid min-h-0 gap-3 overflow-hidden lg:grid-cols-2 lg:grid-rows-[minmax(0,32vh)_minmax(0,28vh)_minmax(180px,1fr)]"
+            >
                 <div
-                    class="grid h-[40vh] min-h-[280px] gap-3 lg:grid-cols-[2fr_1fr]"
+                    ref="codeSection"
+                    class="relative min-h-0 overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25 lg:col-span-2"
                 >
-                    <div
-                        class="relative h-full overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25"
-                    >
-                        <FlowCodeEditor
-                            :model-value="
-                                deploymentCard.deployment.code ||
-                                t('common.empty')
-                            "
-                            :disabled="true"
-                            class="text-xs"
-                        />
-                    </div>
-
-                    <FlowGraph
-                        class="h-full"
-                        :graph="deploymentCard.deployment.graph"
-                        :meta="deploymentCard.graphMeta"
+                    <FlowCodeEditor
+                        ref="codeEditor"
+                        :model-value="
+                            deploymentCard.deployment.code || t('common.empty')
+                        "
+                        :disabled="true"
+                        class="h-full min-h-0 text-xs"
                     />
                 </div>
 
-                <div
-                    class="flex items-center justify-between text-xs text-muted-foreground"
-                >
-                    <span>{{ t('common.logs') }}</span>
-                    <span>{{ deploymentCard.deployment.logs.length }}</span>
+                <div ref="overviewSection" class="min-h-0 overflow-hidden">
+                    <FlowDiscoveryPanel
+                        class="h-full"
+                        :graph="deploymentCard.deployment.graph"
+                        :selected-target="selectedDiscoveryTarget"
+                        @jump-to-code="jumpToCode"
+                    />
                 </div>
+
+                <FlowGraph
+                    class="h-full min-h-0"
+                    :graph="deploymentCard.deployment.graph"
+                    :meta="deploymentCard.graphMeta"
+                    @node-select="openDiscoveryNode"
+                />
 
                 <FlowLogsPanel
                     :logs="deploymentCard.deployment.logs"
-                    class="max-h-64"
+                    class="h-full min-h-0 lg:col-span-2"
                     :empty-message="t('flows.logs.empty')"
                     compact
                     dense
