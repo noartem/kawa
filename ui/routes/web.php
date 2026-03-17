@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FlowActionController;
+use App\Http\Controllers\FlowChatController;
 use App\Http\Controllers\FlowController;
 use App\Http\Controllers\FlowLogController;
 use App\Models\Flow;
@@ -37,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::post('flows/{flow}/undeploy', [FlowActionController::class, 'undeploy'])->name('flows.undeploy')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/archive', [FlowActionController::class, 'archive'])->name('flows.archive')->can('update', [Flow::class, 'flow']);
     Route::post('flows/{flow}/restore', [FlowActionController::class, 'restore'])->name('flows.restore')->can('update', [Flow::class, 'flow']);
+    Route::post('flows/{flow}/chat', [FlowChatController::class, 'store'])->name('flows.chat.store')->can('update', [Flow::class, 'flow']);
+    Route::post('flows/{flow}/chat/new', [FlowChatController::class, 'newChat'])->name('flows.chat.new')->can('update', [Flow::class, 'flow']);
+    Route::post('flows/{flow}/chat/compact', [FlowChatController::class, 'compact'])->name('flows.chat.compact')->can('update', [Flow::class, 'flow']);
     Route::get('flows/{flow}/deployments', [FlowController::class, 'deployments'])->name('flows.deployments')->can('view-logs', [Flow::class, 'flow']);
     Route::get('flows/{flow}/logs', [FlowLogController::class, 'index'])->name('flows.logs')->can('view-logs', [Flow::class, 'flow']);
 });

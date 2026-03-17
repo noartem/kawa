@@ -36,6 +36,7 @@ export const messages = {
         },
         common: {
             empty: '-',
+            error: 'Error',
             unknown: 'unknown',
             status: 'Status',
             outdated: 'Outdated',
@@ -426,10 +427,24 @@ export const messages = {
                 chat: {
                     title: 'Chat with code',
                     subtitle: 'Describe the change and apply it to the flow.',
-                    example_question:
-                        'Last question: “How do I optimize the actor?”',
-                    example_answer:
-                        'Answer: “Try moving IO into a separate step.”',
+                    empty_title: 'Start a new implementation thread',
+                    empty_description:
+                        'Ask the assistant to write or refine the current Flow code.',
+                    placeholder:
+                        'Describe the change you want in the Flow code...',
+                    send: 'Send',
+                    new_chat: 'New chat',
+                    compact: 'Compact',
+                    applying: 'Applied to editor',
+                    diff_title: 'Suggested code update',
+                    apply: 'Apply',
+                    apply_and_save: 'Apply and save',
+                    no_changes: 'Code stays the same',
+                    assistant: 'Assistant',
+                    user: 'You',
+                    compact_badge: 'Compact summary',
+                    pending: 'Generating code update...',
+                    error_fallback: 'Chat request failed. Try again.',
                 },
                 discovery: {
                     actors_title: 'Actors',
@@ -473,9 +488,12 @@ export const messages = {
             },
             past_chats: {
                 title: 'Past chats',
-                description: 'History of discussions and hints',
-                example_today: 'How do I add a webhook to prod?',
-                example_yesterday: 'Cron schedule optimization',
+                description: 'Archived conversations for this Flow',
+                empty_title: 'No archived chats yet',
+                empty_description:
+                    'Start a new chat or compact the current one to build an archive.',
+                messages: '{count} messages',
+                updated: 'Updated {value}',
             },
             health: {
                 title: 'Health',
@@ -592,7 +610,8 @@ export const messages = {
             stop: 'Остановить',
         },
         common: {
-            empty: '—',
+            empty: '-',
+            error: 'Ошибка',
             unknown: 'неизвестно',
             status: 'Статус',
             outdated: 'Outdated',
@@ -912,8 +931,7 @@ export const messages = {
                     invoked_by: ' вызван событием ',
                     dispatched_event: ' отправил событие ',
                     failed_suffix: ' завершился с ошибкой',
-                    cron_template_error_prefix:
-                        'Некорректный cron-шаблон у ',
+                    cron_template_error_prefix: 'Некорректный cron-шаблон у ',
                 },
                 events: {
                     activity_log: 'Активность',
@@ -987,10 +1005,24 @@ export const messages = {
                 chat: {
                     title: 'Чат с кодом',
                     subtitle: 'Опишите изменение и примените его к потоку.',
-                    example_question:
-                        'Последний вопрос: «Как оптимизировать актор?»',
-                    example_answer:
-                        'Ответ: «Попробуйте вынести IO в отдельный шаг»',
+                    empty_title: 'Начните новую ветку работы',
+                    empty_description:
+                        'Попросите ассистента написать или доработать текущий код Потока.',
+                    placeholder: 'Опишите, что нужно изменить в коде Потока...',
+                    send: 'Отправить',
+                    new_chat: 'Новый чат',
+                    compact: 'Сжать',
+                    applying: 'Уже применено в редакторе',
+                    diff_title: 'Предложенное обновление кода',
+                    apply: 'Применить',
+                    apply_and_save: 'Применить и сохранить',
+                    no_changes: 'Код остается без изменений',
+                    assistant: 'Ассистент',
+                    user: 'Вы',
+                    compact_badge: 'Сжатое резюме',
+                    pending: 'Генерирую обновление кода...',
+                    error_fallback:
+                        'Не удалось выполнить запрос в чат. Попробуйте еще раз.',
                 },
                 discovery: {
                     actors_title: 'Акторы',
@@ -1034,9 +1066,12 @@ export const messages = {
             },
             past_chats: {
                 title: 'Прошлые чаты',
-                description: 'История обсуждений и подсказок',
-                example_today: 'Как добавить webhook в прод?',
-                example_yesterday: 'Оптимизация cron расписаний',
+                description: 'Архив разговоров по этому Потоку',
+                empty_title: 'Архивных чатов пока нет',
+                empty_description:
+                    'Начните новый чат или сожмите текущий, чтобы пополнить архив.',
+                messages: '{count} сообщений',
+                updated: 'Обновлен {value}',
             },
             health: {
                 title: 'Состояние',

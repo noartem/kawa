@@ -8,6 +8,7 @@ import {
     watch,
 } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { cn } from '@/lib/utils';
 
 import {
     Tooltip,
@@ -61,6 +62,7 @@ const props = withDefaults(
         emptyMessage: string;
         compact?: boolean;
         dense?: boolean;
+        class?: HTMLAttributes['class'];
     }>(),
     {
         compact: false,
@@ -801,7 +803,7 @@ watch(
 
 <template>
     <TooltipProvider v-if="logs.length" :delay-duration="120">
-        <div ref="logsContainerRef" :class="containerClass">
+        <div ref="logsContainerRef" :class="cn(containerClass, props.class)">
             <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
                 <div
                     class="flex items-start justify-between gap-3 text-xs text-muted-foreground"

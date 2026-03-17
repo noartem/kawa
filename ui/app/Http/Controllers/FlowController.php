@@ -6,7 +6,9 @@ use App\Http\Requests\Flows\FlowDeploymentsIndexRequest;
 use App\Models\Flow;
 use App\Models\FlowHistory;
 use App\Models\FlowRun;
+use App\Services\FlowChatService;
 use App\Services\FlowService;
+use App\Support\FlowCodeDiff;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -113,9 +115,12 @@ PY
         return redirect()->route('flows.show', $flow)->with('success', __('flows.created'));
     }
 
-    public function show(Request $request, Flow $flow): Response
-    {
-        $flow->load('user')->loadCount('runs');
+    public function show(
+        Request $request,
+        Flow $flow,
+        FlowChatService $flowChatService,
+    ): Response {
+        $flow->load(['user', 'activeChatConversation.messages'])->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
         $lastDevelopmentDeployment = $this->resolveLatestDeploymentOfType($flow, 'development');
@@ -133,6 +138,8 @@ PY
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
+            'activeChat' => $flowChatService->activeChatPayload($flow),
+            'pastChats' => $flowChatService->pastChatsPayload($flow),
             'timezoneOptions' => $this->timezoneOptions(),
             'permissions' => [
                 'canRun' => $request->user()->can('run', $flow),
@@ -172,8 +179,11 @@ PY
         ]);
     }
 
-    public function update(Request $request, Flow $flow): RedirectResponse
-    {
+    public function update(
+        Request $request,
+        Flow $flow,
+        FlowCodeDiff $flowCodeDiff,
+    ): RedirectResponse {
         $timezoneOptions = $this->timezoneOptions();
 
         $data = $request->validate([
@@ -190,7 +200,7 @@ PY
             FlowHistory::create([
                 'flow_id' => $flow->id,
                 'code' => $flow->code ?? '',
-                'diff' => $this->buildDiff($flow->code ?? '', $data['code'] ?? ''),
+                'diff' => $flowCodeDiff->build($flow->code ?? '', $data['code'] ?? ''),
             ]);
 
             $data['code_updated_at'] = now();
@@ -580,61 +590,6 @@ PY
         }
 
         return $eventId;
-    }
-
-    private function buildDiff(string $from, string $to): string
-    {
-        if (function_exists('xdiff_string_diff')) {
-            $diff = call_user_func('xdiff_string_diff', $from, $to, 1);
-            if (is_string($diff)) {
-                return $diff;
-            }
-        }
-
-        $fromLines = preg_split('/\R/', $from) ?: [];
-        $toLines = preg_split('/\R/', $to) ?: [];
-        $fromCount = count($fromLines);
-        $toCount = count($toLines);
-
-        $dp = array_fill(0, $fromCount + 1, array_fill(0, $toCount + 1, 0));
-        for ($i = $fromCount - 1; $i >= 0; $i--) {
-            for ($j = $toCount - 1; $j >= 0; $j--) {
-                if ($fromLines[$i] === $toLines[$j]) {
-                    $dp[$i][$j] = $dp[$i + 1][$j + 1] + 1;
-                } else {
-                    $dp[$i][$j] = max($dp[$i + 1][$j], $dp[$i][$j + 1]);
-                }
-            }
-        }
-
-        $diff = [];
-        $i = 0;
-        $j = 0;
-        while ($i < $fromCount && $j < $toCount) {
-            if ($fromLines[$i] === $toLines[$j]) {
-                $diff[] = ' '.$fromLines[$i];
-                $i++;
-                $j++;
-            } elseif ($dp[$i + 1][$j] >= $dp[$i][$j + 1]) {
-                $diff[] = '-'.$fromLines[$i];
-                $i++;
-            } else {
-                $diff[] = '+'.$toLines[$j];
-                $j++;
-            }
-        }
-
-        while ($i < $fromCount) {
-            $diff[] = '-'.$fromLines[$i];
-            $i++;
-        }
-
-        while ($j < $toCount) {
-            $diff[] = '+'.$toLines[$j];
-            $j++;
-        }
-
-        return implode("\n", $diff);
     }
 
     /**

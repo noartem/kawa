@@ -25,6 +25,7 @@ class Flow extends Model
         'entrypoint',
         'image',
         'timezone',
+        'active_chat_conversation_id',
         'last_started_at',
         'last_finished_at',
         'archived_at',
@@ -64,6 +65,20 @@ class Flow extends Model
     public function histories(): HasMany
     {
         return $this->hasMany(FlowHistory::class);
+    }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(AgentConversation::class);
+    }
+
+    public function activeChatConversation(): BelongsTo
+    {
+        return $this->belongsTo(
+            AgentConversation::class,
+            'active_chat_conversation_id',
+            'id',
+        );
     }
 
     public function activeRun(string $type): ?FlowRun

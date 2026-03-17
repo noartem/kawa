@@ -4,8 +4,11 @@ import FlowEditorHeader from '@/components/flows/editor/FlowEditorHeader.vue';
 import FlowEditorSettings from '@/components/flows/editor/FlowEditorSettings.vue';
 import FlowEditorSummary from '@/components/flows/editor/FlowEditorSummary.vue';
 import FlowEditorWorkspace from '@/components/flows/editor/FlowEditorWorkspace.vue';
+import FlowPastChatsPanel from '@/components/flows/editor/FlowPastChatsPanel.vue';
 import type {
     DeploymentCard,
+    FlowChatConversation,
+    FlowChatMessage,
     FlowDeployment,
     FlowDetail,
     FlowHistory,
@@ -16,10 +19,23 @@ import type {
 } from '@/components/flows/editor/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
+    archive as flowArchive,
+    deploy as flowDeploy,
     deployments as flowDeployments,
+    destroy as flowDestroy,
+    restore as flowRestore,
+    run as flowRun,
     show as flowShow,
     index as flowsIndex,
+    stop as flowStop,
+    undeploy as flowUndeploy,
+    update as flowUpdate,
 } from '@/routes/flows';
+import {
+    compact as flowChatCompact,
+    newMethod as flowChatNew,
+    store as flowChatStore,
+} from '@/routes/flows/chat';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
@@ -34,6 +50,8 @@ const props = defineProps<{
     status?: string | null;
     runStats: RunStat[];
     history: FlowHistory[];
+    activeChat: FlowChatConversation | null;
+    pastChats: FlowChatConversation[];
     timezoneOptions: string[];
     permissions: Permissions;
 }>();
@@ -45,6 +63,11 @@ const actionInProgress = ref<
 >(null);
 const saving = ref(false);
 const refreshInFlight = ref(false);
+const chatPending = ref(false);
+const chatDraft = ref('');
+const chatError = ref<string | null>(null);
+const activeChat = ref<FlowChatConversation | null>(props.activeChat);
+const pastChats = ref<FlowChatConversation[]>(props.pastChats ?? []);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const form = useForm({
@@ -88,6 +111,49 @@ const displayDevelopmentStatus = computed(() => {
 });
 const displayDevelopmentLogs = computed<FlowLog[]>(() => {
     return currentDevelopment.value?.logs ?? [];
+});
+const displayedChatMessages = computed<FlowChatMessage[]>(() => {
+    const baseMessages = activeChat.value?.messages ?? [];
+
+    if (chatPending.value) {
+        return [
+            ...baseMessages,
+            {
+                id: 'ui-pending-message',
+                role: 'assistant',
+                content: t('flows.editor.chat.pending'),
+                created_at: null,
+                kind: null,
+                status: 'pending',
+                transient: true,
+                source_code: null,
+                proposed_code: null,
+                diff: null,
+                has_code_changes: false,
+            },
+        ];
+    }
+
+    if (chatError.value) {
+        return [
+            ...baseMessages,
+            {
+                id: 'ui-error-message',
+                role: 'assistant',
+                content: chatError.value,
+                created_at: null,
+                kind: null,
+                status: 'error',
+                transient: true,
+                source_code: null,
+                proposed_code: null,
+                diff: null,
+                has_code_changes: false,
+            },
+        ];
+    }
+
+    return baseMessages;
 });
 const recentDeployments = computed(() => deployments.value.slice(0, 5));
 const allDeploymentsUrl = computed(() => {
@@ -379,6 +445,22 @@ const deploymentCards = computed<DeploymentCard[]>(() => {
 });
 
 watch(
+    () => props.activeChat,
+    (nextChat) => {
+        activeChat.value = nextChat;
+    },
+    { deep: true },
+);
+
+watch(
+    () => props.pastChats,
+    (nextChats) => {
+        pastChats.value = nextChats;
+    },
+    { deep: true },
+);
+
+watch(
     () => props.history,
     (nextHistory) => {
         const nextSignature = buildHistorySnapshotSignature(nextHistory);
@@ -407,6 +489,168 @@ const refreshFlowView = (): void => {
             refreshInFlight.value = false;
         },
     });
+};
+
+const csrfToken = document
+    .querySelector('meta[name="csrf-token"]')
+    ?.getAttribute('content');
+
+const extractChatError = async (response: Response): Promise<string> => {
+    try {
+        const payload = (await response.json()) as {
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+
+        const firstError = Object.values(payload.errors ?? {})[0]?.[0];
+
+        return (
+            firstError ||
+            payload.message ||
+            t('flows.editor.chat.error_fallback')
+        );
+    } catch {
+        return t('flows.editor.chat.error_fallback');
+    }
+};
+
+const postChatJson = async <T,>(
+    url: string,
+    payload: Record<string, unknown>,
+): Promise<T> => {
+    const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error(await extractChatError(response));
+    }
+
+    return response.json() as Promise<T>;
+};
+
+const syncChatState = (payload: {
+    activeChat: FlowChatConversation | null;
+    pastChats: FlowChatConversation[];
+}): void => {
+    activeChat.value = payload.activeChat;
+    pastChats.value = payload.pastChats;
+    chatError.value = null;
+};
+
+const sendChatMessage = async (): Promise<void> => {
+    if (
+        chatPending.value ||
+        !props.permissions.canUpdate ||
+        chatDraft.value.trim().length === 0
+    ) {
+        return;
+    }
+
+    chatError.value = null;
+    chatPending.value = true;
+
+    try {
+        const payload = await postChatJson<{
+            activeChat: FlowChatConversation | null;
+            pastChats: FlowChatConversation[];
+        }>(flowChatStore({ flow: props.flow.id ?? 0 }).url, {
+            message: chatDraft.value.trim(),
+            current_code: form.code ?? '',
+        });
+
+        syncChatState(payload);
+        chatDraft.value = '';
+    } catch (error) {
+        chatError.value =
+            error instanceof Error
+                ? error.message
+                : t('flows.editor.chat.error_fallback');
+    } finally {
+        chatPending.value = false;
+    }
+};
+
+const startNewChat = async (): Promise<void> => {
+    if (chatPending.value || !props.permissions.canUpdate) {
+        return;
+    }
+
+    chatError.value = null;
+    chatPending.value = true;
+
+    try {
+        const payload = await postChatJson<{
+            activeChat: FlowChatConversation | null;
+            pastChats: FlowChatConversation[];
+        }>(flowChatNew({ flow: props.flow.id ?? 0 }).url, {});
+
+        syncChatState(payload);
+        chatDraft.value = '';
+    } catch (error) {
+        chatError.value =
+            error instanceof Error
+                ? error.message
+                : t('flows.editor.chat.error_fallback');
+    } finally {
+        chatPending.value = false;
+    }
+};
+
+const compactChat = async (): Promise<void> => {
+    if (
+        chatPending.value ||
+        !props.permissions.canUpdate ||
+        (activeChat.value?.messages.length ?? 0) === 0
+    ) {
+        return;
+    }
+
+    chatError.value = null;
+    chatPending.value = true;
+
+    try {
+        const payload = await postChatJson<{
+            activeChat: FlowChatConversation | null;
+            pastChats: FlowChatConversation[];
+        }>(flowChatCompact({ flow: props.flow.id ?? 0 }).url, {
+            current_code: form.code ?? '',
+        });
+
+        syncChatState(payload);
+    } catch (error) {
+        chatError.value =
+            error instanceof Error
+                ? error.message
+                : t('flows.editor.chat.error_fallback');
+    } finally {
+        chatPending.value = false;
+    }
+};
+
+const applyProposal = (message: FlowChatMessage): void => {
+    if (!message.proposed_code || message.proposed_code === form.code) {
+        return;
+    }
+
+    form.code = message.proposed_code;
+    chatError.value = null;
+};
+
+const applyAndSaveProposal = (message: FlowChatMessage): void => {
+    applyProposal(message);
+
+    if (message.proposed_code && message.proposed_code !== props.flow.code) {
+        save();
+    }
 };
 
 const submitAction = (
@@ -440,7 +684,7 @@ const save = (): void => {
 
     saving.value = true;
 
-    form.put(`/flows/${props.flow.id}`, {
+    form.put(flowUpdate({ flow: props.flow.id ?? 0 }).url, {
         preserveScroll: true,
         onFinish: () => {
             saving.value = false;
@@ -461,7 +705,7 @@ const saveBeforeAction = (onSuccess: () => void): void => {
 
     saving.value = true;
 
-    form.put(`/flows/${props.flow.id}`, {
+    form.put(flowUpdate({ flow: props.flow.id ?? 0 }).url, {
         preserveScroll: true,
         only: [...refreshOnlyProps],
         onSuccess: () => {
@@ -479,7 +723,7 @@ const runFlow = (): void => {
     }
 
     saveBeforeAction(() => {
-        submitAction('run', `/flows/${props.flow.id}/run`);
+        submitAction('run', flowRun({ flow: props.flow.id ?? 0 }).url);
     });
 };
 
@@ -488,7 +732,7 @@ const stopFlow = (): void => {
         return;
     }
 
-    submitAction('stop', `/flows/${props.flow.id}/stop`);
+    submitAction('stop', flowStop({ flow: props.flow.id ?? 0 }).url);
 };
 
 const deployProd = (): void => {
@@ -497,7 +741,7 @@ const deployProd = (): void => {
     }
 
     saveBeforeAction(() => {
-        submitAction('deploy', `/flows/${props.flow.id}/deploy`);
+        submitAction('deploy', flowDeploy({ flow: props.flow.id ?? 0 }).url);
     });
 };
 
@@ -506,7 +750,7 @@ const undeployProd = (): void => {
         return;
     }
 
-    submitAction('undeploy', `/flows/${props.flow.id}/undeploy`);
+    submitAction('undeploy', flowUndeploy({ flow: props.flow.id ?? 0 }).url);
 };
 
 const archiveFlow = (): void => {
@@ -514,7 +758,7 @@ const archiveFlow = (): void => {
         return;
     }
 
-    submitAction('archive', `/flows/${props.flow.id}/archive`);
+    submitAction('archive', flowArchive({ flow: props.flow.id ?? 0 }).url);
 };
 
 const restoreFlow = (): void => {
@@ -522,7 +766,7 @@ const restoreFlow = (): void => {
         return;
     }
 
-    submitAction('restore', `/flows/${props.flow.id}/restore`);
+    submitAction('restore', flowRestore({ flow: props.flow.id ?? 0 }).url);
 };
 
 const deleteFlow = (): void => {
@@ -534,7 +778,7 @@ const deleteFlow = (): void => {
         return;
     }
 
-    router.delete(`/flows/${props.flow.id}`, {
+    router.delete(flowDestroy({ flow: props.flow.id ?? 0 }).url, {
         preserveScroll: true,
     });
 };
@@ -542,6 +786,7 @@ const deleteFlow = (): void => {
 const shouldPollForUpdates = computed(() => {
     return (
         actionInProgress.value === null &&
+        !chatPending.value &&
         (hasActiveDeploys.value || graphIsOutdated.value)
     );
 });
@@ -611,9 +856,11 @@ onBeforeUnmount(() => {
 
             <FlowEditorWorkspace
                 v-model:code="form.code"
+                v-model:chat-draft="chatDraft"
                 :can-update="props.permissions.canUpdate"
                 :can-run="props.permissions.canRun"
                 :action-in-progress="actionInProgress"
+                :chat-pending="chatPending"
                 :current-development-active="
                     Boolean(currentDevelopment?.active)
                 "
@@ -623,6 +870,8 @@ onBeforeUnmount(() => {
                 :code-updated-at="props.flow.code_updated_at"
                 :code-error-messages="codeErrorMessages"
                 :history-cards="historyCards"
+                :active-chat="activeChat"
+                :chat-messages="displayedChatMessages"
                 :graph="displayGraph"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
@@ -631,6 +880,11 @@ onBeforeUnmount(() => {
                 :format-date="formatDate"
                 @run-flow="runFlow"
                 @stop-flow="stopFlow"
+                @send-chat-message="sendChatMessage"
+                @new-chat="startNewChat"
+                @compact-chat="compactChat"
+                @apply-proposal="applyProposal"
+                @apply-and-save-proposal="applyAndSaveProposal"
             />
 
             <FlowEditorDeployments
@@ -642,6 +896,12 @@ onBeforeUnmount(() => {
                 :run-type-label="runTypeLabel"
                 :format-date="formatDate"
                 :format-duration="formatDuration"
+            />
+
+            <FlowPastChatsPanel
+                :chats="pastChats"
+                :format-date="formatDate"
+                :format-recent-date="formatRecentDate"
             />
 
             <FlowEditorSettings

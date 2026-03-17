@@ -4,7 +4,13 @@ import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import FlowCodeMergeView from '@/components/flows/FlowCodeMergeView.vue';
 import FlowGraph from '@/components/flows/FlowGraph.vue';
 import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue';
-import type { GraphMeta, HistoryCard } from '@/components/flows/editor/types';
+import FlowEditorChatPanel from '@/components/flows/editor/FlowEditorChatPanel.vue';
+import type {
+    FlowChatConversation,
+    FlowChatMessage,
+    GraphMeta,
+    HistoryCard,
+} from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -35,11 +41,13 @@ interface DiscoverySelectionTarget {
 }
 
 const code = defineModel<string>('code', { required: true });
+const chatDraft = defineModel<string>('chatDraft', { required: true });
 
 const props = defineProps<{
     canUpdate: boolean;
     canRun: boolean;
     actionInProgress: string | null;
+    chatPending: boolean;
     currentDevelopmentActive: boolean;
     currentDevelopmentStatus?: string | null;
     statusTone: (status?: string | null) => string;
@@ -47,6 +55,8 @@ const props = defineProps<{
     codeUpdatedAt?: string | null;
     codeErrorMessages: string[];
     historyCards: HistoryCard[];
+    activeChat: FlowChatConversation | null;
+    chatMessages: FlowChatMessage[];
     graph: Record<string, unknown> | null;
     graphMeta: GraphMeta;
     graphIsOutdated: boolean;
@@ -65,6 +75,11 @@ const props = defineProps<{
 defineEmits<{
     'run-flow': [];
     'stop-flow': [];
+    'send-chat-message': [];
+    'new-chat': [];
+    'compact-chat': [];
+    'apply-proposal': [message: FlowChatMessage];
+    'apply-and-save-proposal': [message: FlowChatMessage];
 }>();
 
 const { t } = useI18n();
@@ -319,7 +334,9 @@ watch(
                     <Button
                         v-if="currentDevelopmentActive"
                         variant="outline"
-                        :disabled="!canRun || actionInProgress !== null"
+                        :disabled="
+                            !canRun || actionInProgress !== null || chatPending
+                        "
                         @click="$emit('stop-flow')"
                     >
                         <Square class="size-4" />
@@ -327,7 +344,9 @@ watch(
                     </Button>
                     <Button
                         v-else
-                        :disabled="!canRun || actionInProgress !== null"
+                        :disabled="
+                            !canRun || actionInProgress !== null || chatPending
+                        "
                         @click="$emit('run-flow')"
                     >
                         <Play class="size-4" />
@@ -391,17 +410,23 @@ watch(
                     </div>
                 </div>
 
-                <div v-else-if="activeTab === 'chat'" class="space-y-3">
-                    <div
-                        class="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground"
-                    >
-                        <p>
-                            {{ t('flows.editor.chat.example_question') }}
-                        </p>
-                        <p class="mt-2">
-                            {{ t('flows.editor.chat.example_answer') }}
-                        </p>
-                    </div>
+                <div v-else-if="activeTab === 'chat'" class="h-full">
+                    <FlowEditorChatPanel
+                        v-model:draft="chatDraft"
+                        :chat="activeChat"
+                        :messages="chatMessages"
+                        :can-update="canUpdate"
+                        :pending="chatPending"
+                        :current-code="code"
+                        :format-recent-date="formatRecentDate"
+                        @send="$emit('send-chat-message')"
+                        @new-chat="$emit('new-chat')"
+                        @compact="$emit('compact-chat')"
+                        @apply-proposal="$emit('apply-proposal', $event)"
+                        @apply-and-save-proposal="
+                            $emit('apply-and-save-proposal', $event)
+                        "
+                    />
                 </div>
 
                 <div v-else-if="activeTab === 'discovery'" class="h-full">

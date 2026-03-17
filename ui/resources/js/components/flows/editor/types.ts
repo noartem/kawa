@@ -37,6 +37,30 @@ export interface FlowHistory {
     created_at: string;
 }
 
+export interface FlowChatMessage {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    created_at?: string | null;
+    kind?: 'prompt' | 'code_suggestion' | 'compact_summary' | null;
+    status?: 'pending' | 'error' | null;
+    transient?: boolean;
+    source_code?: string | null;
+    proposed_code?: string | null;
+    diff?: string | null;
+    has_code_changes: boolean;
+}
+
+export interface FlowChatConversation {
+    id: string;
+    title: string;
+    created_at?: string | null;
+    updated_at?: string | null;
+    preview?: string | null;
+    messages_count: number;
+    messages: FlowChatMessage[];
+}
+
 export interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
     id?: number | null;
     slug?: string | null;
