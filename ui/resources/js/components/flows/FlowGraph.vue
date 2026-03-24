@@ -7,7 +7,14 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Expand, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import {
+    Expand,
+    RotateCcw,
+    Workflow,
+    X,
+    ZoomIn,
+    ZoomOut,
+} from 'lucide-vue-next';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -219,8 +226,20 @@ const selectNode = (node: GraphNodePayload): void => {
 
             <div
                 v-else
-                class="flex aspect-[16/9] w-full items-center justify-center text-sm text-muted-foreground"
-            />
+                class="flex aspect-[16/9] w-full items-center justify-center p-4"
+            >
+                <div
+                    class="flex h-full w-full max-w-lg flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-6 text-center"
+                >
+                    <Workflow class="mb-4 size-10 text-muted-foreground/70" />
+                    <p class="text-sm font-semibold text-foreground">
+                        {{ t('flows.graph.empty_title') }}
+                    </p>
+                    <p class="mt-2 max-w-md text-sm text-muted-foreground">
+                        {{ t('flows.graph.empty_description') }}
+                    </p>
+                </div>
+            </div>
         </div>
 
         <div
@@ -343,8 +362,26 @@ const selectNode = (node: GraphNodePayload): void => {
 
                         <div
                             v-else
-                            class="flex h-full w-full items-center justify-center text-sm text-muted-foreground"
-                        />
+                            class="flex h-full w-full items-center justify-center p-6"
+                        >
+                            <div
+                                class="flex h-full w-full max-w-2xl flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-6 text-center"
+                            >
+                                <Workflow
+                                    class="mb-4 size-10 text-muted-foreground/70"
+                                />
+                                <p
+                                    class="text-sm font-semibold text-foreground"
+                                >
+                                    {{ t('flows.graph.empty_title') }}
+                                </p>
+                                <p
+                                    class="mt-2 max-w-md text-sm text-muted-foreground"
+                                >
+                                    {{ t('flows.graph.empty_description') }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     <div

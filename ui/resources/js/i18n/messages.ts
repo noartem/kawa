@@ -342,6 +342,9 @@ export const messages = {
                 zoom_in: 'Zoom in',
                 zoom_out: 'Zoom out',
                 reset_view: 'Reset view',
+                empty_title: 'Graph preview is not available yet',
+                empty_description:
+                    'The graph and its derived overview will become available after the flow is started.',
                 source_main: 'Implementation in flow code',
                 source_import: 'Imported into flow code',
                 source_module: 'Module: {module}',
@@ -435,8 +438,14 @@ export const messages = {
                     send: 'Send',
                     new_chat: 'New chat',
                     compact: 'Compact',
+                    retry: 'Retry',
                     applying: 'Applied to editor',
                     diff_title: 'Suggested code update',
+                    expand_diff: 'Expand changes',
+                    collapse_diff: 'Collapse changes',
+                    lines_added: 'added',
+                    lines_changed: 'changed',
+                    lines_removed: 'removed',
                     apply: 'Apply',
                     apply_and_save: 'Apply and save',
                     no_changes: 'No code changes',
@@ -444,6 +453,12 @@ export const messages = {
                     user: 'You',
                     compact_badge: 'Compact summary',
                     pending: 'Generating code update...',
+                    provider_unavailable:
+                        'The AI provider is temporarily unavailable. Try again in a minute.',
+                    rate_limited:
+                        'The AI provider is rate limiting requests. Try again shortly.',
+                    insufficient_credits:
+                        'The AI provider has no available quota right now. Try again later.',
                     error_fallback: 'Chat request failed. Try again.',
                 },
                 discovery: {
@@ -456,6 +471,9 @@ export const messages = {
                     consumed_by: 'Consumed by',
                     produced_by: 'Produced by',
                     implementation_line: 'Implementation · Line {line}',
+                    empty_title: 'Overview is not available yet',
+                    empty_description:
+                        'The overview is generated from graph data and will become available after the flow is started.',
                     empty_actors: 'No actors discovered yet.',
                     empty_events: 'No events discovered yet.',
                 },
@@ -489,11 +507,34 @@ export const messages = {
             past_chats: {
                 title: 'Past chats',
                 description: 'Archived conversations for this Flow',
+                all: 'All chats',
                 empty_title: 'No archived chats yet',
                 empty_description:
                     'Start a new chat or compact the current one to build an archive.',
                 messages: '{count} messages',
                 updated: 'Updated {value}',
+            },
+            chats_page: {
+                title: 'All chats',
+                empty: 'No chats match the current filters.',
+                results: 'Showing {from}-{to} of {total}',
+                results_empty: 'No chats',
+                filters: {
+                    search_placeholder:
+                        'Search by chat ID, title, or message text',
+                    reset: 'Reset',
+                },
+                columns: {
+                    title: 'Title',
+                    preview: 'Preview',
+                    messages: 'Messages',
+                    created: 'Created',
+                    updated: 'Updated',
+                },
+                pagination: {
+                    previous: 'Previous',
+                    next: 'Next',
+                },
             },
             health: {
                 title: 'Health',
@@ -916,6 +957,9 @@ export const messages = {
                 zoom_in: 'Увеличить',
                 zoom_out: 'Уменьшить',
                 reset_view: 'Сбросить вид',
+                empty_title: 'Предпросмотр графа пока недоступен',
+                empty_description:
+                    'Граф и сформированный на его основе обзор станут доступны после запуска потока.',
                 source_main: 'Реализация в коде потока',
                 source_import: 'Импортировано в код потока',
                 source_module: 'Модуль: {module}',
@@ -1012,8 +1056,14 @@ export const messages = {
                     send: 'Отправить',
                     new_chat: 'Новый чат',
                     compact: 'Сжать',
+                    retry: 'Повторить',
                     applying: 'Уже применено в редакторе',
                     diff_title: 'Предложенное обновление кода',
+                    expand_diff: 'Развернуть изменения',
+                    collapse_diff: 'Свернуть изменения',
+                    lines_added: 'добавлено',
+                    lines_changed: 'изменено',
+                    lines_removed: 'удалено',
                     apply: 'Применить',
                     apply_and_save: 'Применить и сохранить',
                     no_changes: 'Без изменений в коде',
@@ -1021,6 +1071,12 @@ export const messages = {
                     user: 'Вы',
                     compact_badge: 'Сжатое резюме',
                     pending: 'Генерирую обновление кода...',
+                    provider_unavailable:
+                        'AI-провайдер временно недоступен. Попробуйте еще раз через минуту.',
+                    rate_limited:
+                        'AI-провайдер ограничивает запросы. Попробуйте еще раз чуть позже.',
+                    insufficient_credits:
+                        'У AI-провайдера сейчас нет доступной квоты. Попробуйте позже.',
                     error_fallback:
                         'Не удалось выполнить запрос в чат. Попробуйте еще раз.',
                 },
@@ -1034,6 +1090,9 @@ export const messages = {
                     consumed_by: 'Получают',
                     produced_by: 'Создают',
                     implementation_line: 'Реализация · Строка {line}',
+                    empty_title: 'Обзор пока недоступен',
+                    empty_description:
+                        'Обзор формируется на основе данных графа и станет доступен после запуска потока.',
                     empty_actors: 'Пока нет обнаруженных акторов.',
                     empty_events: 'Пока нет обнаруженных событий.',
                 },
@@ -1067,11 +1126,34 @@ export const messages = {
             past_chats: {
                 title: 'Прошлые чаты',
                 description: 'Архив разговоров по этому Потоку',
+                all: 'Все чаты',
                 empty_title: 'Архивных чатов пока нет',
                 empty_description:
                     'Начните новый чат или сожмите текущий, чтобы пополнить архив.',
                 messages: '{count} сообщений',
                 updated: 'Обновлен {value}',
+            },
+            chats_page: {
+                title: 'Все чаты',
+                empty: 'По выбранным фильтрам чаты не найдены.',
+                results: 'Показано {from}-{to} из {total}',
+                results_empty: 'Чатов нет',
+                filters: {
+                    search_placeholder:
+                        'Поиск по ID чата, заголовку или тексту сообщения',
+                    reset: 'Сбросить',
+                },
+                columns: {
+                    title: 'Заголовок',
+                    preview: 'Превью',
+                    messages: 'Сообщения',
+                    created: 'Создан',
+                    updated: 'Обновлён',
+                },
+                pagination: {
+                    previous: 'Назад',
+                    next: 'Вперёд',
+                },
             },
             health: {
                 title: 'Состояние',

@@ -4,8 +4,11 @@ use App\Ai\Agents\FlowChatCompactor;
 use App\Ai\Agents\FlowCodeAssistant;
 use App\Models\Flow;
 use App\Models\User;
+use App\Services\FlowChatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Ai\Exceptions\AiException;
+use Mockery\MockInterface;
 
 use function Pest\Laravel\actingAs;
 
@@ -20,6 +23,8 @@ it('sends a flow chat message and stores the assistant suggestion', function () 
 
     FlowCodeAssistant::fake([
         [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => 'Greeting update',
             'reply' => 'Added the requested greeting update.',
             'code' => 'print("new")',
         ],
@@ -31,11 +36,12 @@ it('sends a flow chat message and stores the assistant suggestion', function () 
             'current_code' => 'print("old")',
         ])
         ->assertSuccessful()
-        ->assertJsonPath('activeChat.title', 'Update the greeting output')
+        ->assertJsonPath('activeChat.title', 'Greeting update')
         ->assertJsonPath('activeChat.messages_count', 2)
         ->assertJsonPath('activeChat.messages.0.role', 'user')
         ->assertJsonPath('activeChat.messages.1.role', 'assistant')
         ->assertJsonPath('activeChat.messages.1.kind', 'code_suggestion')
+        ->assertJsonPath('activeChat.messages.1.response_mode', FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE)
         ->assertJsonPath('activeChat.messages.1.source_code', 'print("old")')
         ->assertJsonPath('activeChat.messages.1.proposed_code', 'print("new")')
         ->assertJsonPath('activeChat.messages.1.has_code_changes', true)
@@ -48,11 +54,207 @@ it('sends a flow chat message and stores the assistant suggestion', function () 
     $conversation = $flow->activeChatConversation()->firstOrFail();
 
     expect($conversation->messages)->toHaveCount(2)
+        ->and($conversation->title)->toBe('Greeting update')
         ->and($conversation->messages[0]->content)->toBe('Update the greeting output')
         ->and($conversation->messages[1]->content)->toBe('Added the requested greeting update.')
         ->and($conversation->messages[1]->meta['proposed_code'])->toBe('print("new")');
 
     FlowCodeAssistant::assertPrompted('Update the greeting output');
+});
+
+it('stores a message-only assistant reply without marking code changes', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("same")',
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY,
+            'title' => 'Behavior check',
+            'reply' => 'The flow already prints the expected value, so no change is needed.',
+            'code' => 'print("same")',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Does this flow already do the right thing?',
+            'current_code' => 'print("same")',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.messages.1.kind', 'assistant_reply')
+        ->assertJsonPath('activeChat.messages.1.response_mode', FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY)
+        ->assertJsonPath('activeChat.messages.1.has_code_changes', false)
+        ->assertJsonPath('activeChat.messages.1.diff', null);
+
+    $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
+
+    expect($conversation->messages[1]->meta['kind'])->toBe('assistant_reply')
+        ->and($conversation->messages[1]->meta['response_mode'])->toBe(FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY)
+        ->and($conversation->title)->toBe('Behavior check');
+});
+
+it('accepts chat requests for flows with empty code', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => '',
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => 'Start flow',
+            'reply' => 'I created a minimal Flow scaffold.',
+            'code' => 'from kawa import actor, event, Context',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Create a minimal flow',
+            'current_code' => '',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.title', 'Start flow')
+        ->assertJsonPath('activeChat.messages.1.kind', 'code_suggestion')
+        ->assertJsonPath('activeChat.messages.1.source_code', '')
+        ->assertJsonPath(
+            'activeChat.messages.1.proposed_code',
+            'from kawa import actor, event, Context',
+        );
+
+    $prompt = (new FlowCodeAssistant(''))->instructions();
+
+    expect((string) $prompt)->toContain('# The Flow code is currently empty.');
+});
+
+it('ignores chat code changes when the difference is only surrounding whitespace', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("same")',
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => 'Whitespace only',
+            'reply' => 'No real code change is needed.',
+            'code' => "\nprint(\"same\")\n",
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Normalize whitespace only',
+            'current_code' => 'print("same")',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.messages.1.kind', 'assistant_reply')
+        ->assertJsonPath('activeChat.messages.1.has_code_changes', false)
+        ->assertJsonPath('activeChat.messages.1.diff', null)
+        ->assertJsonPath('activeChat.messages.1.proposed_code', 'print("same")');
+
+    $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
+
+    expect($conversation->messages[1]->meta['kind'])->toBe('assistant_reply')
+        ->and($conversation->messages[1]->meta['diff'])->toBeNull()
+        ->and($conversation->messages[1]->meta['proposed_code'])->toBe('print("same")');
+});
+
+it('keeps the existing chat title on subsequent assistant responses', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("old")',
+    ]);
+
+    $conversation = $flow->conversations()->create([
+        'user_id' => $user->id,
+        'title' => 'Existing title',
+    ]);
+
+    $conversation->messages()->createMany([
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'user',
+            'content' => 'First request',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'prompt'],
+        ],
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'assistant',
+            'content' => 'First answer',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => [
+                'kind' => 'assistant_reply',
+                'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY,
+            ],
+        ],
+    ]);
+
+    $flow->update([
+        'active_chat_conversation_id' => $conversation->id,
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => null,
+            'reply' => 'I added the next change.',
+            'code' => 'print("new")',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Apply the next update',
+            'current_code' => 'print("old")',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.title', 'Existing title');
+
+    expect($flow->fresh()->activeChatConversation()->firstOrFail()->title)
+        ->toBe('Existing title');
+});
+
+it('returns a friendly provider unavailable error for upstream ai 503 failures', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+
+    app()->instance(
+        FlowChatService::class,
+        \Mockery::mock(FlowChatService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('sendMessage')
+                ->once()
+                ->andThrow(new AiException('OpenAI Error [503]: Unknown error', 503));
+        }),
+    );
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Try again',
+            'current_code' => 'print("same")',
+        ])
+        ->assertStatus(503)
+        ->assertJsonPath('code', 'ai_provider_unavailable')
+        ->assertJsonPath(
+            'message',
+            'The AI provider is temporarily unavailable. Please try again in a minute.',
+        );
 });
 
 it('archives the current active chat when starting a new chat', function () {
@@ -295,6 +497,7 @@ it('renders a local chat debug page with the composed llm payload', function () 
             'flow' => $flow,
             'message' => 'Summarize the current flow',
             'current_code' => 'print("preview")',
+            'should_generate_title' => true,
         ]))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
@@ -302,11 +505,22 @@ it('renders a local chat debug page with the composed llm payload', function () 
             ->where('flow.id', $flow->id)
             ->where('preview.provider', 'openai')
             ->where('preview.model', FlowCodeAssistant::MODEL)
+            ->where('preview.should_generate_title', true)
             ->where('preview.user_message', 'Summarize the current flow')
             ->where('preview.current_code', 'print("preview")')
+            ->where('preview.history_strategy', 'single_user_transcript')
+            ->where('preview.schema.title_generation', 'fixed mode for this request: generate_title')
+            ->where('preview.schema.response_mode', 'required enum: message_only | message_with_code')
             ->where('preview.active_conversation.id', $conversation->id)
             ->where('preview.history.0.content', 'Explain this flow')
             ->where('preview.history.1.content', 'It prints a debug marker.')
+            ->where('preview.request_preview.history_messages.0.role', 'user')
+            ->where(
+                'preview.request_preview.history_messages.0.content',
+                fn (string $content): bool => str_contains($content, 'User: Explain this flow')
+                    && str_contains($content, 'Assistant: It prints a debug marker.'),
+            )
             ->where('preview.request_preview.user_message', 'Summarize the current flow')
+            ->where('preview.request_preview.should_generate_title', true)
         );
 });

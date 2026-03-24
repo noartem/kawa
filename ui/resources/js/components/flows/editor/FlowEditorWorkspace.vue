@@ -76,6 +76,7 @@ defineEmits<{
     'run-flow': [];
     'stop-flow': [];
     'send-chat-message': [];
+    'retry-chat-message': [];
     'new-chat': [];
     'compact-chat': [];
     'apply-proposal': [message: FlowChatMessage];
@@ -420,6 +421,7 @@ watch(
                         :current-code="code"
                         :format-recent-date="formatRecentDate"
                         @send="$emit('send-chat-message')"
+                        @retry="$emit('retry-chat-message')"
                         @new-chat="$emit('new-chat')"
                         @compact="$emit('compact-chat')"
                         @apply-proposal="$emit('apply-proposal', $event)"

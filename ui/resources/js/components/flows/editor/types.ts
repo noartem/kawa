@@ -42,9 +42,16 @@ export interface FlowChatMessage {
     role: 'user' | 'assistant';
     content: string;
     created_at?: string | null;
-    kind?: 'prompt' | 'code_suggestion' | 'compact_summary' | null;
+    kind?:
+        | 'prompt'
+        | 'assistant_reply'
+        | 'code_suggestion'
+        | 'compact_summary'
+        | null;
+    response_mode?: 'message_only' | 'message_with_code' | null;
     status?: 'pending' | 'error' | null;
     transient?: boolean;
+    retryable?: boolean;
     source_code?: string | null;
     proposed_code?: string | null;
     diff?: string | null;
@@ -60,6 +67,25 @@ export interface FlowChatConversation {
     messages_count: number;
     messages: FlowChatMessage[];
 }
+
+export interface FlowChatsPaginator {
+    data: FlowChatConversation[];
+    current_page: number;
+    from?: number | null;
+    last_page: number;
+    per_page: number;
+    total: number;
+    to?: number | null;
+}
+
+export type FlowChatsSortKey =
+    | 'id'
+    | 'title'
+    | 'created_at'
+    | 'updated_at'
+    | 'messages_count';
+
+export type FlowChatsSortDirection = 'asc' | 'desc';
 
 export interface FlowDetail extends Omit<FlowSidebarItem, 'id' | 'slug'> {
     id?: number | null;

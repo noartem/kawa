@@ -33,6 +33,7 @@ import {
 } from '@/routes/flows';
 import {
     compact as flowChatCompact,
+    index as flowChatIndex,
     newMethod as flowChatNew,
     store as flowChatStore,
 } from '@/routes/flows/chat';
@@ -66,6 +67,11 @@ const refreshInFlight = ref(false);
 const chatPending = ref(false);
 const chatDraft = ref('');
 const chatError = ref<string | null>(null);
+const optimisticUserMessage = ref<FlowChatMessage | null>(null);
+const failedChatRequest = ref<{
+    message: string;
+    currentCode: string;
+} | null>(null);
 const activeChat = ref<FlowChatConversation | null>(props.activeChat);
 const pastChats = ref<FlowChatConversation[]>(props.pastChats ?? []);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -114,18 +120,22 @@ const displayDevelopmentLogs = computed<FlowLog[]>(() => {
 });
 const displayedChatMessages = computed<FlowChatMessage[]>(() => {
     const baseMessages = activeChat.value?.messages ?? [];
+    const messages = optimisticUserMessage.value
+        ? [...baseMessages, optimisticUserMessage.value]
+        : [...baseMessages];
 
     if (chatPending.value) {
         return [
-            ...baseMessages,
+            ...messages,
             {
                 id: 'ui-pending-message',
                 role: 'assistant',
-                content: t('flows.editor.chat.pending'),
+                content: '',
                 created_at: null,
                 kind: null,
                 status: 'pending',
                 transient: true,
+                retryable: false,
                 source_code: null,
                 proposed_code: null,
                 diff: null,
@@ -136,7 +146,7 @@ const displayedChatMessages = computed<FlowChatMessage[]>(() => {
 
     if (chatError.value) {
         return [
-            ...baseMessages,
+            ...messages,
             {
                 id: 'ui-error-message',
                 role: 'assistant',
@@ -145,6 +155,7 @@ const displayedChatMessages = computed<FlowChatMessage[]>(() => {
                 kind: null,
                 status: 'error',
                 transient: true,
+                retryable: failedChatRequest.value !== null,
                 source_code: null,
                 proposed_code: null,
                 diff: null,
@@ -153,11 +164,14 @@ const displayedChatMessages = computed<FlowChatMessage[]>(() => {
         ];
     }
 
-    return baseMessages;
+    return messages;
 });
 const recentDeployments = computed(() => deployments.value.slice(0, 5));
 const allDeploymentsUrl = computed(() => {
     return flowDeployments({ flow: props.flow.id ?? 0 }).url;
+});
+const allChatsUrl = computed(() => {
+    return flowChatIndex({ flow: props.flow.id ?? 0 }).url;
 });
 const canSave = computed(() => props.permissions.canUpdate);
 const pageTitle = computed(() => form.name || t('flows.untitled'));
@@ -498,11 +512,37 @@ const csrfToken = document
 const extractChatError = async (response: Response): Promise<string> => {
     try {
         const payload = (await response.json()) as {
+            code?: string;
             message?: string;
             errors?: Record<string, string[]>;
         };
 
         const firstError = Object.values(payload.errors ?? {})[0]?.[0];
+
+        const knownErrorMessages: Record<string, string> = {
+            ai_provider_unavailable: t(
+                'flows.editor.chat.provider_unavailable',
+            ),
+            ai_rate_limited: t('flows.editor.chat.rate_limited'),
+            ai_insufficient_credits: t(
+                'flows.editor.chat.insufficient_credits',
+            ),
+        };
+
+        if (payload.code && knownErrorMessages[payload.code]) {
+            return knownErrorMessages[payload.code];
+        }
+
+        if (
+            response.status === 503 ||
+            payload.message?.includes('OpenAI Error [503]')
+        ) {
+            return t('flows.editor.chat.provider_unavailable');
+        }
+
+        if (response.status === 429) {
+            return t('flows.editor.chat.rate_limited');
+        }
 
         return (
             firstError ||
@@ -544,6 +584,53 @@ const syncChatState = (payload: {
     activeChat.value = payload.activeChat;
     pastChats.value = payload.pastChats;
     chatError.value = null;
+    optimisticUserMessage.value = null;
+    failedChatRequest.value = null;
+};
+
+const createOptimisticUserMessage = (message: string): FlowChatMessage => {
+    return {
+        id: `ui-user-message-${Date.now()}`,
+        role: 'user',
+        content: message,
+        created_at: new Date().toISOString(),
+        kind: 'prompt',
+        status: null,
+        transient: true,
+        retryable: false,
+        source_code: null,
+        proposed_code: null,
+        diff: null,
+        has_code_changes: false,
+    };
+};
+
+const submitChatMessageRequest = async (request: {
+    message: string;
+    currentCode: string;
+}): Promise<void> => {
+    chatError.value = null;
+    chatPending.value = true;
+    failedChatRequest.value = request;
+
+    try {
+        const payload = await postChatJson<{
+            activeChat: FlowChatConversation | null;
+            pastChats: FlowChatConversation[];
+        }>(flowChatStore({ flow: props.flow.id ?? 0 }).url, {
+            message: request.message,
+            current_code: request.currentCode,
+        });
+
+        syncChatState(payload);
+    } catch (error) {
+        chatError.value =
+            error instanceof Error
+                ? error.message
+                : t('flows.editor.chat.error_fallback');
+    } finally {
+        chatPending.value = false;
+    }
 };
 
 const sendChatMessage = async (): Promise<void> => {
@@ -555,28 +642,27 @@ const sendChatMessage = async (): Promise<void> => {
         return;
     }
 
-    chatError.value = null;
-    chatPending.value = true;
+    const request = {
+        message: chatDraft.value.trim(),
+        currentCode: form.code ?? '',
+    };
 
-    try {
-        const payload = await postChatJson<{
-            activeChat: FlowChatConversation | null;
-            pastChats: FlowChatConversation[];
-        }>(flowChatStore({ flow: props.flow.id ?? 0 }).url, {
-            message: chatDraft.value.trim(),
-            current_code: form.code ?? '',
-        });
+    optimisticUserMessage.value = createOptimisticUserMessage(request.message);
+    chatDraft.value = '';
 
-        syncChatState(payload);
-        chatDraft.value = '';
-    } catch (error) {
-        chatError.value =
-            error instanceof Error
-                ? error.message
-                : t('flows.editor.chat.error_fallback');
-    } finally {
-        chatPending.value = false;
+    await submitChatMessageRequest(request);
+};
+
+const retryChatMessage = async (): Promise<void> => {
+    if (
+        chatPending.value ||
+        !props.permissions.canUpdate ||
+        failedChatRequest.value === null
+    ) {
+        return;
     }
+
+    await submitChatMessageRequest(failedChatRequest.value);
 };
 
 const startNewChat = async (): Promise<void> => {
@@ -585,6 +671,8 @@ const startNewChat = async (): Promise<void> => {
     }
 
     chatError.value = null;
+    optimisticUserMessage.value = null;
+    failedChatRequest.value = null;
     chatPending.value = true;
 
     try {
@@ -615,6 +703,8 @@ const compactChat = async (): Promise<void> => {
     }
 
     chatError.value = null;
+    optimisticUserMessage.value = null;
+    failedChatRequest.value = null;
     chatPending.value = true;
 
     try {
@@ -881,6 +971,7 @@ onBeforeUnmount(() => {
                 @run-flow="runFlow"
                 @stop-flow="stopFlow"
                 @send-chat-message="sendChatMessage"
+                @retry-chat-message="retryChatMessage"
                 @new-chat="startNewChat"
                 @compact-chat="compactChat"
                 @apply-proposal="applyProposal"
@@ -900,6 +991,7 @@ onBeforeUnmount(() => {
 
             <FlowPastChatsPanel
                 :chats="pastChats"
+                :all-chats-url="allChatsUrl"
                 :format-date="formatDate"
                 :format-recent-date="formatRecentDate"
             />

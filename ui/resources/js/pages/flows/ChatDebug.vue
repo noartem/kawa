@@ -25,6 +25,8 @@ const props = defineProps<{
         provider: string;
         model: string;
         base_url?: string | null;
+        should_generate_title: boolean;
+        history_strategy?: string | null;
         user_message: string;
         current_code: string;
         instructions: string;
@@ -39,6 +41,7 @@ const props = defineProps<{
             agent?: string | null;
             content: string;
             kind?: string | null;
+            response_mode?: string | null;
             created_at?: string | null;
         }>;
         request_preview: {
@@ -46,8 +49,10 @@ const props = defineProps<{
             history_messages: Array<{
                 role: string;
                 content: string;
-            }>;
+                response_mode?: string | null;
+            }>; 
             user_message: string;
+            should_generate_title: boolean;
             structured_output: Record<string, string>;
         };
     };
@@ -55,6 +60,7 @@ const props = defineProps<{
 
 const message = ref(props.preview.user_message);
 const currentCode = ref(props.preview.current_code);
+const shouldGenerateTitle = ref(props.preview.should_generate_title);
 
 const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     {
@@ -77,6 +83,7 @@ const submit = (): void => {
         {
             message: message.value,
             current_code: currentCode.value,
+            should_generate_title: shouldGenerateTitle.value,
         },
         {
             preserveState: true,
@@ -133,6 +140,17 @@ const asPrettyJson = (value: unknown): string => {
                         />
                     </div>
 
+                    <label
+                        class="flex items-center gap-2 text-sm text-foreground"
+                    >
+                        <input
+                            v-model="shouldGenerateTitle"
+                            type="checkbox"
+                            class="size-4 rounded border border-input"
+                        />
+                        Generate chat title from the first assistant reply
+                    </label>
+
                     <Button @click="submit">Refresh preview</Button>
                 </CardContent>
             </Card>
@@ -148,6 +166,8 @@ asPrettyJson({
     provider: preview.provider,
     model: preview.model,
     base_url: preview.base_url,
+    should_generate_title: preview.should_generate_title,
+    history_strategy: preview.history_strategy,
     active_conversation: preview.active_conversation,
 })
                         }}</pre>

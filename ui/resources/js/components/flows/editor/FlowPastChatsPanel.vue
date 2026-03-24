@@ -1,216 +1,127 @@
 <script setup lang="ts">
-import FlowCodeMergeView from '@/components/flows/FlowCodeMergeView.vue';
+import FlowPastChatDetailsDialog from '@/components/flows/editor/FlowPastChatDetailsDialog.vue';
 import type { FlowChatConversation } from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
-    Bot,
-    ChevronDown,
-    History,
-    Sparkles,
-    UserRound,
-} from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { Card, CardContent } from '@/components/ui/card';
+import { Link } from '@inertiajs/vue3';
+import { ArrowUpRight, History } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     chats: FlowChatConversation[];
+    allChatsUrl?: string | null;
     formatDate: (value?: string | null) => string;
     formatRecentDate: (value?: string | null) => string;
 }>();
 
 const { t } = useI18n();
-const expandedChatIds = ref<Set<string>>(new Set());
+const detailsOpen = ref(false);
+const selectedChatId = ref<string | null>(null);
 
-const toggleChat = (chatId: string): void => {
-    const next = new Set(expandedChatIds.value);
-
-    if (next.has(chatId)) {
-        next.delete(chatId);
-    } else {
-        next.add(chatId);
+const selectedChat = computed<FlowChatConversation | null>(() => {
+    if (selectedChatId.value === null) {
+        return null;
     }
 
-    expandedChatIds.value = next;
+    return props.chats.find((chat) => chat.id === selectedChatId.value) ?? null;
+});
+
+const openChatDetails = (chatId: string): void => {
+    selectedChatId.value = chatId;
+    detailsOpen.value = true;
 };
 
-const isExpanded = (chatId: string): boolean => {
-    return expandedChatIds.value.has(chatId);
-};
+watch(detailsOpen, (open) => {
+    if (!open) {
+        selectedChatId.value = null;
+    }
+});
 
 watch(
     () => props.chats,
     (nextChats) => {
-        const availableIds = new Set(nextChats.map((chat) => chat.id));
-        expandedChatIds.value = new Set(
-            [...expandedChatIds.value].filter((chatId) =>
-                availableIds.has(chatId),
-            ),
-        );
+        const availableChatIds = new Set(nextChats.map((chat) => chat.id));
+
+        if (
+            selectedChatId.value !== null &&
+            !availableChatIds.has(selectedChatId.value)
+        ) {
+            detailsOpen.value = false;
+            selectedChatId.value = null;
+        }
     },
     { immediate: true },
 );
 </script>
 
 <template>
-    <section class="space-y-2 px-4 py-3">
-        <div>
-            <h2 class="text-base font-medium">
-                {{ t('flows.past_chats.title') }}
-            </h2>
-            <p class="mt-1 text-xs text-muted-foreground">
-                {{ t('flows.past_chats.description') }}
-            </p>
+    <section class="space-y-3 p-4">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-semibold">
+                    {{ t('flows.past_chats.title') }}
+                </h2>
+            </div>
+
+            <Link
+                v-if="allChatsUrl"
+                :href="allChatsUrl"
+                class="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 transition-colors hover:text-blue-700 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+                {{ t('flows.past_chats.all') }}
+                <ArrowUpRight class="size-4" aria-hidden="true" />
+            </Link>
         </div>
 
-        <div v-if="chats.length" class="grid gap-2">
-            <Card
+        <div
+            v-if="chats.length"
+            class="grid divide-y rounded-xl border border-border"
+        >
+            <button
                 v-for="chat in chats"
                 :key="chat.id"
-                class="border-0 bg-muted/10 shadow-none"
+                type="button"
+                class="w-full px-4 py-3 transition-colors hover:bg-muted/40"
+                @click="openChatDetails(chat.id)"
             >
-                <CardHeader class="gap-2 px-3 py-2.5">
-                    <div
-                        class="flex flex-wrap items-start justify-between gap-2"
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p class="text-sm font-semibold text-foreground">
+                        {{ chat.title }}
+                    </p>
+
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-muted/50 text-muted-foreground"
                     >
-                        <div>
-                            <CardTitle class="text-sm font-medium">
-                                {{ chat.title }}
-                            </CardTitle>
-                            <CardDescription class="mt-1 text-xs">
-                                {{ chat.preview || t('common.empty') }}
-                            </CardDescription>
-                        </div>
+                        {{
+                            t('flows.past_chats.messages', {
+                                count: chat.messages_count,
+                            })
+                        }}
+                    </Badge>
 
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <Badge
-                                variant="outline"
-                                class="h-6 border-0 bg-background/70 px-2 shadow-none"
-                            >
-                                {{
-                                    t('flows.past_chats.messages', {
-                                        count: chat.messages_count,
-                                    })
-                                }}
-                            </Badge>
-                            <Badge
-                                variant="outline"
-                                class="h-6 border-0 bg-background/70 px-2 shadow-none"
-                            >
-                                {{
-                                    t('flows.past_chats.updated', {
-                                        value: formatRecentDate(
-                                            chat.updated_at,
-                                        ),
-                                    })
-                                }}
-                            </Badge>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                class="h-7 w-7 rounded-md"
-                                :aria-expanded="isExpanded(chat.id)"
-                                @click="toggleChat(chat.id)"
-                            >
-                                <ChevronDown
-                                    class="size-4 transition-transform"
-                                    :class="
-                                        isExpanded(chat.id) ? 'rotate-180' : ''
-                                    "
-                                />
-                            </Button>
-                        </div>
-                    </div>
-                </CardHeader>
+                    <div class="flex-1" />
 
-                <CardContent v-if="isExpanded(chat.id)" class="space-y-3 px-3 pt-0 pb-3">
-                    <div class="text-xs text-muted-foreground">
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
                         {{ formatDate(chat.created_at) }}
-                    </div>
+                        <div
+                            class="h-4 border-l border-border"
+                            style="transform: translateY(-2px) scaleY(2)"
+                        />
+                        {{ formatRecentDate(chat.updated_at) }}
+                    </Badge>
 
-                    <article
-                        v-for="message in chat.messages"
-                        :key="message.id"
-                        class="rounded-lg bg-background/70 px-3 py-2.5"
+                    <span
+                        class="inline-flex items-center text-muted-foreground"
                     >
-                        <div
-                            class="mb-2 flex items-start justify-between gap-3"
-                        >
-                            <div
-                                class="inline-flex items-center gap-1.5 text-sm font-medium"
-                            >
-                                <component
-                                    :is="
-                                        message.role === 'assistant'
-                                            ? Bot
-                                            : UserRound
-                                    "
-                                    class="size-4 text-muted-foreground"
-                                />
-                                <span>
-                                    {{
-                                        message.role === 'assistant'
-                                            ? t('flows.editor.chat.assistant')
-                                            : t('flows.editor.chat.user')
-                                    }}
-                                </span>
-                                <Badge
-                                    v-if="message.kind === 'compact_summary'"
-                                    variant="outline"
-                                    class="h-6 border-0 bg-amber-500/10 px-2 text-amber-700 shadow-none"
-                                >
-                                    {{ t('flows.editor.chat.compact_badge') }}
-                                </Badge>
-                            </div>
-
-                            <span class="text-xs text-muted-foreground">
-                                {{ formatRecentDate(message.created_at) }}
-                            </span>
-                        </div>
-
-                        <p
-                            class="text-sm leading-6 whitespace-pre-wrap text-foreground"
-                        >
-                            {{ message.content }}
-                        </p>
-
-                        <div
-                            v-if="message.has_code_changes"
-                            class="mt-3 space-y-2"
-                        >
-                            <div
-                                class="inline-flex items-center gap-2 text-sm font-medium text-foreground"
-                            >
-                                <Sparkles
-                                    class="size-4 text-muted-foreground"
-                                />
-                                {{ t('flows.editor.chat.diff_title') }}
-                            </div>
-
-                            <div
-                                class="overflow-hidden rounded-lg bg-background"
-                            >
-                                <FlowCodeMergeView
-                                    :id="`archived-chat-diff-${message.id}`"
-                                    :original-value="message.source_code ?? ''"
-                                    :modified-value="
-                                        message.proposed_code ?? ''
-                                    "
-                                    class="h-52 text-xs"
-                                />
-                            </div>
-                        </div>
-                    </article>
-                </CardContent>
-            </Card>
+                        <ArrowUpRight class="size-4 shrink-0" />
+                    </span>
+                </div>
+            </button>
         </div>
 
         <Card v-else class="border-0 bg-muted/10 shadow-none">
@@ -226,5 +137,12 @@ watch(
                 </p>
             </CardContent>
         </Card>
+
+        <FlowPastChatDetailsDialog
+            v-model:open="detailsOpen"
+            :chat="selectedChat"
+            :format-date="formatDate"
+            :format-recent-date="formatRecentDate"
+        />
     </section>
 </template>

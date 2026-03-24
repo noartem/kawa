@@ -44,7 +44,7 @@ Rules:
 
 Current code snapshot:
 ```python
-{$this->currentCode}
+{$this->currentCodePreview()}
 ```
 PROMPT;
     }
@@ -60,5 +60,14 @@ PROMPT;
             'title' => $schema->string()->required(),
             'summary' => $schema->string()->required(),
         ];
+    }
+
+    private function currentCodePreview(): string
+    {
+        if (trim($this->currentCode) !== '') {
+            return $this->currentCode;
+        }
+
+        return '# The Flow code is currently empty.';
     }
 }

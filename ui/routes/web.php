@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::post('flows/{flow}/undeploy', [FlowActionController::class, 'undeploy'])->name('flows.undeploy')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/archive', [FlowActionController::class, 'archive'])->name('flows.archive')->can('update', [Flow::class, 'flow']);
     Route::post('flows/{flow}/restore', [FlowActionController::class, 'restore'])->name('flows.restore')->can('update', [Flow::class, 'flow']);
+    Route::get('flows/{flow}/chat', [FlowChatController::class, 'index'])->name('flows.chat.index')->can('update', [Flow::class, 'flow']);
     Route::post('flows/{flow}/chat', [FlowChatController::class, 'store'])->name('flows.chat.store')->can('update', [Flow::class, 'flow']);
     Route::get('flows/{flow}/chat/debug', [FlowChatController::class, 'debug'])->name('flows.chat.debug')->can('update', [Flow::class, 'flow']);
     Route::post('flows/{flow}/chat/new', [FlowChatController::class, 'newChat'])->name('flows.chat.new')->can('update', [Flow::class, 'flow']);

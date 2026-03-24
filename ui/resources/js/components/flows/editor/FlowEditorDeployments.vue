@@ -82,74 +82,86 @@ watch(
             </Link>
         </div>
 
-        <button
-            v-for="item in deploymentCards"
-            :key="item.deployment.id"
-            type="button"
-            class="w-full rounded-xl border border-border bg-background p-3 text-left transition-colors hover:bg-muted/40"
-            @click="openDeploymentDetails(item.deployment.id)"
-        >
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <p class="text-sm font-semibold text-foreground">
-                    {{
-                        t('flows.deploy.label', {
-                            id: item.deployment.id,
-                        })
-                    }}
-                </p>
-                <Badge
-                    variant="outline"
-                    :class="statusTone(item.deployment.status)"
-                >
-                    {{ statusLabel(item.deployment.status) }}
-                </Badge>
-                <Badge
-                    variant="outline"
-                    class="border-border bg-muted/50 text-muted-foreground"
-                >
-                    {{ runTypeLabel(item.deployment.type) }}
-                </Badge>
-                <Badge
-                    variant="outline"
-                    class="border-border bg-transparent text-muted-foreground"
-                >
-                    {{ t('common.started') }}:
-                    <span class="ml-1 font-medium text-foreground">{{
-                        formatDate(item.deployment.started_at)
-                    }}</span>
-                </Badge>
-                <Badge
-                    variant="outline"
-                    class="border-border bg-transparent text-muted-foreground"
-                >
-                    {{ t('common.finished') }}:
-                    <span class="ml-1 font-medium text-foreground">{{
-                        formatDate(item.deployment.finished_at)
-                    }}</span>
-                </Badge>
-                <Badge
-                    variant="outline"
-                    class="border-border bg-transparent text-muted-foreground"
-                >
-                    {{ t('flows.metrics.duration') }}:
-                    <span class="ml-1 font-medium text-foreground">{{
-                        formatDuration(
-                            item.deployment.started_at,
-                            item.deployment.finished_at,
-                        )
-                    }}</span>
-                </Badge>
-                <Badge
-                    variant="outline"
-                    class="border-border bg-transparent text-muted-foreground"
-                >
-                    {{ t('flows.deployments.logs') }}:
-                    <span class="ml-1 font-medium text-foreground">{{
-                        item.deployment.logs.length
-                    }}</span>
-                </Badge>
-            </div>
-        </button>
+        <div class="grid divide-y rounded-xl border border-border">
+            <button
+                v-for="item in deploymentCards"
+                :key="item.deployment.id"
+                type="button"
+                class="w-full px-4 py-3 transition-colors hover:bg-muted/40"
+                @click="openDeploymentDetails(item.deployment.id)"
+            >
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p class="text-sm font-semibold text-foreground">
+                        {{
+                            t('flows.deploy.label', {
+                                id: item.deployment.id,
+                            })
+                        }}
+                    </p>
+                    <Badge
+                        variant="outline"
+                        :class="statusTone(item.deployment.status)"
+                    >
+                        {{ statusLabel(item.deployment.status) }}
+                    </Badge>
+
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-muted/50 text-muted-foreground"
+                    >
+                        {{ runTypeLabel(item.deployment.type) }}
+                    </Badge>
+
+                    <div class="flex-1" />
+
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
+                        {{ t('common.started') }}:
+                        <span class="ml-1 font-medium text-foreground">{{
+                            formatDate(item.deployment.started_at)
+                        }}</span>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
+                        {{ t('common.finished') }}:
+                        <span class="ml-1 font-medium text-foreground">{{
+                            formatDate(item.deployment.finished_at)
+                        }}</span>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
+                        {{ t('flows.metrics.duration') }}:
+                        <span class="ml-1 font-medium text-foreground">{{
+                            formatDuration(
+                                item.deployment.started_at,
+                                item.deployment.finished_at,
+                            )
+                        }}</span>
+                    </Badge>
+                    <Badge
+                        variant="outline"
+                        class="border-border bg-transparent text-muted-foreground"
+                    >
+                        {{ t('flows.deployments.logs') }}:
+                        <span class="ml-1 font-medium text-foreground">{{
+                            item.deployment.logs.length
+                        }}</span>
+                    </Badge>
+
+                    <span
+                        class="inline-flex items-center text-muted-foreground"
+                    >
+                        <ArrowUpRight class="size-4 shrink-0" />
+                    </span>
+                </div>
+            </button>
+        </div>
 
         <FlowDeploymentDetailsDialog
             v-model:open="detailsOpen"

@@ -22,7 +22,7 @@ class FlowChatRequest extends FormRequest
     {
         return [
             'message' => ['required', 'string', 'max:10000'],
-            'current_code' => ['present', 'string'],
+            'current_code' => ['present', 'nullable', 'string'],
         ];
     }
 
@@ -33,6 +33,6 @@ class FlowChatRequest extends FormRequest
 
     public function currentCode(): string
     {
-        return (string) $this->validated('current_code');
+        return (string) ($this->validated('current_code') ?? '');
     }
 }

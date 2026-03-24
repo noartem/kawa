@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/tooltip';
 import cronstrue from 'cronstrue';
 import 'cronstrue/locales/ru';
-import { ArrowUpRight } from 'lucide-vue-next';
+import { ArrowUpRight, ScanSearch } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -456,6 +456,10 @@ const events = computed<DiscoveryEvent[]>(() => {
         .sort((left, right) => left.name.localeCompare(right.name));
 });
 
+const hasDiscoveryItems = computed(() => {
+    return actors.value.length > 0 || events.value.length > 0;
+});
+
 const clearHighlightTimer = (): void => {
     if (highlightTimer === null) {
         return;
@@ -546,6 +550,19 @@ onBeforeUnmount(() => {
         class="h-full divide-y overflow-y-auto rounded-xl border border-border"
         :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
     >
+        <div
+            v-if="!hasDiscoveryItems"
+            class="flex h-full min-h-[320px] flex-col items-center justify-center px-6 text-center"
+        >
+            <ScanSearch class="mb-4 size-10 text-muted-foreground/70" />
+            <p class="text-sm font-semibold text-foreground">
+                {{ t('flows.editor.discovery.empty_title') }}
+            </p>
+            <p class="mt-2 max-w-md text-sm text-muted-foreground">
+                {{ t('flows.editor.discovery.empty_description') }}
+            </p>
+        </div>
+
         <template v-if="actors.length">
             <h3
                 class="px-4 pt-3 pb-2 text-xs font-semibold tracking-wide text-muted-foreground"

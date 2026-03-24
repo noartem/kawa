@@ -9,6 +9,7 @@ use App\Models\AgentConversationMessage;
 use App\Models\Flow;
 use App\Models\User;
 use App\Support\FlowCodeDiff;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +56,55 @@ class FlowChatService
     }
 
     /**
+     * @param  array{search: ?string}  $filters
+     * @param  array{column: string, direction: string}  $sorting
+     */
+    public function paginatedArchivedChats(
+        Flow $flow,
+        int $perPage,
+        array $filters,
+        array $sorting,
+    ): LengthAwarePaginator {
+        $search = $filters['search'];
+        $sortColumn = $sorting['column'];
+        $sortDirection = $sorting['direction'];
+
+        $conversations = $flow->conversations()
+            ->when(
+                $flow->active_chat_conversation_id,
+                fn ($query, $activeChatId) => $query->where('id', '!=', $activeChatId),
+            )
+            ->when($search !== null, function ($query) use ($search): void {
+                $escapedSearch = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search);
+
+                $query->where(function ($whereQuery) use ($escapedSearch): void {
+                    $whereQuery
+                        ->where('id', 'like', '%'.$escapedSearch.'%')
+                        ->orWhere('title', 'like', '%'.$escapedSearch.'%')
+                        ->orWhereHas('messages', function ($messageQuery) use ($escapedSearch): void {
+                            $messageQuery->where('content', 'like', '%'.$escapedSearch.'%');
+                        });
+                });
+            })
+            ->withCount('messages')
+            ->with('messages')
+            ->orderBy($sortColumn, $sortDirection)
+            ->when($sortColumn !== 'id', function ($query) use ($sortDirection): void {
+                $query->orderBy('id', $sortDirection);
+            })
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $conversations->setCollection(
+            $conversations->getCollection()->map(
+                fn (AgentConversation $conversation): array => $this->serializeConversation($conversation),
+            ),
+        );
+
+        return $conversations;
+    }
+
+    /**
      * @return array{activeChat: array<string, mixed>, pastChats: array<int, array<string, mixed>>}
      */
     public function sendMessage(
@@ -64,14 +114,31 @@ class FlowChatService
         string $currentCode,
     ): array {
         $conversation = $this->resolveActiveConversation($flow, $user, $message);
+        $shouldGenerateTitle = $conversation->messages->isEmpty();
         $response = FlowCodeAssistant::make(
             currentCode: $currentCode,
             messages: $this->conversationMessagesForAgent($conversation),
+            shouldGenerateTitle: $shouldGenerateTitle,
         )->prompt($message);
 
+        $assistantTitle = trim((string) ($response['title'] ?? ''));
         $assistantReply = trim((string) ($response['reply'] ?? ''));
         $assistantCode = (string) ($response['code'] ?? $currentCode);
-        $hasCodeChanges = $assistantCode !== $currentCode;
+
+        if (! $this->hasMeaningfulCodeChanges($currentCode, $assistantCode)) {
+            $assistantCode = $currentCode;
+        }
+
+        $assistantResponseMode = (string) ($response['response_mode'] ?? '');
+        $normalizedResponseMode = $assistantResponseMode === FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY
+            || $assistantResponseMode === FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE
+            ? $assistantResponseMode
+            : ($assistantCode !== $currentCode
+                ? FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE
+                : FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY);
+
+        $hasCodeChanges = $normalizedResponseMode === FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE
+            && $assistantCode !== $currentCode;
         $assistantDiff = $hasCodeChanges
             ? $this->flowCodeDiff->build($currentCode, $assistantCode)
             : null;
@@ -100,12 +167,19 @@ class FlowChatService
             'tool_results' => [],
             'usage' => [],
             'meta' => [
-                'kind' => 'code_suggestion',
+                'kind' => $hasCodeChanges ? 'code_suggestion' : 'assistant_reply',
+                'response_mode' => $normalizedResponseMode,
                 'source_code' => $currentCode,
                 'proposed_code' => $assistantCode,
                 'diff' => $assistantDiff,
             ],
         ]);
+
+        if ($shouldGenerateTitle) {
+            $conversation->title = $assistantTitle !== ''
+                ? Str::limit($assistantTitle, 100, preserveWords: true)
+                : Str::limit($message, 100, preserveWords: true);
+        }
 
         $conversation->forceFill(['updated_at' => now()])->save();
         $flow->forceFill(['active_chat_conversation_id' => $conversation->id])->save();
@@ -190,8 +264,12 @@ class FlowChatService
     /**
      * @return array<string, mixed>
      */
-    public function debugPayload(Flow $flow, string $message, string $currentCode): array
-    {
+    public function debugPayload(
+        Flow $flow,
+        string $message,
+        string $currentCode,
+        bool $shouldGenerateTitle,
+    ): array {
         $flow->loadMissing('activeChatConversation.messages');
 
         $activeConversation = $flow->activeChatConversation;
@@ -204,6 +282,7 @@ class FlowChatService
             messages: $activeConversation instanceof AgentConversation
                 ? $this->conversationMessagesForAgent($activeConversation)
                 : [],
+            shouldGenerateTitle: $shouldGenerateTitle,
         );
 
         $historyPayload = $history
@@ -216,6 +295,9 @@ class FlowChatService
                     'agent' => $historyMessage->agent,
                     'content' => $historyMessage->content,
                     'kind' => is_string($meta['kind'] ?? null) ? $meta['kind'] : null,
+                    'response_mode' => is_string($meta['response_mode'] ?? null)
+                        ? $meta['response_mode']
+                        : null,
                     'created_at' => optional($historyMessage->created_at)?->toIso8601String(),
                 ];
             })
@@ -226,10 +308,11 @@ class FlowChatService
             'provider' => (string) config('ai.default'),
             'model' => FlowCodeAssistant::MODEL,
             'base_url' => config('ai.providers.openai.url'),
+            'should_generate_title' => $shouldGenerateTitle,
             'user_message' => $message,
             'current_code' => $currentCode,
             'instructions' => (string) $assistant->instructions(),
-            'schema' => FlowCodeAssistant::schemaPreview(),
+            'schema' => FlowCodeAssistant::schemaPreview($shouldGenerateTitle),
             'active_conversation' => $activeConversation instanceof AgentConversation
                 ? [
                     'id' => $activeConversation->id,
@@ -237,17 +320,21 @@ class FlowChatService
                 ]
                 : null,
             'history' => $historyPayload,
+            'history_strategy' => 'single_user_transcript',
             'request_preview' => [
                 'system_prompt' => (string) $assistant->instructions(),
                 'history_messages' => array_map(
-                    static fn (array $historyItem): array => [
-                        'role' => $historyItem['role'],
-                        'content' => $historyItem['content'],
+                    static fn (Message $historyMessage): array => [
+                        'role' => $historyMessage->role->value,
+                        'content' => $historyMessage->content,
                     ],
-                    $historyPayload,
+                    $activeConversation instanceof AgentConversation
+                        ? $this->conversationMessagesForAgent($activeConversation)
+                        : [],
                 ),
                 'user_message' => $message,
-                'structured_output' => FlowCodeAssistant::schemaPreview(),
+                'should_generate_title' => $shouldGenerateTitle,
+                'structured_output' => FlowCodeAssistant::schemaPreview($shouldGenerateTitle),
             ],
         ];
     }
@@ -281,11 +368,48 @@ class FlowChatService
     private function conversationMessagesForAgent(
         AgentConversation $conversation,
     ): array {
-        return $conversation->messages
-            ->map(function (AgentConversationMessage $message): Message {
-                return new Message($message->role, $message->content);
-            })
-            ->all();
+        $conversation->loadMissing('messages');
+
+        if ($conversation->messages->isEmpty()) {
+            return [];
+        }
+
+        return [
+            new Message('user', $this->buildConversationTranscript($conversation->messages)),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, AgentConversationMessage>  $messages
+     */
+    private function buildConversationTranscript(Collection $messages): string
+    {
+        $lines = ['Conversation so far:'];
+
+        foreach ($messages as $message) {
+            $speaker = $message->role === 'assistant' ? 'Assistant' : 'User';
+            $content = trim($message->content);
+
+            if ($content !== '') {
+                $lines[] = sprintf('%s: %s', $speaker, $content);
+            }
+
+            $meta = is_array($message->meta) ? $message->meta : [];
+            $responseMode = is_string($meta['response_mode'] ?? null)
+                ? $meta['response_mode']
+                : null;
+
+            if ($message->role === 'assistant' && $responseMode !== null) {
+                $lines[] = sprintf('Assistant response mode: %s', $responseMode);
+            }
+
+            if ($message->role === 'assistant' && is_string($meta['proposed_code'] ?? null)) {
+                $lines[] = 'Assistant proposed code:';
+                $lines[] = (string) $meta['proposed_code'];
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -334,12 +458,20 @@ class FlowChatService
             'content' => $message->content,
             'created_at' => optional($message->created_at)?->toIso8601String(),
             'kind' => is_string($meta['kind'] ?? null) ? $meta['kind'] : null,
+            'response_mode' => is_string($meta['response_mode'] ?? null)
+                ? $meta['response_mode']
+                : null,
             'source_code' => $sourceCode,
             'proposed_code' => $proposedCode,
             'diff' => $diff,
             'has_code_changes' => $proposedCode !== null
                 && $sourceCode !== null
-                && $proposedCode !== $sourceCode,
+                && $this->hasMeaningfulCodeChanges($sourceCode, $proposedCode),
         ];
+    }
+
+    private function hasMeaningfulCodeChanges(string $originalCode, string $updatedCode): bool
+    {
+        return trim($originalCode) !== trim($updatedCode);
     }
 }
