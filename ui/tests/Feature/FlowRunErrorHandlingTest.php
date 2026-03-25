@@ -114,6 +114,12 @@ class FlowRunErrorHandlingTest extends TestCase
             'finished_at' => now()->subMinutes(4),
             'code_snapshot' => $flow->code,
             'graph_snapshot' => [
+                'events' => [
+                    ['id' => 'previous.event'],
+                ],
+                'actors' => [
+                    ['id' => 'previous.actor'],
+                ],
                 'nodes' => [
                     ['id' => 'previous.event', 'type' => 'event', 'label' => 'previous.event'],
                 ],
@@ -125,6 +131,10 @@ class FlowRunErrorHandlingTest extends TestCase
         $client
             ->shouldReceive('createContainer')
             ->once()
+            ->withArgs(function (array $payload): bool {
+                return ($payload['events'] ?? null) === [['id' => 'previous.event']]
+                    && ($payload['actors'] ?? null) === [['id' => 'previous.actor']];
+            })
             ->andReturn([
                 'ok' => true,
                 'correlation_id' => 'corr-id',
@@ -317,7 +327,7 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertTrue($result['ok']);
     }
 
-    public function test_container_created_event_pulls_graph_from_runtime_async(): void
+    public function test_container_created_event_uses_graph_from_event_payload(): void
     {
         /** @var User $user */
         $user = User::factory()->createOne();
@@ -335,35 +345,27 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $client = $this->mock(FlowManagerClient::class);
-        $client
-            ->shouldReceive('containerGraph')
-            ->once()
-            ->with('container-id-1')
-            ->andReturn([
-                'events' => [
-                    [
-                        'id' => 'CronEvent',
-                        'source_line' => 6,
-                        'source_kind' => 'import',
-                        'source_module' => 'app.events',
-                    ],
-                ],
-                'actors' => [
-                    [
-                        'id' => 'StarterActor',
-                        'receives' => ['CronEvent'],
-                        'sends' => ['PreparedEvent'],
-                        'source_line' => 16,
-                        'source_kind' => 'main',
-                    ],
-                ],
-            ]);
-
         $job = new ProcessFlowManagerEvent('container_created', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-1',
+            'events' => [
+                [
+                    'id' => 'CronEvent',
+                    'source_line' => 6,
+                    'source_kind' => 'import',
+                    'source_module' => 'app.events',
+                ],
+            ],
+            'actors' => [
+                [
+                    'id' => 'StarterActor',
+                    'receives' => ['CronEvent'],
+                    'sends' => ['PreparedEvent'],
+                    'source_line' => 16,
+                    'source_kind' => 'main',
+                ],
+            ],
         ]);
         $job->handle();
 

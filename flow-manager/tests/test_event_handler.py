@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, Mock
 from datetime import datetime
@@ -39,6 +40,7 @@ def test_handler_initialization_registers_callbacks():
 @pytest.mark.asyncio
 async def test_handle_create_container_success():
     handler, messaging, container_manager, socket_handler, user_logger = _make_handler()
+    message = Mock(reply_to="reply-queue", correlation_id="corr-1")
 
     sample_container = ContainerInfo(
         id="test-container-123",
@@ -64,14 +66,12 @@ async def test_handle_create_container_success():
             "ports": {"8080": 8080},
         },
     }
-    await handler._dispatch_command(payload, message=None)
+    await handler._dispatch_command(payload, message=message)
+    await asyncio.sleep(0)
 
     container_manager.create_container.assert_awaited()
     socket_handler.setup_socket.assert_awaited_with(
-        sample_container.name, sample_container.name
-    )
-    socket_handler.link_socket_key.assert_called_once_with(
-        sample_container.name, sample_container.id
+        sample_container.id, sample_container.name
     )
     user_logger.container_created.assert_awaited()
 
@@ -85,12 +85,13 @@ async def test_handle_create_container_success():
 async def test_handle_send_message_error():
     handler, messaging, _, socket_handler, _ = _make_handler()
     socket_handler.send_message = AsyncMock(side_effect=Exception("send failure"))
+    message = Mock(reply_to="reply-queue", correlation_id="corr-1")
 
     payload = {
         "action": "send_message",
         "data": {"container_id": "cid", "message": {"hello": "world"}},
     }
-    await handler._dispatch_command(payload, message=None)
+    await handler._dispatch_command(payload, message=message)
 
     assert messaging.published_responses
     error_response = messaging.published_responses[0]["payload"]
@@ -101,6 +102,7 @@ async def test_handle_send_message_error():
 @pytest.mark.asyncio
 async def test_handle_get_container_graph_success():
     handler, messaging, container_manager, _, _ = _make_handler()
+    message = Mock(reply_to="reply-queue", correlation_id="corr-1")
     container_manager.get_container_graph = AsyncMock(
         return_value={"actors": [{"id": "a1"}], "events": []}
     )
@@ -110,7 +112,7 @@ async def test_handle_get_container_graph_success():
         "data": {"container_id": "cid"},
     }
 
-    await handler._dispatch_command(payload, message=None)
+    await handler._dispatch_command(payload, message=message)
 
     container_manager.get_container_graph.assert_awaited_once_with("cid")
     assert messaging.published_responses
@@ -120,6 +122,39 @@ async def test_handle_get_container_graph_success():
         "container_id": "cid",
         "graph": {"actors": [{"id": "a1"}], "events": []},
     }
+
+
+@pytest.mark.asyncio
+async def test_fire_and_forget_command_skips_response_queue_publish():
+    handler, messaging, container_manager, socket_handler, user_logger = _make_handler()
+
+    sample_container = ContainerInfo(
+        id="test-container-123",
+        name="test-container",
+        status="created",
+        image="test-image:latest",
+        created=datetime.now(),
+        socket_path="/tmp/test-container-123.sock",
+        ports={},
+        environment={},
+    )
+    container_manager.create_container = AsyncMock(return_value=sample_container)
+    socket_handler.setup_socket = AsyncMock()
+    user_logger.container_created = AsyncMock()
+
+    await handler._dispatch_command(
+        {
+            "action": "create_container",
+            "data": {
+                "image": "test-image:latest",
+                "name": "test-container",
+            },
+        },
+        message=None,
+    )
+    await asyncio.sleep(0)
+
+    assert messaging.published_responses == []
 
 
 @pytest.mark.asyncio

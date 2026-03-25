@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Dict, Optional
 
 from docker.errors import APIError, ImageNotFound, NotFound
 
@@ -94,18 +94,18 @@ class EventHandler:
             )
             handler = self.handlers[action]
             response = await handler(data)
-            await self.messaging.publish_response(
-                action,
-                {"ok": True, "action": action, "data": response},
-                reply_to=reply_to,
-                correlation_id=correlation_id,
-            )
+            if reply_to:
+                await self.messaging.publish_response(
+                    action,
+                    {"ok": True, "action": action, "data": response},
+                    reply_to=reply_to,
+                    correlation_id=correlation_id,
+                )
         except Exception as exc:
             await self._emit_error(action, data, exc, reply_to, correlation_id)
 
     async def handle_create_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = CreateContainerEvent(**data)
-        prepared_socket_key: Optional[str] = None
 
         labels = dict(event_data.labels)
         if event_data.flow_id is not None:
@@ -129,31 +129,12 @@ class EventHandler:
             working_dir=event_data.working_dir,
         )
 
-        if event_data.name:
-            prepared_socket_key = event_data.name
-            await self.socket_handler.setup_socket(
-                prepared_socket_key, prepared_socket_key
-            )
-
         try:
             container_info = await self.container_manager.create_container(config)
         except Exception:
-            if prepared_socket_key:
-                await self.socket_handler.cleanup_socket(prepared_socket_key)
             raise
 
-        if prepared_socket_key and prepared_socket_key == container_info.name:
-            self.socket_handler.link_socket_key(prepared_socket_key, container_info.id)
-        else:
-            if prepared_socket_key:
-                await self.socket_handler.cleanup_socket(prepared_socket_key)
-            await self.socket_handler.setup_socket(
-                container_info.id, container_info.name
-            )
-
-        await self.user_logger.container_created(
-            container_info.id, container_info.name, container_info.image
-        )
+        await self.socket_handler.setup_socket(container_info.id, container_info.name)
         await self.messaging.publish_event(
             "container_created",
             {
@@ -163,8 +144,19 @@ class EventHandler:
                 "flow_id": event_data.flow_id,
                 "flow_run_id": event_data.flow_run_id,
                 "graph_hash": event_data.graph_hash,
+                "actors": event_data.actors,
+                "events": event_data.events,
                 "test_run_id": event_data.test_run_id,
             },
+        )
+        self._emit_activity_log_background(
+            self.user_logger.container_created(
+                container_info.id,
+                container_info.name,
+                container_info.image,
+            ),
+            operation="container_created_activity_log",
+            container_id=container_info.id,
         )
 
         return {
@@ -348,17 +340,39 @@ class EventHandler:
             details={"operation": action, "data": data},
         )
 
-        await self.messaging.publish_response(
-            action or "unknown",
-            error_response.model_dump(mode="json"),
-            reply_to=reply_to,
-            correlation_id=correlation_id,
-        )
+        if reply_to:
+            await self.messaging.publish_response(
+                action or "unknown",
+                error_response.model_dump(mode="json"),
+                reply_to=reply_to,
+                correlation_id=correlation_id,
+            )
 
         container_id = data.get("container_id", "unknown")
         await self.user_logger.container_error(
             container_id, str(error), operation=action
         )
+
+    def _emit_activity_log_background(
+        self,
+        coroutine: Awaitable[None],
+        *,
+        operation: str,
+        container_id: str,
+    ) -> None:
+        async def _run() -> None:
+            try:
+                await coroutine
+            except Exception as exc:
+                self.logger.error(
+                    exc,
+                    {
+                        "operation": operation,
+                        "container_id": container_id,
+                    },
+                )
+
+        asyncio.create_task(_run())
 
     def _register_container_callbacks(self) -> None:
         """Register callbacks for container monitoring events."""

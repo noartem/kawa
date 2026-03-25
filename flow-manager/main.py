@@ -44,9 +44,9 @@ DEFAULT_SOCKET_DIR = os.getenv(
     "FLOW_MANAGER_SOCKET_DIR",
     str(Path(__file__).resolve().parent / ".run" / "sockets"),
 )
-RUNTIME_POLL_INTERVAL_SECONDS = 1
-RUNTIME_POLL_FAILURE_THRESHOLD = 3
-RUNTIME_POLL_BACKOFF_SECONDS = 30
+RUNTIME_CONNECTION_TIMEOUT_SECONDS = 5
+HEALTH_CHECK_CONCURRENCY = 8
+CRON_DISPATCH_CONCURRENCY = 8
 
 
 class FlowManagerApp:
@@ -65,6 +65,8 @@ class FlowManagerApp:
         self.socket_handler = SocketCommunicationHandler(
             socket_dir=socket_dir, logger=SystemLogger("socket_communication_handler")
         )
+        self.socket_handler.set_message_callback(self._handle_runtime_socket_message)
+        self.socket_handler.set_disconnect_callback(self._handle_runtime_disconnect)
         self.sensivity_filter = SensivityFilter()
         self.user_logger = UserActivityLogger(
             self.messaging, sensivity_filter=self.sensivity_filter
@@ -82,9 +84,7 @@ class FlowManagerApp:
         self._shutdown_lock = asyncio.Lock()
         self._started = False
         self._last_published_container_status: dict[str, dict[str, Any]] = {}
-        self._runtime_socket_locks: dict[str, asyncio.Lock] = {}
-        self._runtime_poll_failures: dict[str, int] = {}
-        self._runtime_poll_backoff_until: dict[str, float] = {}
+        self._runtime_ready_containers: set[str] = set()
 
         self.logger.debug(
             "FlowManagerApp initialized",
@@ -137,9 +137,6 @@ class FlowManagerApp:
 
         self._background_tasks.append(asyncio.create_task(self._health_check_loop()))
         self._background_tasks.append(asyncio.create_task(self._cron_tick_loop()))
-        self._background_tasks.append(
-            asyncio.create_task(self._runtime_event_poll_loop())
-        )
         self._started = True
 
         self.logger.debug(
@@ -203,46 +200,11 @@ class FlowManagerApp:
                 active_container_ids = {container.id for container in containers}
                 self._prune_status_cache(active_container_ids)
 
-                for container in containers:
-                    try:
-                        status = await self.container_manager.get_container_status(
-                            container.id
-                        )
-                        state = str(getattr(status.state, "value", status.state))
-                        health = str(getattr(status.health, "value", status.health))
-
-                        should_publish_status = self._should_publish_container_status(
-                            container.id,
-                            state,
-                            health,
-                            status.socket_connected,
-                        )
-
-                        if should_publish_status:
-                            await self.messaging.publish_event(
-                                "container_status_update",
-                                {
-                                    "container_id": container.id,
-                                    "status": {
-                                        "state": state,
-                                        "health": health,
-                                        "socket_connected": status.socket_connected,
-                                        "uptime": str(status.uptime)
-                                        if status.uptime
-                                        else None,
-                                        "resource_usage": status.resource_usage,
-                                    },
-                                },
-                            )
-
-                    except Exception as exc:
-                        self.logger.error(
-                            exc,
-                            {
-                                "operation": "health_check",
-                                "container_id": container.id,
-                            },
-                        )
+                await self._run_with_concurrency(
+                    containers,
+                    HEALTH_CHECK_CONCURRENCY,
+                    self._handle_container_health_check,
+                )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -263,20 +225,6 @@ class FlowManagerApp:
                 self.logger.error(exc, {"operation": "cron_tick_loop"})
                 await asyncio.sleep(5)
 
-    async def _runtime_event_poll_loop(self) -> None:
-        while not self._shutdown_event.is_set():
-            try:
-                await asyncio.sleep(RUNTIME_POLL_INTERVAL_SECONDS)
-                if self._shutdown_event.is_set():
-                    break
-
-                await self._poll_runtime_events()
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                self.logger.error(exc, {"operation": "runtime_event_poll_loop"})
-                await asyncio.sleep(RUNTIME_POLL_INTERVAL_SECONDS)
-
     def _seconds_until_next_minute(self) -> float:
         remainder = time.time() % 60
         wait_time = 60 - remainder
@@ -286,93 +234,17 @@ class FlowManagerApp:
 
     async def _dispatch_cron_ticks(self) -> None:
         containers = await self.container_manager.list_containers()
-        self._prune_runtime_poll_state({container.id for container in containers})
+        active_containers = [
+            container
+            for container in containers
+            if self._is_active_flow_deployment(container)
+        ]
 
-        for container in containers:
-            try:
-                if not self._is_active_flow_deployment(container):
-                    continue
-
-                lock = self._get_runtime_socket_lock(container.id)
-                async with lock:
-                    if not self.socket_handler.is_socket_connected(container.id):
-                        await self.socket_handler.setup_socket(
-                            container.id,
-                            container.name,
-                        )
-
-                    timezone = container.environment.get("FLOW_TIMEZONE", "UTC")
-                    await self.socket_handler.send_message(
-                        container.id,
-                        {
-                            "command": "cron_tick",
-                            "data": {
-                                "timezone": timezone,
-                            },
-                        },
-                    )
-                    runtime_response = await self.socket_handler.receive_message(
-                        container.id,
-                        timeout=5,
-                    )
-                    await self._handle_runtime_command_response(
-                        container.id, runtime_response
-                    )
-            except Exception as exc:
-                self.logger.error(
-                    exc,
-                    {
-                        "operation": "dispatch_cron_tick",
-                        "container_id": container.id,
-                    },
-                )
-
-    async def _poll_runtime_events(self) -> None:
-        containers = await self.container_manager.list_containers()
-        self._prune_runtime_poll_state({container.id for container in containers})
-
-        for container in containers:
-            try:
-                if not self._is_active_flow_deployment(container):
-                    continue
-
-                if self._should_skip_runtime_poll(container.id):
-                    continue
-
-                lock = self._get_runtime_socket_lock(container.id)
-                async with lock:
-                    if not self.socket_handler.is_socket_connected(container.id):
-                        await self.socket_handler.setup_socket(
-                            container.id,
-                            container.name,
-                        )
-
-                    await self.socket_handler.send_message(
-                        container.id,
-                        {
-                            "command": "pull_events",
-                        },
-                    )
-                    runtime_response = await self.socket_handler.receive_message(
-                        container.id,
-                        timeout=3,
-                    )
-                    await self._handle_runtime_socket_message(
-                        container.id,
-                        runtime_response,
-                    )
-
-                self._clear_runtime_poll_failures(container.id)
-            except SocketTimeoutError as exc:
-                self._record_runtime_poll_timeout(container.id, exc)
-            except Exception as exc:
-                self.logger.error(
-                    exc,
-                    {
-                        "operation": "poll_runtime_events",
-                        "container_id": container.id,
-                    },
-                )
+        await self._run_with_concurrency(
+            active_containers,
+            CRON_DISPATCH_CONCURRENCY,
+            self._dispatch_cron_tick_to_container,
+        )
 
     def _is_active_flow_deployment(self, container: Any) -> bool:
         if str(container.status).lower() != "running":
@@ -425,106 +297,127 @@ class FlowManagerApp:
         for container_id in stale_ids:
             self._last_published_container_status.pop(container_id, None)
 
-    def _get_runtime_socket_lock(self, container_id: str) -> asyncio.Lock:
-        lock = self._runtime_socket_locks.get(container_id)
-        if lock is None:
-            lock = asyncio.Lock()
-            self._runtime_socket_locks[container_id] = lock
-
-        return lock
-
-    def _should_skip_runtime_poll(self, container_id: str) -> bool:
-        backoff_until = self._runtime_poll_backoff_until.get(container_id)
-        if backoff_until is None:
-            return False
-
-        return backoff_until > time.time()
-
-    def _record_runtime_poll_timeout(
+    async def _run_with_concurrency(
         self,
-        container_id: str,
-        error: Exception,
+        containers: list[Any],
+        limit: int,
+        handler: Any,
     ) -> None:
-        failures = self._runtime_poll_failures.get(container_id, 0) + 1
-        self._runtime_poll_failures[container_id] = failures
-
-        if failures >= RUNTIME_POLL_FAILURE_THRESHOLD:
-            backoff_until = time.time() + RUNTIME_POLL_BACKOFF_SECONDS
-            self._runtime_poll_backoff_until[container_id] = backoff_until
-            self._runtime_poll_failures[container_id] = 0
-            self.logger.debug(
-                "Runtime event poll entering backoff",
-                {
-                    "operation": "poll_runtime_events",
-                    "container_id": container_id,
-                    "backoff_seconds": RUNTIME_POLL_BACKOFF_SECONDS,
-                    "reason": str(error),
-                },
-            )
+        if not containers:
             return
 
-        self.logger.debug(
-            "Runtime event poll timeout",
-            {
-                "operation": "poll_runtime_events",
-                "container_id": container_id,
-                "failures": failures,
-                "threshold": RUNTIME_POLL_FAILURE_THRESHOLD,
-                "reason": str(error),
-            },
-        )
+        semaphore = asyncio.Semaphore(limit)
 
-    def _clear_runtime_poll_failures(self, container_id: str) -> None:
-        self._runtime_poll_failures.pop(container_id, None)
-        self._runtime_poll_backoff_until.pop(container_id, None)
+        async def _run(container: Any) -> None:
+            async with semaphore:
+                await handler(container)
 
-    def _prune_runtime_poll_state(self, container_ids: set[str]) -> None:
-        stale_ids = [
-            container_id
-            for container_id in self._runtime_socket_locks
-            if container_id not in container_ids
-        ]
+        await asyncio.gather(*(_run(container) for container in containers))
 
-        for container_id in stale_ids:
-            self._runtime_socket_locks.pop(container_id, None)
-            self._runtime_poll_failures.pop(container_id, None)
-            self._runtime_poll_backoff_until.pop(container_id, None)
+    async def _dispatch_cron_tick_to_container(self, container: Any) -> None:
+        try:
+            if not self.socket_handler.is_socket_connected(container.id):
+                await self.socket_handler.setup_socket(container.id, container.name)
 
-    async def _drain_container_messages(self, container_id: str) -> None:
-        while self.socket_handler.has_pending_connection(container_id):
-            try:
-                message = await self.socket_handler.receive_message(
-                    container_id,
-                    timeout=1,
+            await self.socket_handler.wait_for_connection(
+                container.id,
+                timeout=RUNTIME_CONNECTION_TIMEOUT_SECONDS,
+            )
+
+            timezone = container.environment.get("FLOW_TIMEZONE", "UTC")
+            await self.socket_handler.send_message(
+                container.id,
+                {
+                    "command": "cron_tick",
+                    "data": {
+                        "timezone": timezone,
+                    },
+                },
+                timeout=RUNTIME_CONNECTION_TIMEOUT_SECONDS,
+            )
+        except SocketTimeoutError:
+            self.logger.debug(
+                "Skipping cron tick for disconnected runtime",
+                {
+                    "operation": "dispatch_cron_tick",
+                    "container_id": container.id,
+                },
+            )
+        except Exception as exc:
+            self.logger.error(
+                exc,
+                {
+                    "operation": "dispatch_cron_tick",
+                    "container_id": container.id,
+                },
+            )
+
+    async def _handle_container_health_check(self, container: Any) -> None:
+        try:
+            status = await self.container_manager.get_container_status(container.id)
+            state = str(getattr(status.state, "value", status.state))
+            health = str(getattr(status.health, "value", status.health))
+
+            should_publish_status = self._should_publish_container_status(
+                container.id,
+                state,
+                health,
+                status.socket_connected,
+            )
+
+            if should_publish_status:
+                await self.messaging.publish_event(
+                    "container_status_update",
+                    {
+                        "container_id": container.id,
+                        "status": {
+                            "state": state,
+                            "health": health,
+                            "socket_connected": status.socket_connected,
+                            "uptime": str(status.uptime) if status.uptime else None,
+                            "resource_usage": status.resource_usage,
+                        },
+                    },
                 )
-            except Exception as exc:
-                if isinstance(exc, SocketTimeoutError):
-                    self.logger.debug(
-                        "Runtime socket drain timeout",
-                        {
-                            "operation": "receive_runtime_message",
-                            "container_id": container_id,
-                            "reason": str(exc),
-                        },
-                    )
-                else:
-                    self.logger.error(
-                        exc,
-                        {
-                            "operation": "receive_runtime_message",
-                            "container_id": container_id,
-                        },
-                    )
-                return
-
-            await self._handle_runtime_socket_message(container_id, message)
+        except Exception as exc:
+            self.logger.error(
+                exc,
+                {
+                    "operation": "health_check",
+                    "container_id": container.id,
+                },
+            )
 
     async def _handle_runtime_socket_message(
         self,
         container_id: str,
         message: dict[str, Any],
     ) -> None:
-        if message.get("type") != "runtime_events":
+        message_type = str(message.get("type", "")).strip()
+
+        if message_type == "runtime_hello":
+            self._runtime_ready_containers.add(container_id)
+            self.logger.debug(
+                "Runtime hello received",
+                {
+                    "operation": "handle_runtime_socket_message",
+                    "container_id": container_id,
+                },
+            )
+            return
+
+        if message_type == "runtime_ack":
+            return
+
+        if message_type != "runtime_events":
+            self.logger.debug(
+                "Unknown runtime socket message",
+                {
+                    "operation": "handle_runtime_socket_message",
+                    "container_id": container_id,
+                    "message_type": message_type,
+                },
+            )
             return
 
         runtime_events = message.get("events")
@@ -543,25 +436,25 @@ class FlowManagerApp:
                 },
             )
 
-    async def _handle_runtime_command_response(
-        self,
-        container_id: str,
-        message: dict[str, Any],
-    ) -> None:
-        if message.get("type") == "runtime_events":
+    async def _drain_container_messages(self, container_id: str) -> None:
+        while self.socket_handler.has_pending_connection(container_id):
+            try:
+                message = await self.socket_handler.receive_message(
+                    container_id,
+                    timeout=1,
+                )
+            except SocketTimeoutError:
+                return
+
             await self._handle_runtime_socket_message(container_id, message)
-            return
 
-        response_type = str(message.get("type", "")).strip()
-        if response_type == "runtime_ack":
-            return
-
+    async def _handle_runtime_disconnect(self, container_id: str) -> None:
+        self._runtime_ready_containers.discard(container_id)
         self.logger.debug(
-            "Unknown runtime command response",
+            "Runtime disconnected",
             {
-                "operation": "handle_runtime_command_response",
+                "operation": "handle_runtime_disconnect",
                 "container_id": container_id,
-                "message_type": response_type,
             },
         )
 

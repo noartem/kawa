@@ -81,6 +81,11 @@ class ContainerManager:
             "ContainerManager initialized", {"socket_dir": self.socket_dir}
         )
 
+    async def _run_docker_call(
+        self, func: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> Any:
+        return await asyncio.to_thread(func, *args, **kwargs)
+
     def _get_container_socket_dir(self, container_name: str) -> str:
         return os.path.join(self.socket_dir, container_name)
 
@@ -144,7 +149,8 @@ class ContainerManager:
 
             # Create container
             labels = self._build_labels(config.labels)
-            container = self.docker_client.containers.create(
+            container = await self._run_docker_call(
+                self.docker_client.containers.create,
                 image=config.image,
                 name=container_name,
                 labels=labels or None,
@@ -156,8 +162,8 @@ class ContainerManager:
                 detach=True,
             )
             self._container_states[container.id] = ContainerState.CREATED
-            container.start()
-            container.reload()
+            await self._run_docker_call(container.start)
+            await self._run_docker_call(container.reload)
 
             # Create container info
             container_info = self._build_container_info(container, socket_path)
@@ -200,8 +206,10 @@ class ContainerManager:
         try:
             self.logger.debug("Starting container", {"container_id": container_id})
 
-            container = self.docker_client.containers.get(container_id)
-            container.start()
+            container = await self._run_docker_call(
+                self.docker_client.containers.get, container_id
+            )
+            await self._run_docker_call(container.start)
 
             self.logger.container_operation(
                 "start", container_id, {"status": "started"}
@@ -232,9 +240,11 @@ class ContainerManager:
         try:
             self.logger.debug("Stopping container", {"container_id": container_id})
 
-            container = self.docker_client.containers.get(container_id)
+            container = await self._run_docker_call(
+                self.docker_client.containers.get, container_id
+            )
             self._expected_stops.add(container_id)
-            container.stop()
+            await self._run_docker_call(container.stop)
 
             self.logger.container_operation("stop", container_id, {"status": "stopped"})
 
@@ -706,8 +716,10 @@ class ContainerManager:
             NotFound: If container doesn't exist
         """
         try:
-            container = self.docker_client.containers.get(container_id)
-            container.reload()  # Refresh container state
+            container = await self._run_docker_call(
+                self.docker_client.containers.get, container_id
+            )
+            await self._run_docker_call(container.reload)
 
             # Parse container state
             state_str = container.attrs.get("State", {}).get("Status", "unknown")
@@ -769,7 +781,10 @@ class ContainerManager:
             List[ContainerInfo]: List of container information
         """
         try:
-            containers = self.docker_client.containers.list(all=True)
+            containers = await self._run_docker_call(
+                self.docker_client.containers.list,
+                all=True,
+            )
             container_infos = []
 
             for container in containers:
@@ -788,7 +803,9 @@ class ContainerManager:
     async def get_container_graph(self, container_id: str) -> Dict[str, Any]:
         """Extract runtime graph information from a flow container."""
         try:
-            container = self.docker_client.containers.get(container_id)
+            container = await self._run_docker_call(
+                self.docker_client.containers.get, container_id
+            )
 
             script = """
 import ast
@@ -1037,7 +1054,10 @@ print(
 )
 """
 
-            result = container.exec_run(["python", "-c", script])
+            result = await self._run_docker_call(
+                container.exec_run,
+                ["python", "-c", script],
+            )
             output = (result.output or b"").decode("utf-8", errors="ignore").strip()
 
             if result.exit_code != 0:
@@ -1155,7 +1175,7 @@ print(
         """
         try:
             # Get container stats (non-blocking)
-            stats = container.stats(stream=False)
+            stats = await self._run_docker_call(container.stats, stream=False)
             if not isinstance(stats, dict):
                 stats = {}
 
@@ -1369,7 +1389,10 @@ print(
         while self._monitoring_active:
             try:
                 # Get all containers
-                containers = self.docker_client.containers.list(all=True)
+                containers = await self._run_docker_call(
+                    self.docker_client.containers.list,
+                    all=True,
+                )
 
                 for container in containers:
                     await self._check_container_status(container)
@@ -1389,7 +1412,7 @@ print(
             container: Docker container object
         """
         try:
-            container.reload()
+            await self._run_docker_call(container.reload)
             container_id = container.id
 
             # Parse current state

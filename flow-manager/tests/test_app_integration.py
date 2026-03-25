@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
@@ -173,44 +172,32 @@ async def test_handle_runtime_socket_message_publishes_runtime_events(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_drain_container_messages_reads_and_publishes_runtime_events(monkeypatch):
+async def test_handle_runtime_socket_message_marks_runtime_ready(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
         mock_docker.return_value = Mock()
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
-    app.socket_handler.has_pending_connection = Mock(side_effect=[True, False])
-    app.socket_handler.receive_message = AsyncMock(
-        return_value={
-            "type": "runtime_events",
-            "events": [
-                {
-                    "seq": 10,
-                    "kind": "event_dispatched",
-                    "actor": "Worker",
-                    "event": "Message",
-                }
-            ],
-        }
-    )
-    app.messaging.publish_event = AsyncMock()
-
-    await app._drain_container_messages("container-1")
-
-    app.socket_handler.receive_message.assert_called_once_with(
+    await app._handle_runtime_socket_message(
         "container-1",
-        timeout=1,
+        {"type": "runtime_hello"},
     )
-    app.messaging.publish_event.assert_called_once_with(
-        "flow_runtime_event",
-        {
-            "container_id": "container-1",
-            "seq": 10,
-            "kind": "event_dispatched",
-            "actor": "Worker",
-            "event": "Message",
-        },
-    )
+
+    assert "container-1" in app._runtime_ready_containers
+
+
+@pytest.mark.asyncio
+async def test_handle_runtime_disconnect_clears_runtime_ready(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app._runtime_ready_containers.add("container-1")
+
+    await app._handle_runtime_disconnect("container-1")
+
+    assert "container-1" not in app._runtime_ready_containers
 
 
 @pytest.mark.asyncio
@@ -238,14 +225,8 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
     )
     app.socket_handler.is_socket_connected = Mock(return_value=False)
     app.socket_handler.setup_socket = AsyncMock()
+    app.socket_handler.wait_for_connection = AsyncMock()
     app.socket_handler.send_message = AsyncMock()
-    app.socket_handler.receive_message = AsyncMock(
-        return_value={
-            "type": "runtime_ack",
-            "command": "cron_tick",
-            "ok": True,
-        }
-    )
 
     await app._dispatch_cron_ticks()
 
@@ -255,8 +236,9 @@ async def test_dispatch_cron_ticks_targets_only_active_flow_deployments(monkeypa
             "command": "cron_tick",
             "data": {"timezone": "Europe/Berlin"},
         },
+        timeout=5,
     )
-    app.socket_handler.receive_message.assert_called_once_with(
+    app.socket_handler.wait_for_connection.assert_called_once_with(
         "active-container",
         timeout=5,
     )
@@ -295,7 +277,7 @@ async def test_restore_runtime_sockets_for_active_flow_deployments(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_poll_runtime_events_targets_only_active_flow_deployments(monkeypatch):
+async def test_dispatch_cron_ticks_skips_disconnected_runtime_on_timeout(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
         mock_docker.return_value = Mock()
@@ -317,116 +299,12 @@ async def test_poll_runtime_events_targets_only_active_flow_deployments(monkeypa
     app.container_manager.list_containers = AsyncMock(
         return_value=[active, non_flow, stopped]
     )
-    app.socket_handler.is_socket_connected = Mock(return_value=False)
-    app.socket_handler.setup_socket = AsyncMock()
-    app.socket_handler.send_message = AsyncMock()
-    app.socket_handler.receive_message = AsyncMock(
-        return_value={
-            "type": "runtime_events",
-            "events": [
-                {
-                    "seq": 1,
-                    "kind": "actor_invoked",
-                    "actor": "CronStarter",
-                    "event": "CronEvent",
-                }
-            ],
-        }
-    )
-    app.messaging.publish_event = AsyncMock()
-
-    await app._poll_runtime_events()
-
-    app.socket_handler.send_message.assert_called_once_with(
-        "active-container",
-        {"command": "pull_events"},
-    )
-    app.socket_handler.receive_message.assert_called_once_with(
-        "active-container",
-        timeout=3,
-    )
-    app.socket_handler.setup_socket.assert_called_once_with(
-        "active-container",
-        "flow-2-run-1",
-    )
-    app.messaging.publish_event.assert_called_once_with(
-        "flow_runtime_event",
-        {
-            "container_id": "active-container",
-            "seq": 1,
-            "kind": "actor_invoked",
-            "actor": "CronStarter",
-            "event": "CronEvent",
-        },
-    )
-
-
-@pytest.mark.asyncio
-async def test_poll_runtime_events_applies_backoff_after_repeated_timeouts(monkeypatch):
-    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
-    with patch("docker.from_env") as mock_docker:
-        mock_docker.return_value = Mock()
-        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
-
-    active = Mock(
-        id="active-container",
-        status="running",
-        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "Europe/Berlin"},
-    )
-    active.name = "flow-2-run-1"
-
-    app.container_manager.list_containers = AsyncMock(return_value=[active])
     app.socket_handler.is_socket_connected = Mock(return_value=True)
-    app.socket_handler.send_message = AsyncMock(
+    app.socket_handler.wait_for_connection = AsyncMock(
         side_effect=SocketTimeoutError("timeout")
     )
+    app.socket_handler.send_message = AsyncMock()
 
-    await app._poll_runtime_events()
-    await app._poll_runtime_events()
-    await app._poll_runtime_events()
-    await app._poll_runtime_events()
+    await app._dispatch_cron_ticks()
 
-    assert app.socket_handler.send_message.await_count == 3
-
-
-@pytest.mark.asyncio
-async def test_runtime_socket_commands_are_serialized_per_container(monkeypatch):
-    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
-    with patch("docker.from_env") as mock_docker:
-        mock_docker.return_value = Mock()
-        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
-
-    active = Mock(
-        id="active-container",
-        status="running",
-        environment={"FLOW_RUN_ID": "42", "FLOW_TIMEZONE": "Europe/Berlin"},
-    )
-    active.name = "flow-2-run-1"
-
-    app.container_manager.list_containers = AsyncMock(return_value=[active])
-    app.socket_handler.is_socket_connected = Mock(return_value=True)
-    app.socket_handler.setup_socket = AsyncMock()
-    app._drain_container_messages = AsyncMock()
-
-    inflight = 0
-    max_inflight = 0
-
-    async def send_message_side_effect(_container_id, _payload):
-        nonlocal inflight, max_inflight
-        inflight += 1
-        max_inflight = max(max_inflight, inflight)
-        await asyncio.sleep(0.01)
-        inflight -= 1
-
-    app.socket_handler.send_message = AsyncMock(side_effect=send_message_side_effect)
-    app.socket_handler.receive_message = AsyncMock(
-        return_value={"type": "runtime_ack", "ok": True}
-    )
-
-    await asyncio.gather(
-        app._dispatch_cron_ticks(),
-        app._poll_runtime_events(),
-    )
-
-    assert app.socket_handler.send_message.await_count == 2
-    assert max_inflight == 1
+    app.socket_handler.send_message.assert_not_called()

@@ -6,7 +6,6 @@ use App\Events\FlowEventBroadcast;
 use App\Models\Flow;
 use App\Models\FlowLog;
 use App\Models\FlowRun;
-use App\Services\FlowManagerClient;
 use App\Services\FlowService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,7 +32,7 @@ class ProcessFlowManagerEvent implements ShouldQueue
         }
 
         $this->updateFlowStatus($flow, $flowRun);
-        $this->syncFlowGraphFromPayload($flow, $flowRun);
+        $this->syncFlowGraphFromPayload($flowRun);
         $this->recordLog($flow, $flowRun);
         broadcast(new FlowEventBroadcast($flow->id, $this->event, $this->payload));
     }
@@ -260,42 +259,18 @@ class ProcessFlowManagerEvent implements ShouldQueue
         }
     }
 
-    private function syncFlowGraphFromPayload(Flow $flow, ?FlowRun $flowRun): void
+    private function syncFlowGraphFromPayload(?FlowRun $flowRun): void
     {
         $events = $this->payload['events'] ?? null;
         $actors = $this->payload['actors'] ?? null;
 
         if (! is_array($events) && ! is_array($actors)) {
-            if ($this->event === 'container_created') {
-                $this->syncFlowGraphFromRuntime($flow, $flowRun);
-            }
-
             return;
         }
 
         $existingGraph = is_array($flowRun?->graph_snapshot) ? $flowRun->graph_snapshot : [];
         $graphEvents = is_array($events) ? $events : ($existingGraph['events'] ?? []);
         $graphActors = is_array($actors) ? $actors : ($existingGraph['actors'] ?? []);
-
-        $this->updateFlowGraph($flowRun, $graphEvents, $graphActors);
-    }
-
-    private function syncFlowGraphFromRuntime(Flow $flow, ?FlowRun $flowRun): void
-    {
-        $containerId = $this->payload['container_id'] ?? $flow->container_id;
-
-        if (! is_string($containerId) || $containerId === '') {
-            return;
-        }
-
-        $graph = app(FlowManagerClient::class)->containerGraph($containerId);
-
-        if (! is_array($graph)) {
-            return;
-        }
-
-        $graphEvents = is_array($graph['events'] ?? null) ? $graph['events'] : [];
-        $graphActors = is_array($graph['actors'] ?? null) ? $graph['actors'] : [];
 
         $this->updateFlowGraph($flowRun, $graphEvents, $graphActors);
     }

@@ -141,6 +141,7 @@ final readonly class FlowService
         $run = $this->createDeployment($flow, 'development', 'creating');
         $deploymentRoot = $this->deploymentRoot($flow, $run);
         $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
+        $graphSnapshot = $this->latestGraphSnapshot($flow);
 
         $payload = [
             'image' => $flow->image ?? 'flow:dev',
@@ -149,6 +150,12 @@ final readonly class FlowService
             'flow_run_id' => $run->id,
             'flow_name' => $flow->name,
             'graph_hash' => $this->graphHash($flow),
+            'events' => is_array($graphSnapshot['events'] ?? null)
+                ? $graphSnapshot['events']
+                : [],
+            'actors' => is_array($graphSnapshot['actors'] ?? null)
+                ? $graphSnapshot['actors']
+                : [],
             'test_run_id' => (string) config('services.flow_manager.test_run_id'),
             'labels' => [
                 'kawaflow.flow_id' => (string) $flow->id,
@@ -441,40 +448,32 @@ def recv_exact(sock: socket.socket, size: int) -> bytes:
     return bytes(chunks)
 
 
-def receive_command() -> dict:
+def recv_message(conn: socket.socket) -> dict:
+    length = int.from_bytes(recv_exact(conn, 4), byteorder='big')
+    payload = recv_exact(conn, length)
+    return json.loads(payload.decode('utf-8'))
+
+
+def send_message(conn: socket.socket, message: dict) -> None:
+    encoded = json.dumps(message).encode('utf-8')
+    conn.sendall(len(encoded).to_bytes(4, byteorder='big'))
+    conn.sendall(encoded)
+
+
+def connect_to_manager() -> socket.socket:
     while True:
         try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.connect(SOCKET_PATH)
-                length = int.from_bytes(recv_exact(conn, 4), byteorder='big')
-                payload = recv_exact(conn, length)
-                return json.loads(payload.decode('utf-8'))
+            conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            conn.connect(SOCKET_PATH)
+            send_message(conn, {'type': 'runtime_hello'})
+            return conn
         except (
             FileNotFoundError,
             ConnectionRefusedError,
             ConnectionError,
             OSError,
-            ValueError,
-            json.JSONDecodeError,
         ):
             time.sleep(0.2)
-
-
-def send_response(response: dict) -> None:
-    encoded = json.dumps(response).encode('utf-8')
-    deadline = time.time() + 2
-
-    while True:
-        try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.connect(SOCKET_PATH)
-                conn.sendall(len(encoded).to_bytes(4, byteorder='big'))
-                conn.sendall(encoded)
-                return
-        except OSError:
-            if time.time() >= deadline:
-                return
-            time.sleep(0.1)
 
 
 def normalize_receive(value: ast.AST):
@@ -1074,20 +1073,46 @@ def handle_command(message: dict) -> dict:
         data = message.get('data') if isinstance(message.get('data'), dict) else {}
         return process_cron_tick(data)
 
-    if command == 'pull_events':
-        return {
-            'type': 'runtime_events',
-            'events': pull_runtime_events(),
-        }
-
     return {'error': f'unknown command: {command}'}
+
+
+def flush_runtime_events(conn: socket.socket) -> None:
+    events = pull_runtime_events()
+    if not events:
+        return
+
+    send_message(
+        conn,
+        {
+            'type': 'runtime_events',
+            'events': events,
+        }
+    )
+
+
+def serve_connection(conn: socket.socket) -> None:
+    while True:
+        message = recv_message(conn)
+        response = handle_command(message)
+        send_message(conn, response)
+        flush_runtime_events(conn)
 
 
 def serve() -> None:
     while True:
-        message = receive_command()
-        response = handle_command(message)
-        send_response(response)
+        conn = connect_to_manager()
+        try:
+            flush_runtime_events(conn)
+            serve_connection(conn)
+        except (
+            ConnectionError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
+            time.sleep(0.2)
+        finally:
+            conn.close()
 
 
 if __name__ == '__main__':
