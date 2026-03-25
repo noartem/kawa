@@ -39,6 +39,17 @@ final readonly class FlowService
             $this->stopDeployment($flow, $run->type);
         }
 
+        $containerIds = $flow->runs()
+            ->whereNotNull('container_id')
+            ->pluck('container_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($containerIds as $containerId) {
+            $this->client->deleteContainer((string) $containerId);
+        }
+
         return ['ok' => true];
     }
 
@@ -197,6 +208,24 @@ final readonly class FlowService
         }
 
         $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $containerId = is_string($responseData['container_id'] ?? null)
+            ? $responseData['container_id']
+            : null;
+
+        $runUpdates = [
+            'meta' => $responseData,
+        ];
+
+        if ($containerId !== null && $containerId !== '') {
+            $runUpdates['container_id'] = $containerId;
+            $runUpdates['status'] = 'created';
+
+            $flow->update([
+                'container_id' => $containerId,
+            ]);
+        }
+
+        $run->update($runUpdates);
 
         $run->logs()->create([
             'flow_id' => $flow->id,
@@ -231,6 +260,10 @@ final readonly class FlowService
 
         $containerId = $run->container_id ?? $flow->container_id;
         if (! $containerId) {
+            $containerId = $this->resolveRuntimeContainerId($flow, $run);
+        }
+
+        if (! $containerId) {
             $deadline = now()->addSeconds(5);
             while (! $containerId && now()->lt($deadline)) {
                 usleep(200000);
@@ -239,6 +272,11 @@ final readonly class FlowService
                 $containerId = $run->container_id ?? $flow->container_id;
             }
         }
+
+        if (! $containerId) {
+            $containerId = $this->resolveRuntimeContainerId($flow, $run);
+        }
+
         if ($containerId) {
             $this->client->stopContainer($containerId);
         } else {
@@ -292,6 +330,10 @@ final readonly class FlowService
         ]);
 
         if ($type === 'development') {
+            $flow->update([
+                'container_id' => null,
+            ]);
+
             $this->writeDeploymentFiles($flow, $run);
         }
 
@@ -303,6 +345,48 @@ final readonly class FlowService
         }
 
         return $run;
+    }
+
+    private function resolveRuntimeContainerId(Flow $flow, FlowRun $run): ?string
+    {
+        $response = $this->client->listContainers();
+        if (! ($response['ok'] ?? false)) {
+            return null;
+        }
+
+        $containers = $response['data']['containers'] ?? null;
+        if (! is_array($containers)) {
+            return null;
+        }
+
+        $expectedName = sprintf('flow-%d-run-%d', $flow->id, $run->id);
+
+        foreach ($containers as $container) {
+            if (! is_array($container)) {
+                continue;
+            }
+
+            if (($container['name'] ?? null) !== $expectedName) {
+                continue;
+            }
+
+            $containerId = $container['id'] ?? null;
+            if (! is_string($containerId) || $containerId === '') {
+                return null;
+            }
+
+            $run->update([
+                'container_id' => $containerId,
+            ]);
+
+            $flow->update([
+                'container_id' => $containerId,
+            ]);
+
+            return $containerId;
+        }
+
+        return null;
     }
 
     private function writeDeploymentFiles(Flow $flow, FlowRun $run): void

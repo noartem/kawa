@@ -71,7 +71,7 @@ class FlowManagerClient
 
     public function listContainers(): array
     {
-        return $this->run('list_containers');
+        return $this->run('list_containers', waitForResponse: true);
     }
 
     public function generateLock(array $payload): array
@@ -307,10 +307,15 @@ class FlowManagerClient
 
         $exchange = $this->eventExchangeName();
         $commandQueue = $this->commandQueueName();
+        $responseQueue = $this->responseQueueName();
 
         $this->channel->exchange_declare($exchange, 'topic', false, true, false);
         $this->channel->queue_declare($commandQueue, false, true, false, false);
         $this->channel->queue_bind($commandQueue, $exchange, 'command.*');
+
+        if (is_string($responseQueue) && $responseQueue !== '') {
+            $this->channel->queue_declare($responseQueue, false, true, false, false);
+        }
     }
 
     private function parseRabbitUrl(string $url): array

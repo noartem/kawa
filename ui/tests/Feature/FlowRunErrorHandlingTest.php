@@ -146,6 +146,41 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame($previousRun->graph_snapshot, $run->graph_snapshot);
     }
 
+    public function test_flow_service_binds_created_container_from_flow_manager_response(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => 'stale-container-id',
+            'image' => 'flow:dev',
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('createContainer')
+            ->once()
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'container_id' => 'container-id-2',
+                    'status' => 'created',
+                ],
+            ]);
+
+        $service = app(FlowService::class);
+        $result = $service->start($flow);
+
+        $this->assertTrue($result['ok']);
+
+        $flow->refresh();
+        $run = $flow->runs()->latest('id')->first();
+
+        $this->assertNotNull($run);
+        $this->assertSame('created', $run->status);
+        $this->assertSame('container-id-2', $run->container_id);
+        $this->assertSame('container-id-2', $flow->container_id);
+    }
+
     public function test_flow_service_marks_run_as_stopping_until_runtime_confirms_stop(): void
     {
         /** @var User $user */
@@ -185,6 +220,71 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertTrue($run->active);
         $this->assertNull($run->finished_at);
 
+    }
+
+    public function test_flow_service_resolves_runtime_container_before_stopping(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => null,
+            'image' => 'flow:dev',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'creating',
+            'started_at' => now()->subSeconds(10),
+            'container_id' => null,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+        ]);
+
+        $expectedName = sprintf('flow-%d-run-%d', $flow->id, $run->id);
+
+        $client = $this->mock(FlowManagerClient::class);
+
+        $client
+            ->shouldReceive('listContainers')
+            ->once()
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'containers' => [
+                        [
+                            'id' => 'container-id-2',
+                            'name' => $expectedName,
+                            'status' => 'running',
+                            'image' => 'flow:dev',
+                            'created' => now()->toIso8601String(),
+                            'socket_path' => '/tmp/kawaflow.sock',
+                            'ports' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $client
+            ->shouldReceive('stopContainer')
+            ->once()
+            ->with('container-id-2');
+
+        $service = app(FlowService::class);
+        $result = $service->stop($flow);
+
+        $this->assertTrue($result['ok']);
+
+        $run->refresh();
+        $flow->refresh();
+
+        $this->assertSame('stopping', $run->status);
+        $this->assertSame('container-id-2', $run->container_id);
+        $this->assertSame('container-id-2', $flow->container_id);
     }
 
     public function test_flow_service_passes_timezone_to_flow_manager_payload(): void
@@ -315,6 +415,40 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $this->assertSame('stopped', $run->status);
         $this->assertFalse($run->active);
+    }
+
+    public function test_stopped_status_event_clears_matching_flow_container_binding(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-3',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-3',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManagerEvent('status_changed', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-3',
+            'old_state' => 'running',
+            'new_state' => 'exited',
+        ]);
+        $job->handle();
+
+        $flow->refresh();
+        $run->refresh();
+
+        $this->assertSame('stopped', $run->status);
+        $this->assertNull($flow->container_id);
     }
 
     public function test_status_changed_event_can_resolve_run_by_flow_run_id_before_container_binding(): void

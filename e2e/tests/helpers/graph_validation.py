@@ -1,13 +1,10 @@
 import hashlib
-import json
 from typing import Any, Dict, List
 
 
-def graph_hash(code: str, graph: Dict[str, Any]) -> str:
-    encoded_graph = json.dumps(graph or {}, separators=(",", ":"))
+def graph_hash(code: str) -> str:
     normalized_code = (code or "").strip()
-    payload = f"{normalized_code}::{encoded_graph}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return hashlib.sha256(normalized_code.encode("utf-8")).hexdigest()
 
 
 def validate_graph_structure(graph: Dict[str, Any]) -> None:
@@ -31,4 +28,8 @@ def validate_graph_structure(graph: Dict[str, Any]) -> None:
 
 def extract_actor_ids(graph: Dict[str, Any]) -> List[str]:
     actors = graph.get("actors") or graph.get("nodes") or []
-    return [item.get("id") for item in actors if isinstance(item, dict) and item.get("id")]
+    return [
+        item["id"]
+        for item in actors
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]

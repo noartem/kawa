@@ -26,6 +26,7 @@ line-length = 88
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 markers = [
     "e2e: end-to-end tests requiring Docker and RabbitMQ",
 ]

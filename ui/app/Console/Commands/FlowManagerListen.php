@@ -74,7 +74,7 @@ class FlowManagerListen extends Command
         $eventName = $routingKey ? ltrim(str_replace('event.', '', $routingKey), '.') : 'event';
         $payload = json_decode($message->getBody(), true) ?: [];
 
-        ProcessFlowManagerEvent::dispatch($eventName, $payload);
+        ProcessFlowManagerEvent::dispatchSync($eventName, $payload);
         $message->ack();
     }
 

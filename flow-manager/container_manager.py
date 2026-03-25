@@ -7,6 +7,7 @@ and cleanup with Unix socket integration.
 """
 
 import asyncio
+import inspect
 import json
 import os
 import shutil
@@ -2363,10 +2364,10 @@ print(
             *args: Arguments to pass to the callback
         """
         try:
-            if asyncio.iscoroutinefunction(callback):
-                await callback(*args)
-            else:
-                callback(*args)
+            callback_result = callback(*args)
+
+            if inspect.isawaitable(callback_result):
+                await callback_result
         except Exception as e:
             callback_name = getattr(callback, "__name__", str(callback))
             self.logger.error(

@@ -130,6 +130,8 @@ class ProcessFlowManagerEvent implements ShouldQueue
                 ]);
             }
 
+            $this->clearFlowContainerBinding($flow);
+
             $this->syncFlowStatusFromRun($flow, $flowRun, 'error');
 
             return;
@@ -192,8 +194,27 @@ class ProcessFlowManagerEvent implements ShouldQueue
                 ]);
             }
 
+            $this->clearFlowContainerBinding($flow);
+
             $this->syncFlowStatusFromRun($flow, $flowRun, 'stopped');
         }
+    }
+
+    private function clearFlowContainerBinding(Flow $flow): void
+    {
+        $payloadContainerId = $this->payload['container_id'] ?? null;
+
+        if (! is_string($payloadContainerId) || $payloadContainerId === '') {
+            return;
+        }
+
+        if ($flow->container_id !== $payloadContainerId) {
+            return;
+        }
+
+        $flow->update([
+            'container_id' => null,
+        ]);
     }
 
     private function syncFlowStatusFromRun(Flow $flow, ?FlowRun $run, string $status): void

@@ -262,7 +262,7 @@ class TestSocketCommunicationHandler:
             patch("asyncio.wait_for") as mock_wait_for,
             patch.object(handler, "_is_stale_client_connection", return_value=False),
         ):
-            mock_executor = AsyncMock()
+            mock_executor = Mock()
             mock_executor.return_value = None  # For send operations
             mock_loop.return_value.run_in_executor = mock_executor
             mock_loop.return_value.time.return_value = 0
@@ -323,7 +323,7 @@ class TestSocketCommunicationHandler:
             patch("asyncio.wait_for") as mock_wait_for,
             patch.object(handler, "_is_stale_client_connection", return_value=False),
         ):
-            mock_executor = AsyncMock()
+            mock_executor = Mock()
             # Make the send operation fail
             mock_executor.side_effect = Exception("Send failed")
             mock_loop.return_value.run_in_executor = mock_executor
@@ -363,7 +363,7 @@ class TestSocketCommunicationHandler:
                 side_effect=[True, False],
             ),
         ):
-            mock_executor = AsyncMock()
+            mock_executor = Mock()
             mock_executor.return_value = None
             mock_loop.return_value.run_in_executor = mock_executor
             mock_loop.return_value.time.return_value = 0
@@ -402,7 +402,7 @@ class TestSocketCommunicationHandler:
             patch("asyncio.wait_for") as mock_wait_for,
             patch.object(handler, "_is_stale_client_connection", return_value=False),
         ):
-            mock_executor = AsyncMock()
+            mock_executor = Mock()
             mock_executor.return_value = None
             mock_loop.return_value.run_in_executor = mock_executor
             mock_loop.return_value.time.return_value = 0
