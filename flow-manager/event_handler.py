@@ -389,7 +389,7 @@ class EventHandler:
         try:
             old_state_value = getattr(old_state, "value", old_state)
             new_state_value = getattr(new_state, "value", new_state)
-            metadata = self._get_container_event_metadata(container_id)
+            metadata = await self._get_container_event_metadata(container_id)
 
             await self.messaging.publish_event(
                 "status_changed",
@@ -410,10 +410,10 @@ class EventHandler:
                 },
             )
 
-    def _get_container_event_metadata(self, container_id: str) -> Dict[str, Any]:
+    async def _get_container_event_metadata(self, container_id: str) -> Dict[str, Any]:
         try:
-            container = self.container_manager.docker_client.containers.get(
-                container_id
+            container = await asyncio.to_thread(
+                self.container_manager.docker_client.containers.get, container_id
             )
         except (NotFound, APIError) as exc:
             self.logger.error(

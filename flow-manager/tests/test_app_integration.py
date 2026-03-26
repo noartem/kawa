@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
@@ -57,6 +58,37 @@ async def test_flow_manager_shutdown_is_idempotent(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_startup_does_not_block_on_restore_runtime_sockets(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    restore_started = asyncio.Event()
+    release_restore = asyncio.Event()
+
+    async def slow_restore() -> None:
+        restore_started.set()
+        await release_restore.wait()
+
+    app.messaging.connect = AsyncMock()
+    app.container_manager.start_monitoring = AsyncMock()
+    app.event_handler.start = AsyncMock()
+    app._restore_runtime_sockets = AsyncMock(side_effect=slow_restore)
+
+    startup_task = asyncio.create_task(app.startup())
+
+    await restore_started.wait()
+    await asyncio.wait_for(startup_task, timeout=1)
+
+    assert app._started is True
+    assert len(app._background_tasks) == 3
+
+    release_restore.set()
+    await app.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_flow_manager_shutdown_continues_if_container_stop_fails(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
@@ -113,6 +145,21 @@ def test_prune_status_cache_removes_stale_containers(monkeypatch):
 
     assert "container-1" in app._last_published_container_status
     assert "container-2" not in app._last_published_container_status
+
+
+def test_active_flow_deployments_filters_non_running_or_non_flow(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    active = Mock(id="active", status="running", environment={"FLOW_RUN_ID": "42"})
+    inactive = Mock(id="inactive", status="created", environment={"FLOW_RUN_ID": "42"})
+    non_flow = Mock(id="non-flow", status="running", environment={})
+
+    result = app._active_flow_deployments([active, inactive, non_flow])
+
+    assert result == [active]
 
 
 @pytest.mark.asyncio

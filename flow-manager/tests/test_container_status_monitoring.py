@@ -175,6 +175,33 @@ class TestContainerStatusMonitoring:
         self.container_manager.register_crash_callback(crash_callback)
         assert crash_callback in self.container_manager._crash_callbacks
 
+    async def test_is_managed_container_uses_labels_and_environment(self):
+        managed_by_label = Mock()
+        managed_by_label.id = "managed-label"
+        managed_by_label.labels = {"kawaflow.flow_run_id": "10"}
+
+        managed_by_environment = Mock()
+        managed_by_environment.id = "managed-env"
+        managed_by_environment.labels = None
+        managed_by_environment.attrs = {
+            "Config": {
+                "Env": [
+                    "FLOW_RUN_ID=20",
+                ]
+            }
+        }
+
+        unmanaged = Mock()
+        unmanaged.id = "unmanaged"
+        unmanaged.labels = {}
+        unmanaged.attrs = {"Config": {"Env": []}}
+
+        assert self.container_manager._is_managed_container(managed_by_label) is True
+        assert (
+            self.container_manager._is_managed_container(managed_by_environment) is True
+        )
+        assert self.container_manager._is_managed_container(unmanaged) is False
+
     @pytest.mark.asyncio
     async def test_start_stop_monitoring(self):
         """Test monitoring lifecycle."""

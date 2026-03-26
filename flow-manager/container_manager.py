@@ -81,10 +81,86 @@ class ContainerManager:
             "ContainerManager initialized", {"socket_dir": self.socket_dir}
         )
 
+    MONITORING_CONCURRENCY = 8
+
     async def _run_docker_call(
         self, func: Callable[..., Any], *args: Any, **kwargs: Any
     ) -> Any:
         return await asyncio.to_thread(func, *args, **kwargs)
+
+    async def _run_with_concurrency(
+        self,
+        items: List[Any],
+        limit: int,
+        handler: Callable[[Any], Any],
+    ) -> None:
+        if not items:
+            return
+
+        semaphore = asyncio.Semaphore(limit)
+
+        async def _run(item: Any) -> None:
+            async with semaphore:
+                await handler(item)
+
+        await asyncio.gather(*(_run(item) for item in items))
+
+    def _container_labels(self, container: Any) -> Dict[str, str]:
+        labels = getattr(container, "labels", None)
+        if isinstance(labels, dict):
+            return {str(key): str(value) for key, value in labels.items()}
+
+        attrs = getattr(container, "attrs", {})
+        if not isinstance(attrs, dict):
+            return {}
+
+        config = attrs.get("Config", {})
+        if not isinstance(config, dict):
+            return {}
+
+        config_labels = config.get("Labels", {})
+        if not isinstance(config_labels, dict):
+            return {}
+
+        return {str(key): str(value) for key, value in config_labels.items()}
+
+    def _container_environment(self, container: Any) -> Dict[str, str]:
+        attrs = getattr(container, "attrs", {})
+        if not isinstance(attrs, dict):
+            return {}
+
+        config = attrs.get("Config", {})
+        if not isinstance(config, dict):
+            return {}
+
+        raw_env = config.get("Env", [])
+        if not isinstance(raw_env, list):
+            return {}
+
+        environment: Dict[str, str] = {}
+        for entry in raw_env:
+            if not isinstance(entry, str) or "=" not in entry:
+                continue
+
+            key, value = entry.split("=", 1)
+            environment[key] = value
+
+        return environment
+
+    def _is_managed_container(self, container: Any) -> bool:
+        container_id = getattr(container, "id", "")
+        if container_id in self._container_states:
+            return True
+
+        if container_id in self._expected_stops:
+            return True
+
+        labels = self._container_labels(container)
+        if labels.get("kawaflow.flow_run_id"):
+            return True
+
+        environment = self._container_environment(container)
+        return bool(environment.get("FLOW_RUN_ID"))
 
     def _get_container_socket_dir(self, container_name: str) -> str:
         return os.path.join(self.socket_dir, container_name)
@@ -1394,8 +1470,17 @@ print(
                     all=True,
                 )
 
-                for container in containers:
-                    await self._check_container_status(container)
+                managed_containers = [
+                    container
+                    for container in containers
+                    if self._is_managed_container(container)
+                ]
+
+                await self._run_with_concurrency(
+                    managed_containers,
+                    self.MONITORING_CONCURRENCY,
+                    self._check_container_status,
+                )
 
                 # Wait before next check
                 await asyncio.sleep(5)  # Check every 5 seconds

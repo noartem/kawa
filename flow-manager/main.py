@@ -133,8 +133,10 @@ class FlowManagerApp:
                 raise
         await self.container_manager.start_monitoring()
         await self.event_handler.start()
-        await self._restore_runtime_sockets()
 
+        self._background_tasks.append(
+            asyncio.create_task(self._restore_runtime_sockets_task())
+        )
         self._background_tasks.append(asyncio.create_task(self._health_check_loop()))
         self._background_tasks.append(asyncio.create_task(self._cron_tick_loop()))
         self._started = True
@@ -197,11 +199,12 @@ class FlowManagerApp:
                     break
 
                 containers = await self.container_manager.list_containers()
-                active_container_ids = {container.id for container in containers}
+                active_containers = self._active_flow_deployments(containers)
+                active_container_ids = {container.id for container in active_containers}
                 self._prune_status_cache(active_container_ids)
 
                 await self._run_with_concurrency(
-                    containers,
+                    active_containers,
                     HEALTH_CHECK_CONCURRENCY,
                     self._handle_container_health_check,
                 )
@@ -234,17 +237,20 @@ class FlowManagerApp:
 
     async def _dispatch_cron_ticks(self) -> None:
         containers = await self.container_manager.list_containers()
-        active_containers = [
-            container
-            for container in containers
-            if self._is_active_flow_deployment(container)
-        ]
+        active_containers = self._active_flow_deployments(containers)
 
         await self._run_with_concurrency(
             active_containers,
             CRON_DISPATCH_CONCURRENCY,
             self._dispatch_cron_tick_to_container,
         )
+
+    def _active_flow_deployments(self, containers: list[Any]) -> list[Any]:
+        return [
+            container
+            for container in containers
+            if self._is_active_flow_deployment(container)
+        ]
 
     def _is_active_flow_deployment(self, container: Any) -> bool:
         if str(container.status).lower() != "running":
@@ -269,6 +275,14 @@ class FlowManagerApp:
                         "container_id": container.id,
                     },
                 )
+
+    async def _restore_runtime_sockets_task(self) -> None:
+        try:
+            await self._restore_runtime_sockets()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.logger.error(exc, {"operation": "restore_runtime_sockets_task"})
 
     def _should_publish_container_status(
         self,
