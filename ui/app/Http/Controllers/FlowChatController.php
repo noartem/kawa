@@ -6,9 +6,11 @@ use App\Http\Requests\Flows\FlowChatRequest;
 use App\Http\Requests\Flows\FlowChatsIndexRequest;
 use App\Models\Flow;
 use App\Services\FlowChatService;
+use Illuminate\Database\Eloquent\JsonEncodingException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -93,19 +95,27 @@ class FlowChatController extends Controller
         Flow $flow,
         FlowChatService $flowChatService,
     ): JsonResponse {
-        return $this->handleChatAction(fn (): array => $flowChatService->sendMessage(
-            $flow,
-            $request->user(),
-            $request->message(),
-            $request->currentCode(),
-        ));
+        return $this->handleChatAction(
+            callback: fn (): array => $flowChatService->sendMessage(
+                $flow,
+                $request->user(),
+                $request->message(),
+                $request->currentCode(),
+            ),
+            action: 'store',
+            flow: $flow,
+        );
     }
 
     public function newChat(
         Flow $flow,
         FlowChatService $flowChatService,
     ): JsonResponse {
-        return $this->handleChatAction(fn (): array => $flowChatService->startNewChat($flow));
+        return $this->handleChatAction(
+            callback: fn (): array => $flowChatService->startNewChat($flow),
+            action: 'new_chat',
+            flow: $flow,
+        );
     }
 
     public function compact(
@@ -117,22 +127,44 @@ class FlowChatController extends Controller
             'current_code' => ['present', 'nullable', 'string'],
         ]);
 
-        return $this->handleChatAction(fn (): array => $flowChatService->compactActiveChat(
-            $flow,
-            $request->user(),
-            (string) ($data['current_code'] ?? ''),
-        ));
+        return $this->handleChatAction(
+            callback: fn (): array => $flowChatService->compactActiveChat(
+                $flow,
+                $request->user(),
+                (string) ($data['current_code'] ?? ''),
+            ),
+            action: 'compact',
+            flow: $flow,
+        );
     }
 
     /**
      * @param  callable(): array<string, mixed>  $callback
      */
-    private function handleChatAction(callable $callback): JsonResponse
-    {
+    private function handleChatAction(
+        callable $callback,
+        string $action,
+        ?Flow $flow = null,
+    ): JsonResponse {
         try {
             return response()->json($callback());
         } catch (ValidationException $exception) {
             throw $exception;
+        } catch (JsonEncodingException $exception) {
+            Log::error('Flow chat action failed while encoding chat payload.', [
+                'action' => $action,
+                'flow_id' => $flow?->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            report($exception);
+
+            return $this->errorResponse(
+                message: 'The chat response could not be saved cleanly. Please try again.',
+                code: 'chat_response_encoding_failed',
+                status: 500,
+            );
         } catch (RateLimitedException $exception) {
             report($exception);
 

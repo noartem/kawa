@@ -5,6 +5,7 @@ use App\Ai\Agents\FlowCodeAssistant;
 use App\Models\Flow;
 use App\Models\User;
 use App\Services\FlowChatService;
+use Illuminate\Database\Eloquent\JsonEncodingException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\AiException;
@@ -165,6 +166,42 @@ it('ignores chat code changes when the difference is only surrounding whitespace
         ->and($conversation->messages[1]->meta['proposed_code'])->toBe('print("same")');
 });
 
+it('sanitizes malformed utf-8 from assistant chat responses before persisting', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("old")',
+    ]);
+
+    $invalidUtf8 = chr(0xB1);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => "Greeting{$invalidUtf8} update",
+            'reply' => "Added the requested{$invalidUtf8} greeting update.",
+            'code' => "print(\"new\"){$invalidUtf8}",
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Update the greeting output',
+            'current_code' => 'print("old")',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.title', 'Greeting update')
+        ->assertJsonPath('activeChat.messages.1.content', 'Added the requested greeting update.')
+        ->assertJsonPath('activeChat.messages.1.proposed_code', 'print("new")');
+
+    $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
+
+    expect($conversation->title)->toBe('Greeting update')
+        ->and($conversation->messages[1]->content)->toBe('Added the requested greeting update.')
+        ->and($conversation->messages[1]->meta['proposed_code'])->toBe('print("new")')
+        ->and($conversation->messages[1]->meta['diff'])->toBe('-print("old")'."\n".'+print("new")');
+});
+
 it('keeps the existing chat title on subsequent assistant responses', function () {
     /** @var User $user */
     $user = User::factory()->createOne();
@@ -254,6 +291,37 @@ it('returns a friendly provider unavailable error for upstream ai 503 failures',
         ->assertJsonPath(
             'message',
             'The AI provider is temporarily unavailable. Please try again in a minute.',
+        );
+});
+
+it('returns a specific error when chat persistence hits a json encoding failure', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+
+    app()->instance(
+        FlowChatService::class,
+        \Mockery::mock(FlowChatService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('sendMessage')
+                ->once()
+                ->andThrow(JsonEncodingException::forAttribute(
+                    new \App\Models\AgentConversationMessage,
+                    'meta',
+                    'Malformed UTF-8 characters, possibly incorrectly encoded',
+                ));
+        }),
+    );
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Try again',
+            'current_code' => 'print("same")',
+        ])
+        ->assertStatus(500)
+        ->assertJsonPath('code', 'chat_response_encoding_failed')
+        ->assertJsonPath(
+            'message',
+            'The chat response could not be saved cleanly. Please try again.',
         );
 });
 

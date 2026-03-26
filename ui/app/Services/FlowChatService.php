@@ -113,6 +113,8 @@ class FlowChatService
         string $message,
         string $currentCode,
     ): array {
+        $message = $this->sanitizeUtf8($message);
+        $currentCode = $this->sanitizeUtf8($currentCode);
         $conversation = $this->resolveActiveConversation($flow, $user, $message);
         $shouldGenerateTitle = $conversation->messages->isEmpty();
         $response = FlowCodeAssistant::make(
@@ -121,9 +123,9 @@ class FlowChatService
             shouldGenerateTitle: $shouldGenerateTitle,
         )->prompt($message);
 
-        $assistantTitle = trim((string) ($response['title'] ?? ''));
-        $assistantReply = trim((string) ($response['reply'] ?? ''));
-        $assistantCode = (string) ($response['code'] ?? $currentCode);
+        $assistantTitle = trim($this->sanitizeUtf8((string) ($response['title'] ?? '')));
+        $assistantReply = trim($this->sanitizeUtf8((string) ($response['reply'] ?? '')));
+        $assistantCode = $this->sanitizeUtf8((string) ($response['code'] ?? $currentCode));
 
         if (! $this->hasMeaningfulCodeChanges($currentCode, $assistantCode)) {
             $assistantCode = $currentCode;
@@ -140,7 +142,7 @@ class FlowChatService
         $hasCodeChanges = $normalizedResponseMode === FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE
             && $assistantCode !== $currentCode;
         $assistantDiff = $hasCodeChanges
-            ? $this->flowCodeDiff->build($currentCode, $assistantCode)
+            ? $this->sanitizeUtf8($this->flowCodeDiff->build($currentCode, $assistantCode))
             : null;
 
         $conversation->messages()->create([
@@ -166,13 +168,13 @@ class FlowChatService
             'tool_calls' => [],
             'tool_results' => [],
             'usage' => [],
-            'meta' => [
+            'meta' => $this->sanitizeForJson([
                 'kind' => $hasCodeChanges ? 'code_suggestion' : 'assistant_reply',
                 'response_mode' => $normalizedResponseMode,
                 'source_code' => $currentCode,
                 'proposed_code' => $assistantCode,
                 'diff' => $assistantDiff,
-            ],
+            ]),
         ]);
 
         if ($shouldGenerateTitle) {
@@ -229,8 +231,8 @@ class FlowChatService
             messages: $this->conversationMessagesForAgent($activeConversation),
         )->prompt('Compress this chat into a fresh continuation summary.');
 
-        $title = trim((string) ($response['title'] ?? ''));
-        $summary = trim((string) ($response['summary'] ?? ''));
+        $title = trim($this->sanitizeUtf8((string) ($response['title'] ?? '')));
+        $summary = trim($this->sanitizeUtf8((string) ($response['summary'] ?? '')));
 
         $newConversation = $flow->conversations()->create([
             'user_id' => $user->id,
@@ -473,5 +475,35 @@ class FlowChatService
     private function hasMeaningfulCodeChanges(string $originalCode, string $updatedCode): bool
     {
         return trim($originalCode) !== trim($updatedCode);
+    }
+
+    private function sanitizeForJson(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return $this->sanitizeUtf8($value);
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->sanitizeForJson($item);
+            }
+        }
+
+        return $value;
+    }
+
+    private function sanitizeUtf8(string $value): string
+    {
+        if (preg_match('//u', $value) === 1) {
+            return $value;
+        }
+
+        $sanitized = iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        if (is_string($sanitized)) {
+            return $sanitized;
+        }
+
+        return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
     }
 }
