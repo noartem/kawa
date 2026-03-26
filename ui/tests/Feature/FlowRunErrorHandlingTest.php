@@ -386,6 +386,53 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame('main', $run->graph_snapshot['nodes'][1]['source_kind'] ?? null);
     }
 
+    public function test_runtime_graph_updated_event_refreshes_graph_for_current_run(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-1',
+            'code_updated_at' => now(),
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now(),
+            'container_id' => null,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManagerEvent('runtime_graph_updated', [
+            'flow_id' => (string) $flow->id,
+            'flow_run_id' => (string) $run->id,
+            'container_id' => 'container-id-1',
+            'events' => [
+                [
+                    'id' => 'CronEvent',
+                    'source_line' => 6,
+                ],
+            ],
+            'actors' => [
+                [
+                    'id' => 'StarterActor',
+                    'receives' => ['CronEvent'],
+                    'sends' => ['PreparedEvent'],
+                    'source_line' => 16,
+                ],
+            ],
+        ]);
+        $job->handle();
+
+        $run->refresh();
+
+        $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
+        $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
+        $this->assertSame('CronEvent', $run->graph_snapshot['nodes'][0]['id'] ?? null);
+    }
+
     public function test_container_crashed_event_does_not_override_intentional_stop(): void
     {
         /** @var User $user */

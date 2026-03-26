@@ -45,6 +45,7 @@ class StartupBudget:
     run_request_seconds: float
     request_to_container_running_seconds: float
     request_to_container_id_seconds: float
+    request_to_graph_visible_seconds: float
     request_to_first_runtime_event_seconds: float
 
 
@@ -57,10 +58,12 @@ class StartupMeasurement:
     http_redirect_received_at: str
     container_running_at: str
     container_id_visible_at: str
+    graph_visible_at: str
     first_runtime_event_at: str
     run_request_seconds: float
     request_to_container_running_seconds: float
     request_to_container_id_seconds: float
+    request_to_graph_visible_seconds: float
     request_to_first_runtime_event_seconds: float
 
     def to_dict(self) -> dict[str, Any]:
@@ -105,6 +108,11 @@ def assert_startup_budget(
             "request_to_container_id_seconds",
             measurement.request_to_container_id_seconds,
             budget.request_to_container_id_seconds,
+        ),
+        (
+            "request_to_graph_visible_seconds",
+            measurement.request_to_graph_visible_seconds,
+            budget.request_to_graph_visible_seconds,
         ),
         (
             "request_to_first_runtime_event_seconds",
@@ -159,6 +167,32 @@ def measure_cron_startup(
     container_id_visible_at = _utc_now_iso()
     container_id_visible = time.perf_counter()
 
+    graph_deadline = time.time() + e2e_settings.graph_timeout
+    graph_visible = None
+    graph_visible_at = None
+
+    while time.time() < graph_deadline:
+        props = ui_client.flow_show_props(flow_id)
+        development_run = (
+            props.get("lastDevelopmentDeployment")
+            or props.get("last_development_deployment")
+            or props.get("developmentRun")
+            or props.get("development_run")
+        )
+        graph = (
+            development_run.get("graph") if isinstance(development_run, dict) else None
+        )
+        if isinstance(graph, dict) and (
+            bool(graph.get("nodes")) or bool(graph.get("edges"))
+        ):
+            graph_visible_at = _utc_now_iso()
+            graph_visible = time.perf_counter()
+            break
+        time.sleep(1)
+
+    if graph_visible_at is None or graph_visible is None:
+        raise AssertionError("Timed out waiting for graph visibility in UI")
+
     runtime_event_timeout = max(e2e_settings.container_timeout, 70)
     contexts = _runtime_event_contexts(
         _wait_for_log_entries(
@@ -181,10 +215,12 @@ def measure_cron_startup(
         http_redirect_received_at=http_redirect_received_at,
         container_running_at=container_running_at,
         container_id_visible_at=container_id_visible_at,
+        graph_visible_at=graph_visible_at,
         first_runtime_event_at=first_runtime_event_at,
         run_request_seconds=http_redirect_received - run_request_started,
         request_to_container_running_seconds=container_running - run_request_started,
         request_to_container_id_seconds=container_id_visible - run_request_started,
+        request_to_graph_visible_seconds=graph_visible - run_request_started,
         request_to_first_runtime_event_seconds=first_runtime_event
         - run_request_started,
     )

@@ -225,12 +225,55 @@ async def test_handle_runtime_socket_message_marks_runtime_ready(monkeypatch):
         mock_docker.return_value = Mock()
         app = FlowManagerApp(socket_dir="/tmp/test_sockets")
 
+    app.socket_handler.send_message = AsyncMock()
+
     await app._handle_runtime_socket_message(
         "container-1",
-        {"type": "runtime_hello"},
+        {"type": "runtime_hello", "flow_id": "7", "flow_run_id": "11"},
     )
 
     assert "container-1" in app._runtime_ready_containers
+    app.socket_handler.send_message.assert_awaited_once_with(
+        "container-1",
+        {"command": "dump"},
+        timeout=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_runtime_socket_message_publishes_runtime_graph(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app.messaging.publish_event = AsyncMock()
+
+    await app._handle_runtime_socket_message(
+        "container-1",
+        {
+            "type": "runtime_graph",
+            "flow_id": "7",
+            "flow_run_id": "11",
+            "graph": {
+                "events": [{"id": "CronEvent"}],
+                "actors": [{"id": "Starter", "receives": ["CronEvent"]}],
+                "nodes": [],
+                "edges": [],
+            },
+        },
+    )
+
+    app.messaging.publish_event.assert_awaited_once_with(
+        "runtime_graph_updated",
+        {
+            "container_id": "container-1",
+            "flow_id": "7",
+            "flow_run_id": "11",
+            "events": [{"id": "CronEvent"}],
+            "actors": [{"id": "Starter", "receives": ["CronEvent"]}],
+        },
+    )
 
 
 @pytest.mark.asyncio

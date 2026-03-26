@@ -402,12 +402,49 @@ class FlowManagerApp:
                 },
             )
 
+    @staticmethod
+    def _runtime_message_metadata(message: dict[str, Any]) -> dict[str, Any]:
+        metadata: dict[str, Any] = {}
+
+        for key in ("flow_id", "flow_run_id"):
+            value = message.get(key)
+            if value in (None, ""):
+                continue
+            metadata[key] = value
+
+        return metadata
+
+    async def _request_runtime_graph(self, container_id: str) -> None:
+        try:
+            await self.socket_handler.send_message(
+                container_id,
+                {"command": "dump"},
+                timeout=RUNTIME_CONNECTION_TIMEOUT_SECONDS,
+            )
+        except SocketTimeoutError:
+            self.logger.debug(
+                "Skipping runtime graph refresh for disconnected runtime",
+                {
+                    "operation": "request_runtime_graph",
+                    "container_id": container_id,
+                },
+            )
+        except Exception as exc:
+            self.logger.error(
+                exc,
+                {
+                    "operation": "request_runtime_graph",
+                    "container_id": container_id,
+                },
+            )
+
     async def _handle_runtime_socket_message(
         self,
         container_id: str,
         message: dict[str, Any],
     ) -> None:
         message_type = str(message.get("type", "")).strip()
+        metadata = self._runtime_message_metadata(message)
 
         if message_type == "runtime_hello":
             self._runtime_ready_containers.add(container_id)
@@ -418,9 +455,34 @@ class FlowManagerApp:
                     "container_id": container_id,
                 },
             )
+            await self._request_runtime_graph(container_id)
             return
 
         if message_type == "runtime_ack":
+            return
+
+        if message_type == "runtime_graph":
+            runtime_graph = message.get("graph")
+            if not isinstance(runtime_graph, dict):
+                return
+
+            payload: dict[str, Any] = {
+                "container_id": container_id,
+                **metadata,
+            }
+
+            runtime_events = runtime_graph.get("events")
+            if isinstance(runtime_events, list):
+                payload["events"] = runtime_events
+
+            runtime_actors = runtime_graph.get("actors")
+            if isinstance(runtime_actors, list):
+                payload["actors"] = runtime_actors
+
+            if "events" not in payload and "actors" not in payload:
+                return
+
+            await self.messaging.publish_event("runtime_graph_updated", payload)
             return
 
         if message_type != "runtime_events":
@@ -446,6 +508,7 @@ class FlowManagerApp:
                 "flow_runtime_event",
                 {
                     "container_id": container_id,
+                    **metadata,
                     **runtime_event,
                 },
             )

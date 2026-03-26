@@ -425,6 +425,7 @@ import ast
 import importlib.util
 import inspect
 import json
+import os
 import socket
 import sys
 import time
@@ -435,6 +436,20 @@ from zoneinfo import ZoneInfo
 
 SOCKET_PATH = '/run/kawaflow.sock'
 FLOW_PATH = Path('/flow/flow.py')
+
+
+def runtime_metadata() -> dict:
+    metadata = {}
+
+    flow_id = os.getenv('FLOW_ID')
+    if flow_id:
+        metadata['flow_id'] = flow_id
+
+    flow_run_id = os.getenv('FLOW_RUN_ID')
+    if flow_run_id:
+        metadata['flow_run_id'] = flow_run_id
+
+    return metadata
 
 
 def recv_exact(sock: socket.socket, size: int) -> bytes:
@@ -465,7 +480,7 @@ def connect_to_manager() -> socket.socket:
         try:
             conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.connect(SOCKET_PATH)
-            send_message(conn, {'type': 'runtime_hello'})
+            send_message(conn, {'type': 'runtime_hello', **runtime_metadata()})
             return conn
         except (
             FileNotFoundError,
@@ -1067,7 +1082,11 @@ def handle_command(message: dict) -> dict:
     command = message.get('command', '')
 
     if command == 'dump':
-        return extract_graph()
+        return {
+            'type': 'runtime_graph',
+            'graph': extract_graph(),
+            **runtime_metadata(),
+        }
 
     if command == 'cron_tick':
         data = message.get('data') if isinstance(message.get('data'), dict) else {}
