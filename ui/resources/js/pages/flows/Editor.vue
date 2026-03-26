@@ -990,6 +990,7 @@ onBeforeUnmount(() => {
             />
 
             <FlowPastChatsPanel
+                v-if="pastChats.length"
                 :chats="pastChats"
                 :all-chats-url="allChatsUrl"
                 :format-date="formatDate"

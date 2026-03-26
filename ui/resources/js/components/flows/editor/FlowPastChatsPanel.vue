@@ -75,7 +75,6 @@ watch(
         </div>
 
         <div
-            v-if="chats.length"
             class="grid divide-y rounded-xl border border-border"
         >
             <button
@@ -123,20 +122,6 @@ watch(
                 </div>
             </button>
         </div>
-
-        <Card v-else class="border-0 bg-muted/10 shadow-none">
-            <CardContent
-                class="flex min-h-[180px] flex-col items-center justify-center px-6 text-center"
-            >
-                <History class="mb-4 size-10 text-muted-foreground/70" />
-                <p class="text-sm font-semibold text-foreground">
-                    {{ t('flows.past_chats.empty_title') }}
-                </p>
-                <p class="mt-2 max-w-md text-sm text-muted-foreground">
-                    {{ t('flows.past_chats.empty_description') }}
-                </p>
-            </CardContent>
-        </Card>
 
         <FlowPastChatDetailsDialog
             v-model:open="detailsOpen"

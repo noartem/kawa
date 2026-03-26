@@ -229,7 +229,7 @@ const selectNode = (node: GraphNodePayload): void => {
                 class="flex aspect-[16/9] w-full items-center justify-center p-4"
             >
                 <div
-                    class="flex h-full w-full max-w-lg flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-6 text-center"
+                    class="h-full w-full flex flex-col items-center justify-center text-center"
                 >
                     <Workflow class="mb-4 size-10 text-muted-foreground/70" />
                     <p class="text-sm font-semibold text-foreground">
