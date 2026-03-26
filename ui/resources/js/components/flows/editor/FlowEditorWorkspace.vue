@@ -534,7 +534,7 @@ watch(
                     </div>
                     <div
                         v-else
-                        class="flex min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"
+                        class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"
                     >
                         <History
                             class="mb-3 size-10 text-muted-foreground/70"
@@ -542,7 +542,7 @@ watch(
                         <p class="text-sm font-semibold text-foreground">
                             {{ t('flows.editor.changes.empty_title') }}
                         </p>
-                        <p class="mt-1 max-w-sm text-sm text-muted-foreground">
+                        <p class="h-10 mt-1 max-w-sm text-sm text-muted-foreground">
                             {{ t('flows.editor.changes.empty_description') }}
                         </p>
                     </div>

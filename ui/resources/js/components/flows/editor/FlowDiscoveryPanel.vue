@@ -546,23 +546,11 @@ onBeforeUnmount(() => {
 
 <template>
     <section
+        v-if="hasDiscoveryItems"
         ref="containerRef"
         class="h-full divide-y overflow-y-auto rounded-xl border border-border"
         :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
     >
-        <div
-            v-if="!hasDiscoveryItems"
-            class="flex h-full min-h-[320px] flex-col items-center justify-center px-6 text-center"
-        >
-            <ScanSearch class="mb-4 size-10 text-muted-foreground/70" />
-            <p class="text-sm font-semibold text-foreground">
-                {{ t('flows.editor.discovery.empty_title') }}
-            </p>
-            <p class="mt-2 max-w-md text-sm text-muted-foreground">
-                {{ t('flows.editor.discovery.empty_description') }}
-            </p>
-        </div>
-
         <template v-if="actors.length">
             <h3
                 class="px-4 pt-3 pb-2 text-xs font-semibold tracking-wide text-muted-foreground"
@@ -750,4 +738,17 @@ onBeforeUnmount(() => {
             </div>
         </template>
     </section>
+    <div
+        v-else
+        class="flex h-full min-h-[320px] border border-dashed border-border
+        rounded-lg bg-muted/20 flex-col items-center justify-center px-6 text-center"
+    >
+        <ScanSearch class="mb-4 size-10 text-muted-foreground/70" />
+        <p class="text-sm font-semibold text-foreground">
+            {{ t('flows.editor.discovery.empty_title') }}
+        </p>
+        <p class="mt-2 max-w-md text-sm text-muted-foreground">
+            {{ t('flows.editor.discovery.empty_description') }}
+        </p>
+    </div>
 </template>
