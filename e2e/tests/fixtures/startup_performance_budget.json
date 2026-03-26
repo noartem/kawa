@@ -1,0 +1,16 @@
+{
+  "cron_startup": {
+    "observed_baseline_seconds": {
+      "run_request_seconds": 0.175303,
+      "request_to_container_running_seconds": 11.527402,
+      "request_to_container_id_seconds": 4.377676,
+      "request_to_first_runtime_event_seconds": 40.595423
+    },
+    "budgets": {
+      "run_request_seconds": 1.0,
+      "request_to_container_running_seconds": 15.0,
+      "request_to_container_id_seconds": 8.0,
+      "request_to_first_runtime_event_seconds": 70.0
+    }
+  }
+}

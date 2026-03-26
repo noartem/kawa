@@ -14,3 +14,6 @@ dependencies = [
 addopts = "-q"
 testpaths = ["tests"]
 norecursedirs = ["fixtures", "helpers"]
+markers = [
+    "performance: end-to-end performance and latency budgets",
+]
