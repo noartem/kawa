@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         if (app()->environment(['local', 'dev'])) {
-            //$this->callOnce(LocalDemoSeeder::class);
+            $this->call(AdminShowcaseFlowSeeder::class);
         }
     }
 }
