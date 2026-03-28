@@ -8,6 +8,7 @@ use App\Models\FlowLog;
 use App\Models\FlowRun;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -17,11 +18,20 @@ class FlowDeploymentsPayloadTest extends TestCase
 
     public function test_editor_payload_includes_deployment_details_with_snapshots_and_logs(): void
     {
+        $this->travelTo(now()->startOfSecond());
+
         /** @var User $user */
         $user = User::factory()->createOne();
 
         $flow = Flow::factory()->forUser($user)->createOne([
-            'code' => 'print("latest")',
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
         ]);
 
         FlowHistory::query()->create([
@@ -67,7 +77,8 @@ class FlowDeploymentsPayloadTest extends TestCase
             'type' => 'development',
             'status' => 'running',
             'active' => true,
-            'code_snapshot' => 'print("snapshot")',
+            'container_id' => 'dev-container-1',
+            'code_snapshot' => $flow->code,
             'graph_snapshot' => [
                 'nodes' => [['id' => 'node.snapshot', 'type' => 'event', 'label' => 'node.snapshot']],
                 'edges' => [],
@@ -81,20 +92,31 @@ class FlowDeploymentsPayloadTest extends TestCase
 
         FlowLog::factory()->count(55)->forRun($newRun)->create();
 
+        $developmentEndpoint = $this->developmentWebhookUrl(
+            $flow,
+            $newRun,
+            'orders.created',
+        );
+
         $response = $this->actingAs($user)->get(route('flows.show', $flow));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Editor')
             ->where('lastDevelopmentDeployment.id', $newRun->id)
-            ->where('lastDevelopmentDeployment.code', 'print("snapshot")')
+            ->where('lastDevelopmentDeployment.code', $flow->code)
             ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'node.snapshot')
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.production_url', null)
+            ->where('webhookEndpoints.0.development_url', $developmentEndpoint)
             ->has('lastDevelopmentDeployment.logs', 50)
             ->has('deployments', 2)
             ->where('productionLogsCount', 0)
             ->where('deployments.0.id', $newRun->id)
-            ->where('deployments.0.code', 'print("snapshot")')
+            ->where('deployments.0.code', $flow->code)
             ->where('deployments.0.graph.nodes.0.id', 'node.snapshot')
+            ->where('deployments.0.webhooks.0.slug', 'orders.created')
+            ->where('deployments.0.webhooks.0.development_url', $developmentEndpoint)
             ->has('deployments.0.logs', 50)
             ->where('deployments.1.id', $oldRun->id)
             ->where('deployments.1.code', 'print("legacy")')
@@ -109,6 +131,7 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->where('deployments.1.graph.nodes.2.source_line', 16)
             ->where('deployments.1.graph.nodes.2.source_kind', 'import')
             ->where('deployments.1.graph.nodes.2.source_module', 'actors.old')
+            ->where('deployments.1.webhooks', [])
             ->where('deployments.1.logs.0.message', 'Old deployment log')
             ->missing('productionLogs')
             ->missing('productionRuns')
@@ -157,6 +180,260 @@ class FlowDeploymentsPayloadTest extends TestCase
             ->has('deployments', 5)
             ->where('deployments.0.id', $runs[6]->id)
             ->where('deployments.4.id', $runs[2]->id)
+        );
+    }
+
+    public function test_editor_payload_does_not_expose_dead_development_webhook_urls(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+        ]);
+
+        $inactiveRun = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'stopped',
+            'active' => false,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [['id' => 'Webhook.by("orders.created")', 'type' => 'event', 'label' => 'Webhook.by("orders.created")']],
+                'edges' => [],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $inactiveRun->id)
+            ->where('webhookEndpoints', [])
+            ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
+            ->where('lastDevelopmentDeployment.webhooks.0.development_url', null)
+        );
+    }
+
+    public function test_editor_payload_uses_structured_webhook_detection(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook as Hook, actor
+
+
+# Webhook.by("phantom.comment") should never become an endpoint.
+@actor(
+    receivs=(
+        Hook.by("orders.created"),
+    )
+)
+def HandleWebhook(ctx: Context, event) -> None:
+    print(event.payload)
+
+
+DOC = "Webhook.by('phantom.string')"
+PY,
+        ]);
+
+        $run = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => 'dev-container-2',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => null,
+        ]);
+
+        $developmentEndpoint = $this->developmentWebhookUrl(
+            $flow,
+            $run,
+            'orders.created',
+        );
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->has('webhookEndpoints', 1)
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.development_url', $developmentEndpoint)
+            ->where('webhookEndpoints.0.source_line', 7)
+        );
+    }
+
+    public function test_editor_payload_prefers_development_source_line_for_shared_webhook_slug(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+            'container_id' => 'prod-container',
+        ]);
+
+        FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'production',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => 'prod-container',
+            'code_snapshot' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+            'graph_snapshot' => null,
+        ]);
+
+        $developmentRun = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => 'dev-container-3',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => null,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.source_line', 6)
+            ->where('webhookEndpoints.0.production_url', URL::signedRoute('webhooks.production.show', [
+                'flow' => $flow,
+                'slug' => 'orders.created',
+            ]))
+            ->where('webhookEndpoints.0.development_url', $this->developmentWebhookUrl(
+                $flow,
+                $developmentRun,
+                'orders.created',
+            ))
+        );
+    }
+
+    public function test_editor_payload_hides_active_development_webhook_without_container(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+        ]);
+
+        $run = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => null,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => null,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $run->id)
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.development_url', null)
+            ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
+            ->where('lastDevelopmentDeployment.webhooks.0.development_url', null)
+        );
+    }
+
+    public function test_editor_payload_orders_same_second_logs_by_id(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+        $run = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+        ]);
+        $timestamp = now()->startOfSecond();
+
+        FlowLog::factory()->forRun($run)->createOne([
+            'message' => 'Actor invoked by webhook',
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+
+        FlowLog::factory()->forRun($run)->createOne([
+            'message' => 'Actor dispatched message',
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('deployments.0.logs.0.message', 'Actor dispatched message')
+            ->where('deployments.0.logs.1.message', 'Actor invoked by webhook')
+            ->where(
+                'lastDevelopmentDeployment.logs.0.message',
+                'Actor dispatched message',
+            )
+            ->where(
+                'lastDevelopmentDeployment.logs.1.message',
+                'Actor invoked by webhook',
+            )
+        );
+    }
+
+    private function developmentWebhookUrl(
+        Flow $flow,
+        FlowRun $run,
+        string $slug,
+    ): string {
+        return URL::temporarySignedRoute(
+            'webhooks.development.show',
+            now()->addMinutes(1440),
+            [
+                'flow' => $flow,
+                'run' => $run->id,
+                'slug' => $slug,
+            ],
         );
     }
 }

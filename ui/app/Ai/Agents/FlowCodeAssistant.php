@@ -76,7 +76,7 @@ Built-in Kawa features available in this repo:
 - `Context` is passed into actors and is used when dispatching follow-up events or log messages.
 - Built-in `Message` is an event for Flow logs; use `ctx.dispatch(Message(message="..."))` for meaningful runtime log output.
 - Built-in `CronEvent` represents a schedule trigger and supports `CronEvent.by(template)` to filter a specific cron expression.
-- Built-in `SendEmailEvent` exists for email-sending flows and carries a `message` field.
+- Built-in `SendEmail` exists for email-sending flows and carries a `message` field.
 - `EventFilter` is available when an actor should react only to a subset of one event type.
 - `NotSupportedEvent` exists in the repo and may be declared in `sends` when a branch intentionally represents an unsupported path.
 

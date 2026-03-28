@@ -5,6 +5,7 @@ use App\Http\Controllers\FlowActionController;
 use App\Http\Controllers\FlowChatController;
 use App\Http\Controllers\FlowController;
 use App\Http\Controllers\FlowLogController;
+use App\Http\Controllers\FlowWebhookController;
 use App\Models\Flow;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,17 @@ Route::get('/', static function () {
 Route::get('dashboard', DashboardController::class)
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+Route::middleware('throttle:60,1')->group(function (): void {
+    Route::get('webhooks/{flow}/{slug}', [FlowWebhookController::class, 'showProduction'])
+        ->name('webhooks.production.show');
+    Route::post('webhooks/{flow}/{slug}', [FlowWebhookController::class, 'dispatchProduction'])
+        ->name('webhooks.production.dispatch');
+    Route::get('webhooks/{flow}/dev/{slug}', [FlowWebhookController::class, 'showDevelopment'])
+        ->name('webhooks.development.show');
+    Route::post('webhooks/{flow}/dev/{slug}', [FlowWebhookController::class, 'dispatchDevelopment'])
+        ->name('webhooks.development.dispatch');
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('flows', [FlowController::class, 'index'])->name('flows.index')->can('view-any', Flow::class);

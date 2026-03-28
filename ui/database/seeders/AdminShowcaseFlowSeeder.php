@@ -103,7 +103,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 'level' => 'info',
                 'node_key' => 'ApprovalRouter',
                 'message' => 'Approval email and digest were dispatched.',
-                'context' => ['kind' => 'event_dispatched', 'event' => 'SendEmailEvent'],
+                'context' => ['kind' => 'event_dispatched', 'event' => 'SendEmail'],
                 'created_at' => $productionStartedAt->addMinutes(3),
             ],
         ]);
@@ -455,7 +455,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 'source_module' => 'kawa.message',
             ],
             [
-                'id' => 'SendEmailEvent',
+                'id' => 'SendEmail',
                 'source_kind' => 'import',
                 'source_module' => 'kawa.email',
             ],
@@ -515,7 +515,7 @@ class AdminShowcaseFlowSeeder extends Seeder
             [
                 'id' => 'ApprovalRouter',
                 'receives' => ['IntakePrepared'],
-                'sends' => ['ApprovalRequested', 'DigestQueued', 'SendEmailEvent', 'Message'],
+                'sends' => ['ApprovalRequested', 'DigestQueued', 'SendEmail', 'Message'],
                 'source_kind' => 'main',
                 'source_line' => 89,
                 'keep_instance' => true,
@@ -562,7 +562,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 ['id' => 'IntakePrepared', 'type' => 'event', 'label' => 'IntakePrepared', 'source_kind' => 'main', 'source_line' => 17],
                 ['id' => 'ApprovalRequested', 'type' => 'event', 'label' => 'ApprovalRequested', 'source_kind' => 'main', 'source_line' => 24],
                 ['id' => 'DigestQueued', 'type' => 'event', 'label' => 'DigestQueued', 'source_kind' => 'main', 'source_line' => 37],
-                ['id' => 'SendEmailEvent', 'type' => 'event', 'label' => 'SendEmailEvent', 'source_kind' => 'import', 'source_module' => 'kawa.email'],
+                ['id' => 'SendEmail', 'type' => 'event', 'label' => 'SendEmail', 'source_kind' => 'import', 'source_module' => 'kawa.email'],
                 ['id' => 'Message', 'type' => 'event', 'label' => 'Message', 'source_kind' => 'import', 'source_module' => 'kawa.message'],
                 ['id' => 'ScheduleCollector', 'type' => 'actor', 'label' => 'ScheduleCollector', 'source_kind' => 'main', 'source_line' => 44],
                 ['id' => 'NormalizeIntake', 'type' => 'actor', 'label' => 'NormalizeIntake', 'source_kind' => 'main', 'source_line' => 75],
@@ -581,7 +581,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 ['from' => 'IntakePrepared', 'to' => 'ApprovalRouter'],
                 ['from' => 'ApprovalRouter', 'to' => 'ApprovalRequested'],
                 ['from' => 'ApprovalRouter', 'to' => 'DigestQueued'],
-                ['from' => 'ApprovalRouter', 'to' => 'SendEmailEvent'],
+                ['from' => 'ApprovalRouter', 'to' => 'SendEmail'],
                 ['from' => 'ApprovalRouter', 'to' => 'Message'],
                 ['from' => 'ApprovalRequested', 'to' => 'EscalationMonitor'],
                 ['from' => 'EscalationMonitor', 'to' => 'EscalationRequested'],
@@ -638,7 +638,7 @@ PY;
         return <<<'PY'
 from kawa import Context, Message, actor, event
 from kawa.cron import CronEvent
-from kawa.email import SendEmailEvent
+from kawa.email import SendEmail
 
 
 @event
@@ -699,7 +699,7 @@ def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
     ctx.dispatch(Message(message=f"[ops] prepared {event.ticket_id}"))
 
 
-@actor(receivs=IntakePrepared, sends=(ApprovalRequested, DigestQueued, SendEmailEvent, Message))
+@actor(receivs=IntakePrepared, sends=(ApprovalRequested, DigestQueued, SendEmail, Message))
 class ApprovalRouter:
     def __call__(self, ctx: Context, event: IntakePrepared) -> None:
         ctx.dispatch(
@@ -715,7 +715,7 @@ class ApprovalRouter:
             )
         )
         ctx.dispatch(
-            SendEmailEvent(
+            SendEmail(
                 message=f"Approval requested for {event.ticket_id}",
             )
         )
@@ -733,7 +733,7 @@ PY;
         return <<<'PY'
 from kawa import Context, Message, actor, event
 from kawa.cron import CronEvent
-from kawa.email import SendEmailEvent
+from kawa.email import SendEmail
 
 
 @event
@@ -816,7 +816,7 @@ def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
 
 @actor(
     receivs=IntakePrepared,
-    sends=(ApprovalRequested, DigestQueued, SendEmailEvent, Message),
+    sends=(ApprovalRequested, DigestQueued, SendEmail, Message),
     keep_instance=True,
 )
 class ApprovalRouter:
@@ -834,7 +834,7 @@ class ApprovalRouter:
             )
         )
         ctx.dispatch(
-            SendEmailEvent(
+            SendEmail(
                 message=f"Approval requested: {event.ticket_id} ({event.priority})",
             )
         )

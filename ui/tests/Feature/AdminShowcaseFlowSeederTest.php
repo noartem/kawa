@@ -62,7 +62,7 @@ class AdminShowcaseFlowSeederTest extends TestCase
             ->pluck('id')
             ->all();
 
-        $this->assertContains('SendEmailEvent', $graphEventIds);
+        $this->assertContains('SendEmail', $graphEventIds);
         $this->assertContains('EscalationRequested', $graphEventIds);
         $this->assertContains('ApprovalRouter', $graphActorIds);
         $this->assertContains('PublishDigest', $graphActorIds);

@@ -105,7 +105,11 @@ final readonly class FlowService
                 'meta' => $responseData,
             ]);
 
-            $this->markLockReady($flow, $run);
+            $deployment = $this->markLockReady($flow, $run);
+
+            if (! ($deployment['ok'] ?? false)) {
+                return $deployment;
+            }
         }
 
         $run->logs()->create([
@@ -124,134 +128,62 @@ final readonly class FlowService
         return $this->stopDeployment($flow, 'production');
     }
 
-    public function markLockReady(Flow $flow, FlowRun $run): void
+    /**
+     * @return array{ok: bool, run_id?: int, message?: string}
+     */
+    public function markLockReady(Flow $flow, FlowRun $run): array
     {
         if ($run->type !== 'production') {
-            return;
+            return ['ok' => true, 'run_id' => $run->id];
         }
 
         $this->writeDeploymentFiles($flow, $run);
         $run->update([
             'status' => 'ready',
         ]);
+
+        return $this->requestRuntimeDeployment(
+            $flow,
+            $run,
+            __('flows.deploy.error'),
+            'Production deployment requested.',
+        );
     }
 
     private function deployDevelopment(Flow $flow): array
     {
         $run = $this->createDeployment($flow, 'development', 'creating');
-        $deploymentRoot = $this->deploymentRoot($flow, $run);
-        $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
-        $graphSnapshot = $this->latestGraphSnapshot($flow);
 
-        $payload = [
-            'image' => $flow->image ?? 'flow:dev',
-            'name' => sprintf('flow-%d-run-%d', $flow->id, $run->id),
-            'flow_id' => $flow->id,
-            'flow_run_id' => $run->id,
-            'flow_name' => $flow->name,
-            'graph_hash' => $this->graphHash($flow),
-            'events' => is_array($graphSnapshot['events'] ?? null)
-                ? $graphSnapshot['events']
-                : [],
-            'actors' => is_array($graphSnapshot['actors'] ?? null)
-                ? $graphSnapshot['actors']
-                : [],
-            'test_run_id' => (string) config('services.flow_manager.test_run_id'),
-            'labels' => [
-                'kawaflow.flow_id' => (string) $flow->id,
-                'kawaflow.flow_run_id' => (string) $run->id,
-                'kawaflow.flow_name' => $flow->name,
-                'kawaflow.graph_hash' => $this->graphHash($flow),
-                'kawaflow.timezone' => $timezone,
-            ],
-            'environment' => [
-                'FLOW_ID' => (string) $flow->id,
-                'FLOW_RUN_ID' => (string) $run->id,
-                'FLOW_TIMEZONE' => $timezone,
-            ],
-            'volumes' => [
-                $deploymentRoot => '/flow',
-            ],
-            'command' => [
-                '/app/.venv/bin/python',
-                '-u',
-                '/flow/main.py',
-            ],
-            'working_dir' => '/flow',
-        ];
-        if (! $payload['test_run_id']) {
-            unset($payload['test_run_id']);
-        }
-        $response = $this->client->createContainer($payload);
-
-        if (! ($response['ok'] ?? false)) {
-            $errorMessage = $this->resolveFlowManagerError($response, __('flows.run.error'));
-
-            $run->update([
-                'active' => false,
-                'status' => 'error',
-                'finished_at' => now(),
-                'meta' => [
-                    'error' => $response['message'] ?? null,
-                    'error_type' => $response['error_type'] ?? null,
-                    'details' => $response['details'] ?? [],
-                    'correlation_id' => $response['correlation_id'] ?? null,
-                ],
-            ]);
-
-            $run->logs()->create([
-                'flow_id' => $flow->id,
-                'flow_run_id' => $run->id,
-                'level' => 'error',
-                'message' => $errorMessage,
-                'context' => $response,
-            ]);
-
-            return [
-                'ok' => false,
-                'run_id' => $run->id,
-                'message' => $errorMessage,
-            ];
-        }
-
-        $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
-        $containerId = is_string($responseData['container_id'] ?? null)
-            ? $responseData['container_id']
-            : null;
-
-        $runUpdates = [
-            'meta' => $responseData,
-        ];
-
-        if ($containerId !== null && $containerId !== '') {
-            $runUpdates['container_id'] = $containerId;
-            $runUpdates['status'] = 'created';
-
-            $flow->update([
-                'container_id' => $containerId,
-            ]);
-        }
-
-        $run->update($runUpdates);
-
-        $run->logs()->create([
-            'flow_id' => $flow->id,
-            'flow_run_id' => $run->id,
-            'level' => 'info',
-            'message' => 'Development deployment requested.',
-            'context' => $responseData,
-        ]);
-
-        return [
-            'ok' => true,
-            'run_id' => $run->id,
-        ];
+        return $this->requestRuntimeDeployment(
+            $flow,
+            $run,
+            __('flows.run.error'),
+            'Development deployment requested.',
+        );
     }
 
     private function stopDeployment(Flow $flow, string $type): array
     {
         $run = $flow->activeRun($type);
         if (! $run) {
+            return ['ok' => true];
+        }
+
+        if ($run->finished_at !== null) {
+            $this->finalizeStoppedRun($flow, $run);
+
+            $run->logs()->create([
+                'flow_id' => $flow->id,
+                'flow_run_id' => $run->id,
+                'level' => 'info',
+                'message' => 'Deployment stop requested.',
+                'context' => [
+                    'deployment_type' => $type,
+                    'container_id' => $run->container_id,
+                    'normalized_terminal_run' => true,
+                ],
+            ]);
+
             return ['ok' => true];
         }
 
@@ -287,18 +219,7 @@ final readonly class FlowService
         if ($containerId) {
             $this->client->stopContainer($containerId);
         } else {
-            $run->update([
-                'active' => false,
-                'status' => 'stopped',
-                'finished_at' => now(),
-            ]);
-
-            if ($type === 'production') {
-                $flow->update([
-                    'status' => 'stopped',
-                    'last_finished_at' => now(),
-                ]);
-            }
+            $this->finalizeStoppedRun($flow, $run);
         }
 
         $run->logs()->create([
@@ -313,6 +234,30 @@ final readonly class FlowService
         ]);
 
         return ['ok' => true];
+    }
+
+    private function finalizeStoppedRun(Flow $flow, FlowRun $run): void
+    {
+        $finishedAt = $run->finished_at ?? now();
+
+        $run->update([
+            'active' => false,
+            'status' => 'stopped',
+            'finished_at' => $finishedAt,
+        ]);
+
+        if ($run->container_id !== null && $flow->container_id === $run->container_id) {
+            $flow->update([
+                'container_id' => null,
+            ]);
+        }
+
+        if ($run->type === 'production') {
+            $flow->update([
+                'status' => 'stopped',
+                'last_finished_at' => $finishedAt,
+            ]);
+        }
     }
 
     private function createDeployment(Flow $flow, string $type, string $status): FlowRun
@@ -346,12 +291,147 @@ final readonly class FlowService
 
         if ($type === 'production') {
             $flow->update([
+                'container_id' => null,
                 'status' => 'deploying',
                 'last_started_at' => now(),
             ]);
         }
 
         return $run;
+    }
+
+    private function requestRuntimeDeployment(
+        Flow $flow,
+        FlowRun $run,
+        string $fallbackErrorMessage,
+        string $requestedLogMessage,
+    ): array {
+        $response = $this->client->createContainer($this->runtimeContainerPayload($flow, $run));
+
+        if (! ($response['ok'] ?? false)) {
+            $errorMessage = $this->resolveFlowManagerError($response, $fallbackErrorMessage);
+
+            $run->update([
+                'active' => false,
+                'status' => 'error',
+                'finished_at' => now(),
+                'meta' => [
+                    'error' => $response['message'] ?? null,
+                    'error_type' => $response['error_type'] ?? null,
+                    'details' => $response['details'] ?? [],
+                    'correlation_id' => $response['correlation_id'] ?? null,
+                ],
+            ]);
+
+            $run->logs()->create([
+                'flow_id' => $flow->id,
+                'flow_run_id' => $run->id,
+                'level' => 'error',
+                'message' => $errorMessage,
+                'context' => $response,
+            ]);
+
+            if ($run->type === 'production') {
+                $flow->update([
+                    'status' => 'error',
+                    'last_finished_at' => now(),
+                ]);
+            }
+
+            return [
+                'ok' => false,
+                'run_id' => $run->id,
+                'message' => $errorMessage,
+            ];
+        }
+
+        $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $containerId = is_string($responseData['container_id'] ?? null)
+            ? $responseData['container_id']
+            : null;
+
+        $runUpdates = [
+            'meta' => $responseData,
+        ];
+
+        if ($containerId !== null && $containerId !== '') {
+            $runUpdates['container_id'] = $containerId;
+            $runUpdates['status'] = 'created';
+
+            $flow->update([
+                'container_id' => $containerId,
+            ]);
+        }
+
+        $run->update($runUpdates);
+
+        $run->logs()->create([
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'level' => 'info',
+            'message' => $requestedLogMessage,
+            'context' => $responseData,
+        ]);
+
+        return [
+            'ok' => true,
+            'run_id' => $run->id,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runtimeContainerPayload(Flow $flow, FlowRun $run): array
+    {
+        $deploymentRoot = $this->deploymentRoot($flow, $run);
+        $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
+        $graphSnapshot = is_array($run->graph_snapshot) ? $run->graph_snapshot : [];
+
+        $payload = [
+            'image' => $flow->image ?? 'flow:dev',
+            'name' => sprintf('flow-%d-run-%d', $flow->id, $run->id),
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'flow_name' => $flow->name,
+            'graph_hash' => $this->graphHash($flow),
+            'events' => is_array($graphSnapshot['events'] ?? null)
+                ? $graphSnapshot['events']
+                : [],
+            'actors' => is_array($graphSnapshot['actors'] ?? null)
+                ? $graphSnapshot['actors']
+                : [],
+            'test_run_id' => (string) config('services.flow_manager.test_run_id'),
+            'labels' => [
+                'kawaflow.flow_id' => (string) $flow->id,
+                'kawaflow.flow_run_id' => (string) $run->id,
+                'kawaflow.flow_name' => $flow->name,
+                'kawaflow.graph_hash' => $this->graphHash($flow),
+                'kawaflow.timezone' => $timezone,
+                'kawaflow.deployment_type' => $run->type,
+            ],
+            'environment' => [
+                'FLOW_ID' => (string) $flow->id,
+                'FLOW_RUN_ID' => (string) $run->id,
+                'FLOW_TIMEZONE' => $timezone,
+                'FLOW_PATH' => '/flow/flow.py',
+            ],
+            'volumes' => [
+                $deploymentRoot => '/flow',
+            ],
+            'command' => [
+                '/app/.venv/bin/python',
+                '-u',
+                '/flow/main.py',
+            ],
+            'working_dir' => '/flow',
+        ];
+
+        if (! $payload['test_run_id']) {
+            unset($payload['test_run_id']);
+        }
+
+        return $payload;
     }
 
     private function resolveRuntimeContainerId(Flow $flow, FlowRun $run): ?string
@@ -401,12 +481,10 @@ final readonly class FlowService
         $root = $this->deploymentRoot($flow, $run);
         File::ensureDirectoryExists($root);
 
-        if ($run->type === 'development') {
-            File::put($root.'/flow.py', $flow->code ?? '');
-            File::put($root.'/main.py', $this->developmentRuntimeScript());
-        } else {
-            File::put($root.'/main.py', $flow->code ?? '');
-        }
+        $code = is_string($run->code_snapshot) ? $run->code_snapshot : ($flow->code ?? '');
+
+        File::put($root.'/flow.py', $code);
+        File::put($root.'/main.py', $this->runtimeScript());
 
         if ($run->type === 'production' && $run->lock) {
             File::put($root.'/uv.lock', $run->lock);
@@ -418,7 +496,7 @@ final readonly class FlowService
         return storage_path(sprintf('app/flows/%d/%s/%d', $flow->id, $run->type, $run->id));
     }
 
-    private function developmentRuntimeScript(): string
+    private function runtimeScript(): string
     {
         return <<<'PY'
 import ast
@@ -435,7 +513,7 @@ from zoneinfo import ZoneInfo
 
 
 SOCKET_PATH = '/run/kawaflow.sock'
-FLOW_PATH = Path('/flow/flow.py')
+FLOW_PATH = Path(os.getenv('FLOW_PATH', '/flow/flow.py'))
 
 
 def runtime_metadata() -> dict:
@@ -863,17 +941,31 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def normalize_payload_value(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, dict):
+        normalized = {}
+        for key, item in value.items():
+            normalized[str(key)] = normalize_payload_value(item)
+        return normalized
+
+    if isinstance(value, (list, tuple)):
+        return [normalize_payload_value(item) for item in value]
+
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+
+    return str(value)
+
+
 def serialize_event_payload(event) -> dict:
     payload = {}
     event_dict = getattr(event, '__dict__', None)
     if isinstance(event_dict, dict):
         for key, value in event_dict.items():
-            if isinstance(value, datetime):
-                payload[key] = value.isoformat()
-            elif isinstance(value, (str, int, float, bool)) or value is None:
-                payload[key] = value
-            else:
-                payload[key] = str(value)
+            payload[key] = normalize_payload_value(value)
 
     return payload
 
@@ -971,9 +1063,59 @@ def process_pending_events(pending_events: list, registry) -> None:
                     }
                 )
 
-def process_cron_tick(data: dict) -> dict:
+
+def load_flow_registry(trigger_event: str, event_name: str):
     try:
         from kawa import registry
+    except Exception as exc:
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': trigger_event,
+                'event': event_name,
+                'payload': {'error': f'kawa import failed: {exc}'},
+            }
+        )
+        return None
+
+    try:
+        registry.actors.clear()
+        registry.events.clear()
+
+        module_name = '_kawa_runtime_flow'
+        sys.modules.pop(module_name, None)
+        spec = importlib.util.spec_from_file_location(module_name, FLOW_PATH)
+        if spec is None or spec.loader is None:
+            append_runtime_event(
+                {
+                    'kind': 'runtime_error',
+                    'actor': 'runtime',
+                    'trigger_event': trigger_event,
+                    'event': event_name,
+                    'payload': {'error': 'flow module could not be loaded'},
+                }
+            )
+            return None
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        return registry
+    except Exception as exc:
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': trigger_event,
+                'event': event_name,
+                'payload': {'error': str(exc)},
+            }
+        )
+        return None
+
+def process_cron_tick(data: dict) -> dict:
+    try:
         from kawa.core import EventFilter
         from kawa.cron import CronEvent
     except Exception as exc:
@@ -996,40 +1138,11 @@ def process_cron_tick(data: dict) -> dict:
         timezone_name = 'UTC'
         tick_time = datetime.now(ZoneInfo(timezone_name))
 
-    pending_events = []
-
-    try:
-        registry.actors.clear()
-        registry.events.clear()
-
-        module_name = '_kawa_runtime_flow'
-        spec = importlib.util.spec_from_file_location(module_name, FLOW_PATH)
-        if spec is None or spec.loader is None:
-            append_runtime_event(
-                {
-                    'kind': 'runtime_error',
-                    'actor': 'runtime',
-                    'trigger_event': 'cron_tick',
-                    'event': 'cron_tick',
-                    'payload': {'error': 'flow module could not be loaded'},
-                }
-            )
-            return {'type': 'runtime_ack', 'command': 'cron_tick', 'ok': False}
-
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-    except Exception as exc:
-        append_runtime_event(
-            {
-                'kind': 'runtime_error',
-                'actor': 'runtime',
-                'trigger_event': 'cron_tick',
-                'event': 'cron_tick',
-                'payload': {'error': str(exc)},
-            }
-        )
+    registry = load_flow_registry('cron_tick', 'cron_tick')
+    if registry is None:
         return {'type': 'runtime_ack', 'command': 'cron_tick', 'ok': False}
+
+    pending_events = []
 
     for actor_definition in registry.actors.values():
         actor_name = actor_definition.name
@@ -1078,6 +1191,48 @@ def process_cron_tick(data: dict) -> dict:
     }
 
 
+def process_webhook(data: dict) -> dict:
+    try:
+        from kawa.webhook import Webhook
+    except Exception as exc:
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': 'webhook',
+                'event': 'Webhook',
+                'payload': {'error': f'kawa import failed: {exc}'},
+            }
+        )
+        return {'type': 'runtime_ack', 'command': 'webhook', 'ok': False}
+
+    slug = data.get('slug')
+    if not isinstance(slug, str) or not slug.strip():
+        append_runtime_event(
+            {
+                'kind': 'runtime_error',
+                'actor': 'runtime',
+                'trigger_event': 'webhook',
+                'event': 'Webhook',
+                'payload': {'error': 'webhook slug is required'},
+            }
+        )
+        return {'type': 'runtime_ack', 'command': 'webhook', 'ok': False}
+
+    registry = load_flow_registry('webhook', 'Webhook')
+    if registry is None:
+        return {'type': 'runtime_ack', 'command': 'webhook', 'ok': False}
+
+    pending_events = [Webhook(slug=slug.strip(), payload=data.get('payload'))]
+    process_pending_events(pending_events, registry)
+
+    return {
+        'type': 'runtime_ack',
+        'command': 'webhook',
+        'ok': True,
+    }
+
+
 def handle_command(message: dict) -> dict:
     command = message.get('command', '')
 
@@ -1091,6 +1246,10 @@ def handle_command(message: dict) -> dict:
     if command == 'cron_tick':
         data = message.get('data') if isinstance(message.get('data'), dict) else {}
         return process_cron_tick(data)
+
+    if command == 'webhook':
+        data = message.get('data') if isinstance(message.get('data'), dict) else {}
+        return process_webhook(data)
 
     return {'error': f'unknown command: {command}'}
 

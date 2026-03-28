@@ -10,7 +10,10 @@ class FlowLogController extends Controller
     public function index(Flow $flow): JsonResponse
     {
         return response()->json([
-            'data' => $flow->logs()->latest()->paginate(),
+            'data' => $flow->logs()
+                ->latest('created_at')
+                ->orderByDesc('id')
+                ->paginate(),
         ]);
     }
 }

@@ -23,10 +23,18 @@ export interface FlowRun {
     updated_at?: string | null;
 }
 
+export interface FlowWebhookEndpoint {
+    slug: string;
+    source_line?: number | null;
+    production_url?: string | null;
+    development_url?: string | null;
+}
+
 export interface FlowDeployment extends FlowRun {
     container_id?: string | null;
     code?: string | null;
     graph?: Record<string, unknown> | null;
+    webhooks?: FlowWebhookEndpoint[] | null;
     logs: FlowLog[];
 }
 

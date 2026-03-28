@@ -8,6 +8,7 @@ import FlowEditorChatPanel from '@/components/flows/editor/FlowEditorChatPanel.v
 import type {
     FlowChatConversation,
     FlowChatMessage,
+    FlowWebhookEndpoint,
     GraphMeta,
     HistoryCard,
 } from '@/components/flows/editor/types';
@@ -58,6 +59,7 @@ const props = defineProps<{
     activeChat: FlowChatConversation | null;
     chatMessages: FlowChatMessage[];
     graph: Record<string, unknown> | null;
+    webhookEndpoints: FlowWebhookEndpoint[];
     graphMeta: GraphMeta;
     graphIsOutdated: boolean;
     developmentLogs: Array<{
@@ -434,6 +436,7 @@ watch(
                 <div v-else-if="activeTab === 'discovery'" class="h-full">
                     <FlowDiscoveryPanel
                         :graph="graph"
+                        :webhook-endpoints="webhookEndpoints"
                         :outdated="graphIsOutdated"
                         :selected-target="selectedDiscoveryTarget"
                         @jump-to-code="jumpToCode"

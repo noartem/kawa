@@ -167,6 +167,7 @@ const openDiscoveryNode = (payload: {
                     <FlowDiscoveryPanel
                         class="h-full"
                         :graph="deploymentCard.deployment.graph"
+                        :webhook-endpoints="deploymentCard.deployment.webhooks ?? []"
                         :selected-target="selectedDiscoveryTarget"
                         @jump-to-code="jumpToCode"
                     />

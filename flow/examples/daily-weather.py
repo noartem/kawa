@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from kawa import actor, event, NotSupportedEvent, Context
 from kawa.cron import CronEvent
-from kawa.email import SendEmailEvent
+from kawa.email import SendEmail
 
 
 @event
@@ -28,7 +28,7 @@ def format_weather_info(data) -> str:
 
 @actor(
     receivs=(CronEvent.by("0 8 * * *"), DateWeatherInfoEvent),
-    sends=(GetDateWeatherInfoEvent, SendEmailEvent, NotSupportedEvent),
+    sends=(GetDateWeatherInfoEvent, SendEmail, NotSupportedEvent),
 )
 def CreateDailyMessageActor(ctx: Context, event):
     """
@@ -38,7 +38,7 @@ def CreateDailyMessageActor(ctx: Context, event):
         case CronEvent():
             ctx.dispatch(GetDateWeatherInfoEvent(date=datetime.now()))
         case DateWeatherInfoEvent():
-            ctx.dispatch(SendEmailEvent(message=format_weather_info(event.data)))
+            ctx.dispatch(SendEmail(message=format_weather_info(event.data)))
 
 
 @actor(

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FlowWebhookEndpoint } from '@/components/flows/editor/types';
 import {
     Tooltip,
     TooltipContent,
@@ -7,7 +8,7 @@ import {
 } from '@/components/ui/tooltip';
 import cronstrue from 'cronstrue';
 import 'cronstrue/locales/ru';
-import { ArrowUpRight, ScanSearch } from 'lucide-vue-next';
+import { ArrowUpRight, Check, ScanSearch } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -42,14 +43,28 @@ interface DiscoveryEvent extends DiscoveryItemBase {
     cronDescription: string | null;
 }
 
+interface DiscoveryEventView extends DiscoveryEvent {
+    webhook: DiscoveryWebhookEndpoint | null;
+    implementationLine: number | null;
+}
+
+interface DiscoveryWebhookEndpoint {
+    slug: string;
+    sourceLine: number | null;
+    productionUrl: string | null;
+    developmentUrl: string | null;
+}
+
 const props = withDefaults(
     defineProps<{
         graph?: Record<string, unknown> | null;
+        webhookEndpoints?: FlowWebhookEndpoint[];
         selectedTarget?: DiscoverySelectionTarget | null;
         outdated?: boolean;
     }>(),
     {
         graph: null,
+        webhookEndpoints: () => [],
         selectedTarget: null,
         outdated: false,
     },
@@ -67,6 +82,9 @@ const highlightedKey = ref<string | null>(null);
 const itemRefs = new Map<string, HTMLElement>();
 
 let highlightTimer: ReturnType<typeof setTimeout> | null = null;
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+const copiedWebhookKey = ref<string | null>(null);
 
 const resolveGraphId = (value: unknown): string | null => {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -176,6 +194,25 @@ const splitCronEventName = (
         expression: cronExpression,
         suffix: name.slice(expressionIndex + cronExpression.length),
     };
+};
+
+const extractWebhookSlug = (name: string): string | null => {
+    const match = name.match(/^Webhook(?:Event)?\.by\(\s*(.+?)\s*\)$/);
+
+    if (!match) {
+        return null;
+    }
+
+    let slug = match[1]?.trim() ?? '';
+
+    if (
+        (slug.startsWith('"') && slug.endsWith('"')) ||
+        (slug.startsWith("'") && slug.endsWith("'"))
+    ) {
+        slug = slug.slice(1, -1).trim();
+    }
+
+    return slug.length > 0 ? slug : null;
 };
 
 const buildItemKey = (type: DiscoveryItemType, id: string): string => {
@@ -456,8 +493,84 @@ const events = computed<DiscoveryEvent[]>(() => {
         .sort((left, right) => left.name.localeCompare(right.name));
 });
 
+const webhooks = computed<DiscoveryWebhookEndpoint[]>(() => {
+    return props.webhookEndpoints
+        .map((endpoint) => ({
+            slug: endpoint.slug,
+            sourceLine: resolveSourceLine(endpoint.source_line),
+            productionUrl:
+                typeof endpoint.production_url === 'string' &&
+                endpoint.production_url.trim().length > 0
+                    ? endpoint.production_url.trim()
+                    : null,
+            developmentUrl:
+                typeof endpoint.development_url === 'string' &&
+                endpoint.development_url.trim().length > 0
+                    ? endpoint.development_url.trim()
+                    : null,
+        }))
+        .sort((left, right) => left.slug.localeCompare(right.slug));
+});
+
+const webhookBySlug = computed(() => {
+    return new Map(webhooks.value.map((webhook) => [webhook.slug, webhook]));
+});
+
+const resolveWebhookEndpoint = (
+    name: string,
+): DiscoveryWebhookEndpoint | null => {
+    const slug = extractWebhookSlug(name);
+
+    if (!slug) {
+        return null;
+    }
+
+    return webhookBySlug.value.get(slug) ?? null;
+};
+
+const displayEvents = computed<DiscoveryEventView[]>(() => {
+    const discoveredEvents = events.value.map((event) => {
+        const webhook = resolveWebhookEndpoint(event.name);
+
+        return {
+            ...event,
+            webhook,
+            implementationLine: webhook?.sourceLine ?? event.sourceLine,
+        };
+    });
+    const representedWebhooks = new Set(
+        discoveredEvents
+            .map((event) => event.webhook?.slug ?? null)
+            .filter((slug): slug is string => slug !== null),
+    );
+
+    for (const webhook of webhooks.value) {
+        if (representedWebhooks.has(webhook.slug)) {
+            continue;
+        }
+
+        discoveredEvents.push({
+            id: `Webhook.by(${webhook.slug})`,
+            name: `Webhook.by(${webhook.slug})`,
+            type: 'event',
+            consumedBy: [],
+            producedBy: [],
+            cronDescription: null,
+            sourceLine: webhook.sourceLine,
+            sourceKind: 'main',
+            sourceModule: null,
+            webhook,
+            implementationLine: webhook.sourceLine,
+        });
+    }
+
+    return discoveredEvents.sort((left, right) =>
+        left.name.localeCompare(right.name),
+    );
+});
+
 const hasDiscoveryItems = computed(() => {
-    return actors.value.length > 0 || events.value.length > 0;
+    return actors.value.length > 0 || displayEvents.value.length > 0;
 });
 
 const clearHighlightTimer = (): void => {
@@ -467,6 +580,15 @@ const clearHighlightTimer = (): void => {
 
     clearTimeout(highlightTimer);
     highlightTimer = null;
+};
+
+const clearCopiedTimer = (): void => {
+    if (copiedTimer === null) {
+        return;
+    }
+
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
 };
 
 const focusItem = async (
@@ -517,14 +639,70 @@ const openImplementation = (line: number | null): void => {
     emit('jump-to-code', line);
 };
 
-const implementationLabel = (item: DiscoveryActor | DiscoveryEvent): string => {
-    if (item.sourceLine === null) {
+const implementationLabel = (line: number | null): string => {
+    if (line === null) {
         return t('common.empty');
     }
 
     return t('flows.editor.discovery.implementation_line', {
-        line: item.sourceLine,
+        line,
     });
+};
+
+const webhookCopyLabel = (key: string): string => {
+    return copiedWebhookKey.value === key
+        ? t('flows.editor.discovery.webhook_copied')
+        : t('flows.editor.discovery.copy_webhook');
+};
+
+const copyWithFallback = (value: string): boolean => {
+    if (typeof document === 'undefined') {
+        return false;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    } finally {
+        document.body.removeChild(textarea);
+    }
+};
+
+const copyWebhookUrl = async (url: string, key: string): Promise<void> => {
+    let copied = false;
+
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(url);
+            copied = true;
+        }
+    } catch {
+        copied = false;
+    }
+
+    if (!copied) {
+        copied = copyWithFallback(url);
+    }
+
+    if (!copied) {
+        return;
+    }
+
+    copiedWebhookKey.value = key;
+    clearCopiedTimer();
+    copiedTimer = setTimeout(() => {
+        copiedWebhookKey.value = null;
+        copiedTimer = null;
+    }, 1800);
 };
 
 watch(
@@ -541,6 +719,7 @@ watch(
 
 onBeforeUnmount(() => {
     clearHighlightTimer();
+    clearCopiedTimer();
 });
 </script>
 
@@ -623,22 +802,22 @@ onBeforeUnmount(() => {
                     class="mt-0.5 flex gap-1 text-[11px] text-muted-foreground hover:bg-transparent hover:text-foreground"
                     @click.stop="openImplementation(actor.sourceLine)"
                 >
-                    {{ implementationLabel(actor) }}
+                    {{ implementationLabel(actor.sourceLine) }}
                     <ArrowUpRight class="mt-0.5 size-3" aria-hidden="true" />
                 </button>
             </div>
         </template>
 
-        <template v-if="events.length">
+        <template v-if="displayEvents.length">
             <h3
                 class="px-4 pt-4 pb-2 text-xs font-semibold tracking-wide text-muted-foreground"
             >
                 {{ t('flows.editor.discovery.events_title') }}
-                ({{ events.length }})
+                ({{ displayEvents.length }})
             </h3>
 
             <div
-                v-for="event in events"
+                v-for="event in displayEvents"
                 :key="`event-${event.id}`"
                 :ref="(element) => setItemRef('event', event.id, element)"
                 class="grid gap-1 px-4 py-2 transition-colors"
@@ -685,9 +864,9 @@ onBeforeUnmount(() => {
                 </TooltipProvider>
                 <div
                     v-else
-                    class="mb-1 truncate font-mono text-sm font-semibold text-foreground"
+                    class="mb-1 flex min-w-0 flex-wrap items-center gap-2 font-mono text-sm font-semibold text-foreground"
                 >
-                    {{ event.name }}
+                    <span class="min-w-0 truncate">{{ event.name }}</span>
                 </div>
 
                 <div
@@ -726,13 +905,121 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
+                <div
+                    v-if="event.webhook"
+                    class="mt-1 grid gap-2 rounded-lg border border-border/70 bg-muted/40 p-3"
+                >
+                    <div class="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span
+                            class="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-medium tracking-[0.04em] text-emerald-700 uppercase dark:text-emerald-300"
+                        >
+                            Webhook
+                        </span>
+                        <span class="text-muted-foreground">
+                            {{ event.webhook.slug }}
+                        </span>
+                    </div>
+
+                    <div
+                        v-if="event.webhook.productionUrl"
+                        class="grid gap-1.5 text-[11px]"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-muted-foreground">
+                                {{ t('flows.editor.discovery.production_webhook') }}
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                                :class="
+                                    copiedWebhookKey ===
+                                    `production:${event.webhook.slug}`
+                                        ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                                        : ''
+                                "
+                                @click.stop="
+                                    copyWebhookUrl(
+                                        event.webhook.productionUrl,
+                                        `production:${event.webhook.slug}`,
+                                    )
+                                "
+                            >
+                                <Check
+                                    v-if="
+                                        copiedWebhookKey ===
+                                        `production:${event.webhook.slug}`
+                                    "
+                                    class="size-3"
+                                    aria-hidden="true"
+                                />
+                                {{
+                                    webhookCopyLabel(
+                                        `production:${event.webhook.slug}`,
+                                    )
+                                }}
+                            </button>
+                        </div>
+                        <code
+                            class="block break-all rounded-md bg-background px-2 py-1.5 leading-relaxed"
+                        >
+                            {{ event.webhook.productionUrl }}
+                        </code>
+                    </div>
+
+                    <div
+                        v-if="event.webhook.developmentUrl"
+                        class="grid gap-1.5 text-[11px]"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-muted-foreground">
+                                {{ t('flows.editor.discovery.development_webhook') }}
+                            </span>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                                :class="
+                                    copiedWebhookKey ===
+                                    `development:${event.webhook.slug}`
+                                        ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                                        : ''
+                                "
+                                @click.stop="
+                                    copyWebhookUrl(
+                                        event.webhook.developmentUrl,
+                                        `development:${event.webhook.slug}`,
+                                    )
+                                "
+                            >
+                                <Check
+                                    v-if="
+                                        copiedWebhookKey ===
+                                        `development:${event.webhook.slug}`
+                                    "
+                                    class="size-3"
+                                    aria-hidden="true"
+                                />
+                                {{
+                                    webhookCopyLabel(
+                                        `development:${event.webhook.slug}`,
+                                    )
+                                }}
+                            </button>
+                        </div>
+                        <code
+                            class="block break-all rounded-md bg-background px-2 py-1.5 leading-relaxed"
+                        >
+                            {{ event.webhook.developmentUrl }}
+                        </code>
+                    </div>
+                </div>
+
                 <button
-                    v-if="event.sourceLine !== null"
+                    v-if="event.implementationLine !== null"
                     type="button"
                     class="mt-0.5 flex gap-1 text-[11px] text-muted-foreground hover:bg-transparent hover:text-foreground"
-                    @click.stop="openImplementation(event.sourceLine)"
+                    @click.stop="openImplementation(event.implementationLine)"
                 >
-                    {{ implementationLabel(event) }}
+                    {{ implementationLabel(event.implementationLine) }}
                     <ArrowUpRight class="mt-0.5 size-3" aria-hidden="true" />
                 </button>
             </div>

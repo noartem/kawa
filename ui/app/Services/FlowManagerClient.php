@@ -80,6 +80,17 @@ class FlowManagerClient
     }
 
     /**
+     * @param  array<string, mixed>  $message
+     */
+    public function sendMessage(string $containerId, array $message): array
+    {
+        return $this->run('send_message', [
+            'container_id' => $containerId,
+            'message' => $message,
+        ], waitForResponse: true, responseTimeoutMs: 3000);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function containerGraph(string $containerId): ?array
@@ -109,8 +120,12 @@ class FlowManagerClient
         return is_array($graph) ? $graph : null;
     }
 
-    protected function run(string $action, array $payload = [], bool $waitForResponse = false): array
-    {
+    protected function run(
+        string $action,
+        array $payload = [],
+        bool $waitForResponse = false,
+        ?int $responseTimeoutMs = null,
+    ): array {
         $replyQueue = null;
 
         try {
@@ -160,7 +175,12 @@ class FlowManagerClient
                 ];
             }
 
-            $responsePayload = $this->awaitResponse($replyQueue, $correlationId, $action);
+            $responsePayload = $this->awaitResponse(
+                $replyQueue,
+                $correlationId,
+                $action,
+                $responseTimeoutMs,
+            );
 
             return $this->normalizeResponse($responsePayload, $correlationId);
         } catch (Throwable $exception) {
@@ -198,13 +218,17 @@ class FlowManagerClient
         return (string) $queueName;
     }
 
-    private function awaitResponse(string $replyQueue, string $correlationId, string $action): array
-    {
+    private function awaitResponse(
+        string $replyQueue,
+        string $correlationId,
+        string $action,
+        ?int $responseTimeoutMs = null,
+    ): array {
         if (! $this->channel) {
             throw new RuntimeException('AMQP channel is not initialized');
         }
 
-        $deadline = microtime(true) + $this->responseTimeoutSeconds();
+        $deadline = microtime(true) + $this->responseTimeoutSeconds($responseTimeoutMs);
 
         while (microtime(true) < $deadline) {
             $response = $this->channel->basic_get($replyQueue, true);
@@ -338,9 +362,9 @@ class FlowManagerClient
         return ($this->timeoutMs ?? (int) config('services.flow_manager.timeout', 8000)) / 1000;
     }
 
-    private function responseTimeoutSeconds(): float
+    private function responseTimeoutSeconds(?int $overrideMs = null): float
     {
-        $configured = (int) config('services.flow_manager.response_timeout', 45000);
+        $configured = $overrideMs ?? (int) config('services.flow_manager.response_timeout', 45000);
 
         return max($configured, 1000) / 1000;
     }

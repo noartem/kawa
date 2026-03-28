@@ -14,6 +14,7 @@ import type {
     FlowHistory,
     FlowLog,
     FlowRun,
+    FlowWebhookEndpoint,
     Permissions,
     RunStat,
 } from '@/components/flows/editor/types';
@@ -46,6 +47,7 @@ const props = defineProps<{
     flow: FlowDetail;
     productionRun: FlowRun | null;
     lastDevelopmentDeployment: FlowDeployment | null;
+    webhookEndpoints: FlowWebhookEndpoint[];
     productionLogsCount: number;
     deployments?: FlowDeployment[];
     status?: string | null;
@@ -99,6 +101,7 @@ const refreshOnlyProps = [
     'productionRun',
     'productionLogsCount',
     'lastDevelopmentDeployment',
+    'webhookEndpoints',
     'deployments',
     'runStats',
     'history',
@@ -963,6 +966,7 @@ onBeforeUnmount(() => {
                 :active-chat="activeChat"
                 :chat-messages="displayedChatMessages"
                 :graph="displayGraph"
+                :webhook-endpoints="props.webhookEndpoints"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
                 :development-logs="displayDevelopmentLogs"

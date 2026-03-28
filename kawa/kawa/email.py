@@ -2,5 +2,5 @@ from .main import event
 
 
 @event
-class SendEmailEvent:
+class SendEmail:
     message: str

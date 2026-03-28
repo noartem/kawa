@@ -123,6 +123,7 @@ class ProcessFlowManagerEvent implements ShouldQueue
                 }
 
                 $flowRun->update([
+                    'active' => false,
                     'status' => 'error',
                     'finished_at' => now(),
                     'meta' => $this->payload,
@@ -222,7 +223,7 @@ class ProcessFlowManagerEvent implements ShouldQueue
             return;
         }
 
-        if ($status !== 'stopped' && ! $run->active) {
+        if (! in_array($status, ['stopped', 'error'], true) && ! $run->active) {
             return;
         }
 

@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import FlowLogPayloadViewer from '@/components/FlowLogPayloadViewer.vue';
+import { Button } from '@/components/ui/button';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { Braces } from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -6,16 +15,9 @@ import {
     ref,
     useAttrs,
     watch,
+    type HTMLAttributes,
 } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { cn } from '@/lib/utils';
-
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface FlowLog {
     id: number;
@@ -41,6 +43,14 @@ interface LogLabelSegment {
     text: string;
     target?: FlowTarget;
     payloadPreview?: PayloadPreviewEntry[] | null;
+    payload?: unknown;
+    hasPayload?: boolean;
+}
+
+interface PayloadDetails {
+    hasPayload: boolean;
+    payload: unknown;
+    payloadPreview: PayloadPreviewEntry[] | null;
 }
 
 interface ParsedLogEvent {
@@ -90,6 +100,13 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
     }
 
     return null;
+};
+
+const hasOwnProperty = <TKey extends string>(
+    value: object,
+    key: TKey,
+): value is object & Record<TKey, unknown> => {
+    return Object.prototype.hasOwnProperty.call(value, key);
 };
 
 const stringValue = (value: unknown): string | null => {
@@ -307,15 +324,22 @@ const formatPayloadValue = (value: unknown, depth = 0): string | null => {
         `{ ${entries
             .slice(0, 3)
             .map(([key, nestedValue]) => {
-                const renderedValue = formatPayloadValue(nestedValue, depth + 1);
+                const renderedValue = formatPayloadValue(
+                    nestedValue,
+                    depth + 1,
+                );
 
-                return renderedValue === null ? key : `${key}: ${renderedValue}`;
+                return renderedValue === null
+                    ? key
+                    : `${key}: ${renderedValue}`;
             })
             .join(', ')}${entries.length > 3 ? ', ...' : ''} }`,
     );
 };
 
-const extractPayloadPreview = (value: unknown): PayloadPreviewEntry[] | null => {
+const extractPayloadPreview = (
+    value: unknown,
+): PayloadPreviewEntry[] | null => {
     const payload = asRecord(value);
 
     if (!payload) {
@@ -341,6 +365,24 @@ const extractPayloadPreview = (value: unknown): PayloadPreviewEntry[] | null => 
     return preview.length > 0 ? preview : null;
 };
 
+const resolvePayloadDetails = (
+    context: Record<string, unknown> | null,
+): PayloadDetails => {
+    if (!context || !hasOwnProperty(context, 'payload')) {
+        return {
+            hasPayload: false,
+            payload: undefined,
+            payloadPreview: null,
+        };
+    }
+
+    return {
+        hasPayload: true,
+        payload: context.payload,
+        payloadPreview: extractPayloadPreview(context.payload),
+    };
+};
+
 const createTextSegment = (text: string): LogLabelSegment => ({
     kind: 'text',
     text,
@@ -357,7 +399,7 @@ const createActorSegment = (actor: string): LogLabelSegment => ({
 
 const createEventSegment = (
     event: string,
-    payloadPreview: PayloadPreviewEntry[] | null,
+    payloadDetails: PayloadDetails,
 ): LogLabelSegment => ({
     kind: 'event',
     text: event,
@@ -365,7 +407,9 @@ const createEventSegment = (
         id: event,
         type: 'event',
     },
-    payloadPreview,
+    payloadPreview: payloadDetails.payloadPreview,
+    payload: payloadDetails.payload,
+    hasPayload: payloadDetails.hasPayload,
 });
 
 const createPlainLabelSegments = (label: string): LogLabelSegment[] => {
@@ -375,26 +419,26 @@ const createPlainLabelSegments = (label: string): LogLabelSegment[] => {
 const createActorInvokedSegments = (
     actor: string,
     event: string,
-    payloadPreview: PayloadPreviewEntry[] | null,
+    payloadDetails: PayloadDetails,
 ): LogLabelSegment[] => {
     return [
         createTextSegment(t('flows.logs.inline.actor_prefix')),
         createActorSegment(actor),
         createTextSegment(t('flows.logs.inline.invoked_by')),
-        createEventSegment(event, payloadPreview),
+        createEventSegment(event, payloadDetails),
     ];
 };
 
 const createActorDispatchedSegments = (
     actor: string,
     event: string,
-    payloadPreview: PayloadPreviewEntry[] | null,
+    payloadDetails: PayloadDetails,
 ): LogLabelSegment[] => {
     return [
         createTextSegment(t('flows.logs.inline.actor_prefix')),
         createActorSegment(actor),
         createTextSegment(t('flows.logs.inline.dispatched_event')),
-        createEventSegment(event, payloadPreview),
+        createEventSegment(event, payloadDetails),
     ];
 };
 
@@ -418,14 +462,14 @@ const resolveActivityLabelSegments = (
     details: Record<string, unknown> | null,
     context: Record<string, unknown> | null,
 ): LogLabelSegment[] => {
-    const payloadPreview = extractPayloadPreview(context?.payload);
+    const payloadDetails = resolvePayloadDetails(context);
 
     if (activityType === 'actor_invoked') {
         const actor = stringValue(details?.actor) ?? t('common.unknown');
         const triggerEvent =
             stringValue(details?.trigger_event) ?? t('common.unknown');
 
-        return createActorInvokedSegments(actor, triggerEvent, payloadPreview);
+        return createActorInvokedSegments(actor, triggerEvent, payloadDetails);
     }
 
     if (activityType === 'actor_dispatched') {
@@ -436,7 +480,7 @@ const resolveActivityLabelSegments = (
         return createActorDispatchedSegments(
             actor,
             dispatchedEvent,
-            payloadPreview,
+            payloadDetails,
         );
     }
 
@@ -444,7 +488,7 @@ const resolveActivityLabelSegments = (
         const customEvent = stringValue(details?.event);
 
         if (customEvent) {
-            return [createEventSegment(customEvent, payloadPreview)];
+            return [createEventSegment(customEvent, payloadDetails)];
         }
     }
 
@@ -479,7 +523,7 @@ const resolveActivityMessage = (
 const resolveRuntimeEventLabelSegments = (
     context: Record<string, unknown> | null,
 ): LogLabelSegment[] => {
-    const payloadPreview = extractPayloadPreview(context?.payload);
+    const payloadDetails = resolvePayloadDetails(context);
     const kind = stringValue(context?.kind);
     const actor = stringValue(context?.actor) ?? t('common.unknown');
     const event = stringValue(context?.event) ?? t('common.unknown');
@@ -487,11 +531,11 @@ const resolveRuntimeEventLabelSegments = (
         stringValue(context?.trigger_event) ?? t('common.unknown');
 
     if (kind === 'actor_invoked') {
-        return createActorInvokedSegments(actor, triggerEvent, payloadPreview);
+        return createActorInvokedSegments(actor, triggerEvent, payloadDetails);
     }
 
     if (kind === 'event_dispatched') {
-        return createActorDispatchedSegments(actor, event, payloadPreview);
+        return createActorDispatchedSegments(actor, event, payloadDetails);
     }
 
     if (kind === 'actor_error') {
@@ -580,7 +624,9 @@ const parseLogEvent = (log: FlowLog): ParsedLogEvent | null => {
 
     if (eventKey === 'actor_message') {
         return {
-            labelSegments: createPlainLabelSegments(resolveEventLabel(eventKey)),
+            labelSegments: createPlainLabelSegments(
+                resolveEventLabel(eventKey),
+            ),
             message: extractActorMessageText(context),
             statusState: null,
         };
@@ -736,7 +782,13 @@ const nodeButtonClass =
 
 const nodeLabelClass = 'cursor-default';
 
-const selectNode = (target: FlowTarget | undefined, event: MouseEvent): void => {
+const payloadTriggerClass =
+    'inline-flex h-5 items-center gap-1 rounded-md border border-border/70 bg-background/80 px-1.5 text-[10px] font-medium tracking-wide text-muted-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60';
+
+const selectNode = (
+    target: FlowTarget | undefined,
+    event: MouseEvent,
+): void => {
     if (!target || !isNodeSelectionEnabled.value) {
         return;
     }
@@ -802,13 +854,19 @@ watch(
 </script>
 
 <template>
-    <TooltipProvider v-if="logs.length" :delay-duration="120">
+    <div v-if="logs.length">
         <div ref="logsContainerRef" :class="cn(containerClass, props.class)">
-            <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
+            <div
+                v-for="log in displayLogs"
+                :key="log.id"
+                :class="itemPaddingClass"
+            >
                 <div
                     class="flex items-start justify-between gap-3 text-xs text-muted-foreground"
                 >
-                    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                    <div
+                        class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"
+                    >
                         <span
                             class="tracking-wide uppercase"
                             :class="log.levelClass"
@@ -820,7 +878,9 @@ watch(
                             class="min-w-0 flex-1 text-muted-foreground"
                         >
                             <template
-                                v-for="(segment, segmentIndex) in log.labelSegments"
+                                v-for="(
+                                    segment, segmentIndex
+                                ) in log.labelSegments"
                                 :key="`${log.id}-${segment.kind}-${segmentIndex}`"
                             >
                                 <span
@@ -830,7 +890,10 @@ watch(
                                     {{ segment.text }}
                                 </span>
                                 <button
-                                    v-else-if="segment.kind === 'actor' && isNodeSelectionEnabled"
+                                    v-else-if="
+                                        segment.kind === 'actor' &&
+                                        isNodeSelectionEnabled
+                                    "
                                     type="button"
                                     :class="nodeButtonClass"
                                     @click="selectNode(segment.target, $event)"
@@ -843,45 +906,63 @@ watch(
                                 >
                                     {{ segment.text }}
                                 </span>
-                                <Tooltip v-else-if="segment.payloadPreview?.length">
-                                    <TooltipTrigger as-child>
-                                        <component
-                                            :is="isNodeSelectionEnabled ? 'button' : 'span'"
-                                            :type="isNodeSelectionEnabled ? 'button' : undefined"
-                                            :class="[
-                                                nodeTokenClass,
-                                                isNodeSelectionEnabled
-                                                    ? nodeButtonClass
-                                                    : nodeLabelClass,
-                                            ]"
-                                            @click="
-                                                isNodeSelectionEnabled
-                                                    ? selectNode(segment.target, $event)
-                                                    : undefined
-                                            "
-                                        >
-                                            {{ segment.text }}
-                                        </component>
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                        side="bottom"
-                                        align="start"
-                                        class="max-w-sm space-y-1 text-xs"
+                                <template v-else-if="segment.kind === 'event'">
+                                    <component
+                                        :is="
+                                            isNodeSelectionEnabled
+                                                ? 'button'
+                                                : 'span'
+                                        "
+                                        :type="
+                                            isNodeSelectionEnabled
+                                                ? 'button'
+                                                : undefined
+                                        "
+                                        :class="[
+                                            nodeTokenClass,
+                                            isNodeSelectionEnabled
+                                                ? nodeButtonClass
+                                                : nodeLabelClass,
+                                        ]"
+                                        @click="
+                                            isNodeSelectionEnabled
+                                                ? selectNode(
+                                                      segment.target,
+                                                      $event,
+                                                  )
+                                                : undefined
+                                        "
                                     >
-                                        <div
-                                            v-for="entry in segment.payloadPreview"
-                                            :key="`${segment.text}-${entry.key}`"
-                                            class="grid grid-cols-[auto_1fr] gap-x-2"
+                                        {{ segment.text }}
+                                    </component>
+
+                                    <Popover v-if="segment.hasPayload">
+                                        <PopoverTrigger as-child>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                :class="payloadTriggerClass"
+                                            >
+                                                <Braces class="size-3" />
+                                                {{
+                                                    t(
+                                                        'flows.logs.payload.json_label',
+                                                    )
+                                                }}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                            side="bottom"
+                                            align="start"
+                                            class="w-[min(90vw,42rem)] border-border/70 bg-popover p-0 shadow-xl"
                                         >
-                                            <span class="font-medium text-foreground/90">
-                                                {{ entry.key }}:
-                                            </span>
-                                            <span class="break-words text-muted-foreground">
-                                                {{ entry.value }}
-                                            </span>
-                                        </div>
-                                    </TooltipContent>
-                                </Tooltip>
+                                            <FlowLogPayloadViewer
+                                                :payload="segment.payload"
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </template>
                                 <button
                                     v-else-if="isNodeSelectionEnabled"
                                     type="button"
@@ -899,7 +980,9 @@ watch(
                             </template>
                         </span>
                     </div>
-                    <span class="shrink-0">{{ formatDate(log.created_at) }}</span>
+                    <span class="shrink-0">{{
+                        formatDate(log.created_at)
+                    }}</span>
                 </div>
                 <p v-if="log.renderedMessage" :class="messageClass">
                     {{ log.renderedMessage }}
@@ -909,7 +992,7 @@ watch(
                 </p>
             </div>
         </div>
-    </TooltipProvider>
+    </div>
     <div
         v-else
         class="flex items-center justify-center rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground"

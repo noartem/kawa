@@ -8,6 +8,7 @@ use App\Models\FlowHistory;
 use App\Models\FlowRun;
 use App\Services\FlowChatService;
 use App\Services\FlowService;
+use App\Services\FlowWebhookService;
 use App\Support\FlowCodeDiff;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,10 @@ use Inertia\Response;
 
 class FlowController extends Controller
 {
+    public function __construct(
+        private readonly FlowWebhookService $webhooks,
+    ) {}
+
     private const EDITOR_DEPLOYMENTS_LIMIT = 5;
 
     private const DEFAULT_DEPLOYMENTS_LIMIT = 12;
@@ -49,12 +54,11 @@ def EveryMinuteMessage(ctx: Context, event: CronEvent) -> None:
 PY
         ,
         'webhook' => <<<'PY'
-from kawa import actor, event, Context
-from kawa.webhook import WebhookEvent
+from kawa import Context, Webhook, actor
 
 
-@actor(receivs=WebhookEvent.by("my-webhook"))
-def HandleWebhook(ctx: Context, event):
+@actor(receivs=Webhook.by("my-webhook"))
+def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print("Received webhook:", event.payload)
 PY
         ,
@@ -123,6 +127,7 @@ PY
         $flow->load(['user', 'activeChatConversation.messages'])->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
+        $activeDevelopmentRun = $flow->activeRun('development');
         $lastDevelopmentDeployment = $this->resolveLatestDeploymentOfType($flow, 'development');
         $productionLogsCount = $productionRun?->logs()->count() ?? 0;
         $history = $flow->histories()->latest()->limit(10)->get();
@@ -134,6 +139,11 @@ PY
             'deployments' => $deployments,
             'productionRun' => $productionRun,
             'lastDevelopmentDeployment' => $lastDevelopmentDeployment,
+            'webhookEndpoints' => $this->webhooks->editorEndpoints(
+                $flow,
+                $productionRun,
+                $activeDevelopmentRun,
+            ),
             'productionLogsCount' => $productionLogsCount,
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
@@ -333,7 +343,8 @@ PY
         $runIds = $runs->pluck('id')->all();
         $logsByRunId = $flow->logs()
             ->whereIn('flow_run_id', $runIds)
-            ->latest()
+            ->latest('created_at')
+            ->orderByDesc('id')
             ->get()
             ->groupBy('flow_run_id');
 
@@ -341,6 +352,7 @@ PY
             $runLogs = ($logsByRunId->get($run->id) ?? collect())
                 ->take(50)
                 ->values();
+            $codeSnapshot = $this->resolveRunCodeSnapshot($run, $flow, $historyTimeline);
 
             return [
                 'id' => $run->id,
@@ -356,8 +368,9 @@ PY
                 'finished_at' => $run->finished_at,
                 'created_at' => $run->created_at,
                 'updated_at' => $run->updated_at,
-                'code' => $this->resolveRunCodeSnapshot($run, $flow, $historyTimeline),
+                'code' => $codeSnapshot,
                 'graph' => $this->resolveRunGraphSnapshot($run),
+                'webhooks' => $this->webhooks->deploymentEndpoints($flow, $run, $codeSnapshot),
                 'logs' => $runLogs
                     ->map(static fn ($log) => [
                         'id' => $log->id,
