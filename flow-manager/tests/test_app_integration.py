@@ -180,13 +180,13 @@ async def test_handle_runtime_socket_message_publishes_runtime_events(monkeypatc
                     "seq": 1,
                     "kind": "actor_invoked",
                     "actor": "CronStarter",
-                    "event": "CronEvent",
+                    "event": "Cron",
                 },
                 {
                     "seq": 2,
                     "kind": "event_dispatched",
                     "actor": "CronStarter",
-                    "event": "TickEvent",
+                    "event": "Tick",
                 },
             ],
         },
@@ -201,7 +201,7 @@ async def test_handle_runtime_socket_message_publishes_runtime_events(monkeypatc
                     "seq": 1,
                     "kind": "actor_invoked",
                     "actor": "CronStarter",
-                    "event": "CronEvent",
+                    "event": "Cron",
                 },
             ),
             call(
@@ -211,7 +211,7 @@ async def test_handle_runtime_socket_message_publishes_runtime_events(monkeypatc
                     "seq": 2,
                     "kind": "event_dispatched",
                     "actor": "CronStarter",
-                    "event": "TickEvent",
+                    "event": "Tick",
                 },
             ),
         ]
@@ -256,8 +256,8 @@ async def test_handle_runtime_socket_message_publishes_runtime_graph(monkeypatch
             "flow_id": "7",
             "flow_run_id": "11",
             "graph": {
-                "events": [{"id": "CronEvent"}],
-                "actors": [{"id": "Starter", "receives": ["CronEvent"]}],
+                "events": [{"id": "Cron"}],
+                "actors": [{"id": "Starter", "receives": ["Cron"]}],
                 "nodes": [],
                 "edges": [],
             },
@@ -270,8 +270,8 @@ async def test_handle_runtime_socket_message_publishes_runtime_graph(monkeypatch
             "container_id": "container-1",
             "flow_id": "7",
             "flow_run_id": "11",
-            "events": [{"id": "CronEvent"}],
-            "actors": [{"id": "Starter", "receives": ["CronEvent"]}],
+            "events": [{"id": "Cron"}],
+            "actors": [{"id": "Starter", "receives": ["Cron"]}],
         },
     )
 

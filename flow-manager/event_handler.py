@@ -6,13 +6,13 @@ from docker.errors import APIError, ImageNotFound, NotFound
 from container_manager import ContainerManager
 from models import (
     ContainerConfig,
-    ContainerOperationEvent,
+    ContainerOperation,
     ContainerStatus,
-    CreateContainerEvent,
+    CreateContainer,
     ErrorResponse,
-    GenerateLockEvent,
-    SendMessageEvent,
-    UpdateContainerEvent,
+    GenerateLock,
+    SendMessage,
+    UpdateContainer,
 )
 from messaging import Messaging
 from socket_communication_handler import (
@@ -105,7 +105,7 @@ class EventHandler:
             await self._emit_error(action, data, exc, reply_to, correlation_id)
 
     async def handle_create_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = CreateContainerEvent(**data)
+        event_data = CreateContainer(**data)
 
         labels = dict(event_data.labels)
         if event_data.flow_id is not None:
@@ -169,7 +169,7 @@ class EventHandler:
         }
 
     async def handle_start_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         await self.container_manager.start_container(event_data.container_id)
         containers = await self.container_manager.list_containers()
         container_name = next(
@@ -182,7 +182,7 @@ class EventHandler:
         return {"container_id": event_data.container_id, "status": "running"}
 
     async def handle_stop_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         containers = await self.container_manager.list_containers()
         container_name = next(
             (c.name for c in containers if c.id == event_data.container_id),
@@ -195,7 +195,7 @@ class EventHandler:
         return {"container_id": event_data.container_id, "status": "stopped"}
 
     async def handle_restart_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         containers = await self.container_manager.list_containers()
         container_name = next(
             (c.name for c in containers if c.id == event_data.container_id),
@@ -208,7 +208,7 @@ class EventHandler:
         return {"container_id": event_data.container_id, "status": "running"}
 
     async def handle_update_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = UpdateContainerEvent(**data)
+        event_data = UpdateContainer(**data)
         containers = await self.container_manager.list_containers()
         container_name = next(
             (c.name for c in containers if c.id == event_data.container_id),
@@ -229,7 +229,7 @@ class EventHandler:
         }
 
     async def handle_delete_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         containers = await self.container_manager.list_containers()
         container_name = next(
             (c.name for c in containers if c.id == event_data.container_id),
@@ -243,7 +243,7 @@ class EventHandler:
         return {"container_id": event_data.container_id, "status": "deleted"}
 
     async def handle_send_message(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = SendMessageEvent(**data)
+        event_data = SendMessage(**data)
         await self.socket_handler.send_message(
             event_data.container_id, event_data.message
         )
@@ -257,14 +257,14 @@ class EventHandler:
         }
 
     async def handle_get_status(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         status = await self.container_manager.get_container_status(
             event_data.container_id
         )
         return self._serialize_status(status)
 
     async def handle_get_container_graph(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = ContainerOperationEvent(**data)
+        event_data = ContainerOperation(**data)
         graph = await self.container_manager.get_container_graph(
             event_data.container_id
         )
@@ -289,7 +289,7 @@ class EventHandler:
         }
 
     async def handle_generate_lock(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        event_data = GenerateLockEvent(**data)
+        event_data = GenerateLock(**data)
 
         try:
             lock_content = await self.container_manager.generate_uv_lock(

@@ -20,7 +20,7 @@ from .utils import (
 
 
 @final
-class NotSupportedEvent:
+class NotSupported:
     def __init__(self, event: object):
         self.event = event
 

@@ -125,21 +125,21 @@ class TestUserActivityLogger:
         assert payload["type"] == "cron_system_event"
         assert payload["details"]["dispatch_count"] == 2
         assert payload["details"]["timezone"] == "UTC"
-        assert payload["details"]["trigger_event"] == "CronEvent"
+        assert payload["details"]["trigger_event"] == "Cron"
 
     @pytest.mark.asyncio
     async def test_log_actor_invoked(self, activity_logger):
         await activity_logger.actor_invoked(
             "cid",
             "MorningActor",
-            "CronEvent",
+            "Cron",
             {"template": "0 8 * * *"},
         )
 
         payload = activity_logger.messaging.published_events[-1]["payload"]
         assert payload["type"] == "actor_invoked"
         assert payload["details"]["actor"] == "MorningActor"
-        assert payload["details"]["trigger_event"] == "CronEvent"
+        assert payload["details"]["trigger_event"] == "Cron"
         assert payload["details"]["event_data"]["template"] == "0 8 * * *"
 
     @pytest.mark.asyncio
@@ -147,12 +147,12 @@ class TestUserActivityLogger:
         await activity_logger.actor_dispatched(
             "cid",
             "MorningActor",
-            "WakeUpEvent",
-            {"trigger_event": "CronEvent"},
+            "WakeUp",
+            {"trigger_event": "Cron"},
         )
 
         payload = activity_logger.messaging.published_events[-1]["payload"]
         assert payload["type"] == "actor_dispatched"
         assert payload["details"]["actor"] == "MorningActor"
-        assert payload["details"]["dispatched_event"] == "WakeUpEvent"
-        assert payload["details"]["event_data"]["trigger_event"] == "CronEvent"
+        assert payload["details"]["dispatched_event"] == "WakeUp"
+        assert payload["details"]["event_data"]["trigger_event"] == "Cron"

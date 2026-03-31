@@ -14,8 +14,7 @@ from tests.helpers.performance import (
 
 
 PERFORMANCE_FLOW_CODE = """
-from kawa import actor, event, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, Context, Cron
 
 
 @event
@@ -23,7 +22,7 @@ class Ping:
     text: str
 
 
-@actor(receivs=CronEvent.by("* * * * *"), sends=Ping)
+@actor(receivs=Cron.by("* * * * *"), sends=Ping)
 def Starter(ctx: Context, event):
     ctx.dispatch(Ping(text="hello-from-cron"))
 """

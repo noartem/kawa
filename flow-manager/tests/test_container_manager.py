@@ -133,8 +133,8 @@ class TestContainerManager:
         graph_payload = {
             "events": [
                 {
-                    "id": "CronEvent",
-                    "name": "CronEvent",
+                    "id": "Cron",
+                    "name": "Cron",
                     "source_line": 4,
                     "source_kind": "import",
                     "source_module": "flows.events",
@@ -152,9 +152,9 @@ class TestContainerManager:
             ],
             "nodes": [
                 {
-                    "id": "CronEvent",
+                    "id": "Cron",
                     "type": "event",
-                    "label": "CronEvent",
+                    "label": "Cron",
                     "source_line": 4,
                     "source_kind": "import",
                     "source_module": "flows.events",

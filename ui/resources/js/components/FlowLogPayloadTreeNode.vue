@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronRight } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 defineOptions({
@@ -16,6 +16,9 @@ const props = withDefaults(
         initiallyExpanded?: boolean;
         expandSignal?: number;
         collapseSignal?: number;
+        nodePath?: string;
+        registerExpandedState?: (nodePath: string, expanded: boolean) => void;
+        unregisterExpandedState?: (nodePath: string) => void;
     }>(),
     {
         label: undefined,
@@ -24,6 +27,9 @@ const props = withDefaults(
         initiallyExpanded: false,
         expandSignal: 0,
         collapseSignal: 0,
+        nodePath: 'root',
+        registerExpandedState: undefined,
+        unregisterExpandedState: undefined,
     },
 );
 
@@ -205,6 +211,41 @@ const labelText = computed(() => {
 
 const isExpanded = ref(props.initiallyExpanded);
 
+const shouldTrackExpandedState = computed(() => {
+    return isCollapsible.value && childCount.value > 0;
+});
+
+const syncExpandedState = (): void => {
+    if (!props.registerExpandedState || !shouldTrackExpandedState.value) {
+        return;
+    }
+
+    props.registerExpandedState(props.nodePath, isExpanded.value);
+};
+
+watch(
+    [shouldTrackExpandedState, isExpanded],
+    (nextValues, previousValues) => {
+        if (!props.registerExpandedState || !props.unregisterExpandedState) {
+            return;
+        }
+
+        const [nextShouldTrack] = nextValues;
+        const previousShouldTrack = previousValues?.[0] ?? false;
+
+        if (!nextShouldTrack) {
+            if (previousShouldTrack) {
+                props.unregisterExpandedState(props.nodePath);
+            }
+
+            return;
+        }
+
+        syncExpandedState();
+    },
+    { immediate: true },
+);
+
 watch(
     () => props.expandSignal,
     () => {
@@ -231,6 +272,14 @@ watch(
         }
     },
 );
+
+onBeforeUnmount(() => {
+    if (!props.unregisterExpandedState || !shouldTrackExpandedState.value) {
+        return;
+    }
+
+    props.unregisterExpandedState(props.nodePath);
+});
 </script>
 
 <template>
@@ -296,8 +345,11 @@ watch(
             </div>
         </div>
 
-        <div v-if="isCollapsible && childCount > 0 && isExpanded" class="pl-5">
-            <div class="border-l border-border/60 pl-3">
+        <div
+            v-if="isCollapsible && childCount > 0 && isExpanded"
+            class="pl-[1.375rem]"
+        >
+            <div class="ml-2 border-l border-border/60 pl-3">
                 <FlowLogPayloadTreeNode
                     v-for="(entry, index) in childEntries"
                     :key="`${props.depth}-${props.label ?? 'root'}-${entry.label ?? index}`"
@@ -308,10 +360,13 @@ watch(
                     :initially-expanded="props.depth < 1"
                     :expand-signal="expandSignal"
                     :collapse-signal="collapseSignal"
+                    :node-path="`${props.nodePath}.${entry.label ?? index}`"
+                    :register-expanded-state="props.registerExpandedState"
+                    :unregister-expanded-state="props.unregisterExpandedState"
                 />
             </div>
 
-            <div class="pl-5 text-foreground">
+            <div class="text-foreground">
                 {{ closingToken
                 }}<span v-if="!isLast" class="text-muted-foreground">,</span>
             </div>

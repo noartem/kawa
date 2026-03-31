@@ -34,15 +34,14 @@ class FlowController extends Controller
     private const TEMPLATES = [
         'blank' => '',
         'cron' => <<<'PY'
-from kawa import Context, Message, actor
-from kawa.cron import CronEvent
+from kawa import Context, Message, Cron, actor
 
 
 @actor(
-    receivs=CronEvent.by("* * * * *"),
+    receivs=Cron.by("* * * * *"),
     sends=Message,
 )
-def EveryMinuteMessage(ctx: Context, event: CronEvent) -> None:
+def EveryMinuteMessage(ctx: Context, event: Cron) -> None:
     ctx.dispatch(
         Message(
             message=(

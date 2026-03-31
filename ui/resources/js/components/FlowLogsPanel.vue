@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import FlowLogPayloadViewer from '@/components/FlowLogPayloadViewer.vue';
-import { Button } from '@/components/ui/button';
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from '@/components/ui/popover';
+import FlowLogPayloadPopover from '@/components/FlowLogPayloadPopover.vue';
 import { cn } from '@/lib/utils';
-import { Braces } from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -782,9 +775,6 @@ const nodeButtonClass =
 
 const nodeLabelClass = 'cursor-default';
 
-const payloadTriggerClass =
-    'inline-flex h-5 items-center gap-1 rounded-md border border-border/70 bg-background/80 px-1.5 text-[10px] font-medium tracking-wide text-muted-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60';
-
 const selectNode = (
     target: FlowTarget | undefined,
     event: MouseEvent,
@@ -907,61 +897,43 @@ watch(
                                     {{ segment.text }}
                                 </span>
                                 <template v-else-if="segment.kind === 'event'">
-                                    <component
-                                        :is="
-                                            isNodeSelectionEnabled
-                                                ? 'button'
-                                                : 'span'
-                                        "
-                                        :type="
-                                            isNodeSelectionEnabled
-                                                ? 'button'
-                                                : undefined
-                                        "
-                                        :class="[
-                                            nodeTokenClass,
-                                            isNodeSelectionEnabled
-                                                ? nodeButtonClass
-                                                : nodeLabelClass,
-                                        ]"
-                                        @click="
-                                            isNodeSelectionEnabled
-                                                ? selectNode(
-                                                      segment.target,
-                                                      $event,
-                                                  )
-                                                : undefined
-                                        "
+                                    <span
+                                        class="inline-flex min-w-0 items-baseline"
                                     >
-                                        {{ segment.text }}
-                                    </component>
-
-                                    <Popover v-if="segment.hasPayload">
-                                        <PopoverTrigger as-child>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                :class="payloadTriggerClass"
-                                            >
-                                                <Braces class="size-3" />
-                                                {{
-                                                    t(
-                                                        'flows.logs.payload.json_label',
-                                                    )
-                                                }}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent
-                                            side="bottom"
-                                            align="start"
-                                            class="w-[min(90vw,42rem)] border-border/70 bg-popover p-0 shadow-xl"
+                                        <component
+                                            :is="
+                                                isNodeSelectionEnabled
+                                                    ? 'button'
+                                                    : 'span'
+                                            "
+                                            :type="
+                                                isNodeSelectionEnabled
+                                                    ? 'button'
+                                                    : undefined
+                                            "
+                                            :class="[
+                                                nodeTokenClass,
+                                                isNodeSelectionEnabled
+                                                    ? nodeButtonClass
+                                                    : nodeLabelClass,
+                                            ]"
+                                            @click="
+                                                isNodeSelectionEnabled
+                                                    ? selectNode(
+                                                          segment.target,
+                                                          $event,
+                                                      )
+                                                    : undefined
+                                            "
                                         >
-                                            <FlowLogPayloadViewer
-                                                :payload="segment.payload"
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
+                                            {{ segment.text }}
+                                        </component>
+
+                                        <FlowLogPayloadPopover
+                                            v-if="segment.hasPayload"
+                                            :payload="segment.payload"
+                                        />
+                                    </span>
                                 </template>
                                 <button
                                     v-else-if="isNodeSelectionEnabled"

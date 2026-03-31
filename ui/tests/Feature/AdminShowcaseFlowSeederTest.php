@@ -51,7 +51,7 @@ class AdminShowcaseFlowSeederTest extends TestCase
             $latestDevelopmentRun->graph_snapshot['actors'][0]['id'] ?? null,
         );
         $this->assertSame(
-            'CronEvent.by("*/15 * * * *")',
+            'Cron.by("*/15 * * * *")',
             $latestDevelopmentRun->graph_snapshot['nodes'][0]['id'] ?? null,
         );
 
@@ -84,6 +84,15 @@ class AdminShowcaseFlowSeederTest extends TestCase
 
         $this->assertNotNull($archivedConversation);
         $this->assertSame('compact_summary', $archivedConversation->messages[1]->meta['kind'] ?? null);
+
+        $exampleFlow = Flow::query()->where('slug', 'admin-cron-webhook-example')->first();
+
+        $this->assertNotNull($exampleFlow);
+        $this->assertSame('Cron + Webhook Example', $exampleFlow->name);
+        $this->assertSame('draft', $exampleFlow->status);
+        $this->assertSame('Europe/Moscow', $exampleFlow->timezone);
+        $this->assertStringContainsString('Cron.by("0 * * * *")', $exampleFlow->code ?? '');
+        $this->assertStringContainsString('Webhook.by("ops.intake")', $exampleFlow->code ?? '');
     }
 
     public function test_showcase_seeder_replaces_previous_showcase_records_on_reseed(): void
@@ -98,9 +107,12 @@ class AdminShowcaseFlowSeederTest extends TestCase
         $this->seed(\Database\Seeders\AdminShowcaseFlowSeeder::class);
 
         $flow = Flow::query()->where('slug', 'admin-showcase-flow')->first();
+        $exampleFlow = Flow::query()->where('slug', 'admin-cron-webhook-example')->first();
 
         $this->assertNotNull($flow);
+        $this->assertNotNull($exampleFlow);
         $this->assertSame(1, Flow::query()->where('slug', 'admin-showcase-flow')->count());
+        $this->assertSame(1, Flow::query()->where('slug', 'admin-cron-webhook-example')->count());
         $this->assertSame(3, $flow->runs()->count());
         $this->assertSame(2, $flow->conversations()->count());
     }

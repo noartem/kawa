@@ -1,5 +1,5 @@
 from kawa.core import EventFilter
-from kawa.webhook import Webhook, WebhookEvent
+from kawa.webhook import Webhook
 
 
 def test_webhook_event_creation():
@@ -20,7 +20,3 @@ def test_webhook_event_by_filter():
 
     assert event_filter(matching_event) is True
     assert event_filter(non_matching_event) is False
-
-
-def test_webhook_event_alias_points_to_same_type():
-    assert WebhookEvent is Webhook

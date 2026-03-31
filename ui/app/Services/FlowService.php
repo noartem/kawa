@@ -891,7 +891,7 @@ def cron_template_matches(template: str, timestamp: datetime) -> bool:
 
 def parse_cron_template(receive: str) -> str | None:
     normalized = receive.strip()
-    prefix = 'CronEvent.by('
+    prefix = 'Cron.by('
     if not normalized.startswith(prefix) or not normalized.endswith(')'):
         return None
 
@@ -1116,8 +1116,8 @@ def load_flow_registry(trigger_event: str, event_name: str):
 
 def process_cron_tick(data: dict) -> dict:
     try:
+        from kawa import Cron
         from kawa.core import EventFilter
-        from kawa.cron import CronEvent
     except Exception as exc:
         append_runtime_event(
             {
@@ -1152,7 +1152,7 @@ def process_cron_tick(data: dict) -> dict:
             if not isinstance(event_filter, EventFilter):
                 continue
 
-            if receive_definition.eventClass is not CronEvent:
+            if receive_definition.eventClass is not Cron:
                 continue
 
             template = str(event_filter.context.get('template') or '').strip()
@@ -1166,8 +1166,8 @@ def process_cron_tick(data: dict) -> dict:
                     {
                         'kind': 'cron_template_error',
                         'actor': actor_name,
-                        'trigger_event': 'CronEvent',
-                        'event': 'CronEvent',
+                        'trigger_event': 'Cron',
+                        'event': 'Cron',
                         'payload': {
                             'timezone': timezone_name,
                             'datetime': tick_time.isoformat(),
@@ -1180,7 +1180,7 @@ def process_cron_tick(data: dict) -> dict:
             if not matches:
                 continue
 
-            pending_events.append(CronEvent(template=template, datetime=tick_time))
+            pending_events.append(Cron(template=template, datetime=tick_time))
 
     process_pending_events(pending_events, registry)
 

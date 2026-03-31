@@ -147,7 +147,7 @@ const openDiscoveryNode = (payload: {
 
             <div
                 v-if="deploymentCard"
-                class="grid min-h-0 gap-3 overflow-hidden lg:grid-cols-2 lg:grid-rows-[minmax(0,32vh)_minmax(0,28vh)_minmax(180px,1fr)]"
+                class="grid min-h-0 gap-3 overflow-hidden lg:grid-cols-2 lg:grid-rows-[minmax(0,32vh)_minmax(16rem,2fr)_minmax(24rem,3fr)]"
             >
                 <div
                     ref="codeSection"
@@ -167,7 +167,9 @@ const openDiscoveryNode = (payload: {
                     <FlowDiscoveryPanel
                         class="h-full"
                         :graph="deploymentCard.deployment.graph"
-                        :webhook-endpoints="deploymentCard.deployment.webhooks ?? []"
+                        :webhook-endpoints="
+                            deploymentCard.deployment.webhooks ?? []
+                        "
                         :selected-target="selectedDiscoveryTarget"
                         @jump-to-code="jumpToCode"
                     />

@@ -12,11 +12,11 @@ from models import (
     ContainerStatus,
     SocketMessage,
     ErrorResponse,
-    CreateContainerEvent,
-    ContainerOperationEvent,
-    UpdateContainerEvent,
-    SendMessageEvent,
-    ActivityLogEvent,
+    CreateContainer,
+    ContainerOperation,
+    UpdateContainer,
+    SendMessage,
+    ActivityLog,
 )
 
 
@@ -148,8 +148,8 @@ def test_error_response_validation():
 
 def test_socket_io_event_models():
     """Test Socket.IO event data models."""
-    # CreateContainerEvent
-    create_event = CreateContainerEvent(
+    # CreateContainer
+    create_event = CreateContainer(
         image="nginx:latest",
         name="test-container",
         environment={"ENV": "test"},
@@ -159,26 +159,26 @@ def test_socket_io_event_models():
     assert create_event.image == "nginx:latest"
     assert create_event.name == "test-container"
 
-    # ContainerOperationEvent
-    op_event = ContainerOperationEvent(container_id="abc123")
+    # ContainerOperation
+    op_event = ContainerOperation(container_id="abc123")
     assert op_event.container_id == "abc123"
 
-    # UpdateContainerEvent
-    update_event = UpdateContainerEvent(
+    # UpdateContainer
+    update_event = UpdateContainer(
         container_id="abc123", code_path="/path/to/code"
     )
     assert update_event.container_id == "abc123"
     assert update_event.code_path == "/path/to/code"
 
-    # SendMessageEvent
-    send_event = SendMessageEvent(
+    # SendMessage
+    send_event = SendMessage(
         container_id="abc123", message={"command": "dump", "data": {}}
     )
     assert send_event.container_id == "abc123"
     assert send_event.message == {"command": "dump", "data": {}}
 
-    # ActivityLogEvent
-    activity_event = ActivityLogEvent(
+    # ActivityLog
+    activity_event = ActivityLog(
         activity_type="container_created",
         container_id="abc123",
         message="Container created successfully",

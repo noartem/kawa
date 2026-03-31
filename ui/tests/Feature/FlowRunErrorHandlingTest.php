@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessFlowManagerEvent;
+use App\Jobs\ProcessFlowManager;
 use App\Models\Flow;
 use App\Models\User;
 use App\Services\FlowManagerClient;
@@ -453,13 +453,13 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('container_created', [
+        $job = new ProcessFlowManager('container_created', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-1',
             'events' => [
                 [
-                    'id' => 'CronEvent',
+                    'id' => 'Cron',
                     'source_line' => 6,
                     'source_kind' => 'import',
                     'source_module' => 'app.events',
@@ -468,8 +468,8 @@ class FlowRunErrorHandlingTest extends TestCase
             'actors' => [
                 [
                     'id' => 'StarterActor',
-                    'receives' => ['CronEvent'],
-                    'sends' => ['PreparedEvent'],
+                    'receives' => ['Cron'],
+                    'sends' => ['Prepared'],
                     'source_line' => 16,
                     'source_kind' => 'main',
                 ],
@@ -486,7 +486,7 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
         $this->assertArrayNotHasKey('graph', $flow->getAttributes());
         $this->assertArrayNotHasKey('graph_generated_at', $flow->getAttributes());
-        $cronEventNode = collect($run->graph_snapshot['nodes'])->firstWhere('id', 'CronEvent');
+        $cronEventNode = collect($run->graph_snapshot['nodes'])->firstWhere('id', 'Cron');
         $this->assertSame(6, $cronEventNode['source_line'] ?? null);
         $this->assertSame('import', $cronEventNode['source_kind'] ?? null);
         $this->assertSame('app.events', $cronEventNode['source_module'] ?? null);
@@ -513,21 +513,21 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('runtime_graph_updated', [
+        $job = new ProcessFlowManager('runtime_graph_updated', [
             'flow_id' => (string) $flow->id,
             'flow_run_id' => (string) $run->id,
             'container_id' => 'container-id-1',
             'events' => [
                 [
-                    'id' => 'CronEvent',
+                    'id' => 'Cron',
                     'source_line' => 6,
                 ],
             ],
             'actors' => [
                 [
                     'id' => 'StarterActor',
-                    'receives' => ['CronEvent'],
-                    'sends' => ['PreparedEvent'],
+                    'receives' => ['Cron'],
+                    'sends' => ['Prepared'],
                     'source_line' => 16,
                 ],
             ],
@@ -538,7 +538,7 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
-        $this->assertSame('CronEvent', $run->graph_snapshot['nodes'][0]['id'] ?? null);
+        $this->assertSame('Cron', $run->graph_snapshot['nodes'][0]['id'] ?? null);
     }
 
     public function test_container_crashed_event_does_not_override_intentional_stop(): void
@@ -560,7 +560,7 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('container_crashed', [
+        $job = new ProcessFlowManager('container_crashed', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-1',
@@ -593,7 +593,7 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('container_crashed', [
+        $job = new ProcessFlowManager('container_crashed', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-2',
@@ -669,7 +669,7 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('status_changed', [
+        $job = new ProcessFlowManager('status_changed', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-3',
@@ -703,7 +703,7 @@ class FlowRunErrorHandlingTest extends TestCase
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
-        $job = new ProcessFlowManagerEvent('status_changed', [
+        $job = new ProcessFlowManager('status_changed', [
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'container_id' => 'container-id-2',

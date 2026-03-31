@@ -91,11 +91,10 @@ class FlowGraphDefaultsTest extends TestCase
         $flow = Flow::factory()->forUser($user)->createOne([
             'name' => 'Legacy cron flow',
             'code' => <<<'PY'
-from kawa import actor, Context
-from kawa.cron import CronEvent
+from kawa import actor, Context, Cron
 
 
-@actor(receivs=CronEvent.by("0 8 * * *"))
+@actor(receivs=Cron.by("0 8 * * *"))
 def MorningActor(ctx: Context, event):
     print("Good morning!")
 PY,
@@ -110,11 +109,11 @@ PY,
             'code_snapshot' => $flow->code,
             'graph_snapshot' => [
                 'nodes' => [
-                    ['id' => 'CronEvent', 'type' => 'event', 'label' => 'CronEvent'],
+                    ['id' => 'Cron', 'type' => 'event', 'label' => 'Cron'],
                     ['id' => 'MorningActor', 'type' => 'actor', 'label' => 'MorningActor'],
                 ],
                 'edges' => [
-                    ['from' => 'CronEvent', 'to' => 'MorningActor'],
+                    ['from' => 'Cron', 'to' => 'MorningActor'],
                 ],
             ],
         ]);
@@ -125,8 +124,8 @@ PY,
             ->assertInertia(fn (Assert $page) => $page
                 ->component('flows/Editor')
                 ->where('lastDevelopmentDeployment.id', $run->id)
-                ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'CronEvent')
-                ->where('lastDevelopmentDeployment.graph.edges.0.from', 'CronEvent')
+                ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'Cron')
+                ->where('lastDevelopmentDeployment.graph.edges.0.from', 'Cron')
                 ->where('lastDevelopmentDeployment.graph.edges.0.to', 'MorningActor')
             );
     }

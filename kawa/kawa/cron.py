@@ -5,12 +5,12 @@ from .main import event
 
 
 @event
-class CronEvent:
+class Cron:
     template: str
     datetime: datetime
 
     @staticmethod
     def by(template: str):
         return EventFilter(
-            CronEvent, {"template": template}, lambda e: e.template == template
+            Cron, {"template": template}, lambda e: e.template == template
         )

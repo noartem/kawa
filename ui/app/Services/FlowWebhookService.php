@@ -347,10 +347,7 @@ def is_webhook_base(name):
     if name in webhook_aliases:
         return True
 
-    return any(
-        name in {f"{alias}.Webhook", f"{alias}.WebhookEvent"}
-        for alias in module_aliases
-    )
+    return any(name == f"{alias}.Webhook" for alias in module_aliases)
 
 
 def iter_webhook_calls(node):
@@ -381,13 +378,13 @@ except SyntaxError:
     print('[]')
     raise SystemExit(0)
 
-webhook_aliases = {'Webhook', 'WebhookEvent'}
+webhook_aliases = {'Webhook'}
 module_aliases = {'kawa', 'kawa.webhook'}
 
 for node in tree.body:
     if isinstance(node, ast.ImportFrom) and node.module in {'kawa', 'kawa.webhook'}:
         for alias in node.names:
-            if alias.name in {'Webhook', 'WebhookEvent'}:
+            if alias.name == 'Webhook':
                 webhook_aliases.add(alias.asname or alias.name)
 
     if isinstance(node, ast.Import):

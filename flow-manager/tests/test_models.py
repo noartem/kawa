@@ -20,11 +20,11 @@ from models import (
     ContainerStatus,
     SocketMessage,
     ErrorResponse,
-    CreateContainerEvent,
-    ContainerOperationEvent,
-    UpdateContainerEvent,
-    SendMessageEvent,
-    ActivityLogEvent,
+    CreateContainer,
+    ContainerOperation,
+    UpdateContainer,
+    SendMessage,
+    ActivityLog,
 )
 
 
@@ -255,8 +255,8 @@ def test_error_response_validation():
 
 def test_socket_io_events():
     """Test Socket.IO event models."""
-    # Test CreateContainerEvent
-    create_event = CreateContainerEvent(
+    # Test CreateContainer
+    create_event = CreateContainer(
         image="nginx:latest",
         name="test",
         flow_id=42,
@@ -278,26 +278,26 @@ def test_socket_io_events():
     assert create_event.test_run_id == "test-run"
     assert create_event.labels["kawaflow.flow_name"] == "override"
 
-    # Test ContainerOperationEvent
-    op_event = ContainerOperationEvent(container_id="abc123")
+    # Test ContainerOperation
+    op_event = ContainerOperation(container_id="abc123")
     assert op_event.container_id == "abc123"
 
-    # Test UpdateContainerEvent
-    update_event = UpdateContainerEvent(
+    # Test UpdateContainer
+    update_event = UpdateContainer(
         container_id="abc123", code_path="/path/to/code"
     )
     assert update_event.container_id == "abc123"
     assert update_event.code_path == "/path/to/code"
 
-    # Test SendMessageEvent
-    msg_event = SendMessageEvent(
+    # Test SendMessage
+    msg_event = SendMessage(
         container_id="abc123", message={"command": "dump", "data": {}}
     )
     assert msg_event.container_id == "abc123"
     assert msg_event.message["command"] == "dump"
 
-    # Test ActivityLogEvent
-    activity_event = ActivityLogEvent(
+    # Test ActivityLog
+    activity_event = ActivityLog(
         activity_type="container_created",
         container_id="abc123",
         message="Container created successfully",
@@ -311,22 +311,22 @@ def test_socket_io_events():
     assert isinstance(activity_event.timestamp, datetime)
 
     # Test whitespace handling in validation
-    trimmed_create_event = CreateContainerEvent(
+    trimmed_create_event = CreateContainer(
         image="  nginx:latest  ", name="  test  "
     )
     assert trimmed_create_event.image == "nginx:latest"
     assert trimmed_create_event.name == "test"
 
-    trimmed_op_event = ContainerOperationEvent(container_id="  abc123  ")
+    trimmed_op_event = ContainerOperation(container_id="  abc123  ")
     assert trimmed_op_event.container_id == "abc123"
 
-    trimmed_update_event = UpdateContainerEvent(
+    trimmed_update_event = UpdateContainer(
         container_id="  abc123  ", code_path="  /path/to/code  "
     )
     assert trimmed_update_event.container_id == "abc123"
     assert trimmed_update_event.code_path == "/path/to/code"
 
-    trimmed_activity_event = ActivityLogEvent(
+    trimmed_activity_event = ActivityLog(
         activity_type="  container_created  ",
         container_id="  abc123  ",
         message="  Container created successfully  ",
@@ -337,67 +337,67 @@ def test_socket_io_events():
 
 
 def test_create_container_event_validation():
-    """Test CreateContainerEvent validation."""
+    """Test CreateContainer validation."""
     # Test empty image
     with pytest.raises(ValidationError) as exc_info:
-        CreateContainerEvent(image="")
+        CreateContainer(image="")
     assert "Image name cannot be empty" in str(exc_info.value)
 
     # Test whitespace-only image
     with pytest.raises(ValidationError) as exc_info:
-        CreateContainerEvent(image="   ")
+        CreateContainer(image="   ")
     assert "Image name cannot be empty" in str(exc_info.value)
 
     # Test empty name string
     with pytest.raises(ValidationError) as exc_info:
-        CreateContainerEvent(image="nginx:latest", name="")
+        CreateContainer(image="nginx:latest", name="")
     assert "Container name cannot be empty string" in str(exc_info.value)
 
     # Test empty optional fields
     with pytest.raises(ValidationError) as exc_info:
-        CreateContainerEvent(image="nginx:latest", flow_name=" ")
+        CreateContainer(image="nginx:latest", flow_name=" ")
     assert "Optional string fields cannot be empty" in str(exc_info.value)
 
 
 def test_container_operation_event_validation():
-    """Test ContainerOperationEvent validation."""
+    """Test ContainerOperation validation."""
     # Test empty container_id
     with pytest.raises(ValidationError) as exc_info:
-        ContainerOperationEvent(container_id="")
+        ContainerOperation(container_id="")
     assert "Container ID cannot be empty" in str(exc_info.value)
 
     # Test whitespace-only container_id
     with pytest.raises(ValidationError) as exc_info:
-        ContainerOperationEvent(container_id="   ")
+        ContainerOperation(container_id="   ")
     assert "Container ID cannot be empty" in str(exc_info.value)
 
 
 def test_update_container_event_validation():
-    """Test UpdateContainerEvent validation."""
+    """Test UpdateContainer validation."""
     # Test empty container_id
     with pytest.raises(ValidationError) as exc_info:
-        UpdateContainerEvent(container_id="", code_path="/path/to/code")
+        UpdateContainer(container_id="", code_path="/path/to/code")
     assert "Container ID cannot be empty" in str(exc_info.value)
 
     # Test empty code_path
     with pytest.raises(ValidationError) as exc_info:
-        UpdateContainerEvent(container_id="abc123", code_path="")
+        UpdateContainer(container_id="abc123", code_path="")
     assert "Code path cannot be empty" in str(exc_info.value)
 
 
 def test_send_message_event_validation():
-    """Test SendMessageEvent validation."""
+    """Test SendMessage validation."""
     # Test empty container_id
     with pytest.raises(ValidationError) as exc_info:
-        SendMessageEvent(container_id="", message={"command": "dump"})
+        SendMessage(container_id="", message={"command": "dump"})
     assert "Container ID cannot be empty" in str(exc_info.value)
 
 
 def test_activity_log_event_validation():
-    """Test ActivityLogEvent validation."""
+    """Test ActivityLog validation."""
     # Test empty activity_type
     with pytest.raises(ValidationError) as exc_info:
-        ActivityLogEvent(
+        ActivityLog(
             activity_type="",
             container_id="abc123",
             message="Container created successfully",
@@ -406,7 +406,7 @@ def test_activity_log_event_validation():
 
     # Test empty container_id
     with pytest.raises(ValidationError) as exc_info:
-        ActivityLogEvent(
+        ActivityLog(
             activity_type="container_created",
             container_id="",
             message="Container created successfully",
@@ -415,7 +415,7 @@ def test_activity_log_event_validation():
 
     # Test empty message
     with pytest.raises(ValidationError) as exc_info:
-        ActivityLogEvent(
+        ActivityLog(
             activity_type="container_created",
             container_id="abc123",
             message="",

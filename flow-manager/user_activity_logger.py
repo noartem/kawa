@@ -124,7 +124,7 @@ class UserActivityLogger:
             "container_id": container_id,
             "dispatch_count": dispatch_count,
             "timezone": timezone_name,
-            "trigger_event": "CronEvent",
+            "trigger_event": "Cron",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 

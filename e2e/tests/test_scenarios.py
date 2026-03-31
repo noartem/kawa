@@ -8,8 +8,7 @@ from tests.helpers.graph_validation import graph_hash
 
 
 FLOW_CODE = """
-from kawa import actor, event, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, Context, Cron
 
 
 @event
@@ -17,14 +16,13 @@ class Ping:
     pass
 
 
-@actor(receivs=CronEvent.by("*/5 * * * *"))
+@actor(receivs=Cron.by("*/5 * * * *"))
 def Starter(ctx: Context, event):
     print("start")
 """
 
 FLOW_CODE_UPDATED = """
-from kawa import actor, event, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, Context, Cron
 
 
 @event
@@ -32,14 +30,13 @@ class Ping:
     pass
 
 
-@actor(receivs=CronEvent.by("*/10 * * * *"))
+@actor(receivs=Cron.by("*/10 * * * *"))
 def Starter(ctx: Context, event):
     print("start again")
 """
 
 INTERACTION_FLOW_CODE = """
-from kawa import actor, event, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, Context, Cron
 
 
 @event
@@ -54,7 +51,7 @@ class Pong:
     step: int
 
 
-@actor(receivs=CronEvent.by("* * * * *"), sends=Ping)
+@actor(receivs=Cron.by("* * * * *"), sends=Ping)
 def Starter(ctx: Context, event):
     ctx.dispatch(Ping(text="hello-from-cron", step=1))
 
@@ -158,7 +155,7 @@ def _has_interaction_actor_chain(contexts: list[dict]) -> bool:
             any(
                 context.get("kind") == "actor_invoked"
                 and context.get("actor") == "Starter"
-                and context.get("trigger_event") == "CronEvent"
+                and context.get("trigger_event") == "Cron"
                 for context in contexts
             ),
             any(
@@ -460,7 +457,7 @@ def test_runtime_event_logs_capture_actor_chain(
     assert any(
         context.get("kind") == "actor_invoked"
         and context.get("actor") == "Starter"
-        and context.get("trigger_event") == "CronEvent"
+        and context.get("trigger_event") == "Cron"
         for context in contexts
     )
     assert any(

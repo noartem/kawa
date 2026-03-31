@@ -10,6 +10,3 @@ class Webhook:
     @staticmethod
     def by(slug: str):
         return EventFilter(Webhook, {"slug": slug}, lambda e: e.slug == slug)
-
-
-WebhookEvent = Webhook

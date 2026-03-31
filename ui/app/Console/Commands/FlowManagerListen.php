@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\ProcessFlowManagerEvent;
+use App\Jobs\ProcessFlowManager;
 use Illuminate\Console\Command;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -74,7 +74,7 @@ class FlowManagerListen extends Command
         $eventName = $routingKey ? ltrim(str_replace('event.', '', $routingKey), '.') : 'event';
         $payload = json_decode($message->getBody(), true) ?: [];
 
-        ProcessFlowManagerEvent::dispatchSync($eventName, $payload);
+        ProcessFlowManager::dispatchSync($eventName, $payload);
         $message->ack();
     }
 

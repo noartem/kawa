@@ -64,21 +64,21 @@ Kawa domain model and constraints:
 - `@event` registers an event type and turns the class into a dataclass. Use events to define the payload schema passed between actors.
 - Event fields should be explicit typed attributes on the class body.
 - `@actor(...)` registers an actor. An actor can be a function or a callable class.
-- Actor signatures should follow Kawa conventions: function actors usually look like `(ctx: Context, event: SomeEvent)`; callable class actors implement `__call__(self, ctx: Context, event)`.
+- Actor signatures should follow Kawa conventions: function actors usually look like `(ctx: Context, event: Some)`; callable class actors implement `__call__(self, ctx: Context, event)`.
 - The decorator argument is spelled `receivs` in the Kawa API. Use that spelling unless you are intentionally matching existing code that already uses `receives`.
-- `receivs` can be a single event, a tuple of events, or an event filter such as `CronEvent.by("*/5 * * * *")`.
+- `receivs` can be a single event, a tuple of events, or an event filter such as `Cron.by("*/5 * * * *")`.
 - `sends` declares which events an actor may emit. Keep it aligned with what the actor actually dispatches.
 - `min_instances`, `max_instances`, and `keep_instance` are actor lifecycle / scaling hints. Only add them when the behavior really needs concurrency limits or warm-instance reuse.
-- If an actor receives multiple event types, prefer clear branching such as `match event:` with `case SomeEvent():` blocks.
+- If an actor receives multiple event types, prefer clear branching such as `match event:` with `case Some():` blocks.
 - Use docstrings on actors and events when they help explain purpose; these docs are surfaced in the registry / graph metadata.
 
 Built-in Kawa features available in this repo:
 - `Context` is passed into actors and is used when dispatching follow-up events or log messages.
 - Built-in `Message` is an event for Flow logs; use `ctx.dispatch(Message(message="..."))` for meaningful runtime log output.
-- Built-in `CronEvent` represents a schedule trigger and supports `CronEvent.by(template)` to filter a specific cron expression.
+- Built-in `Cron` represents a schedule trigger and supports `Cron.by(template)` to filter a specific cron expression.
 - Built-in `SendEmail` exists for email-sending flows and carries a `message` field.
 - `EventFilter` is available when an actor should react only to a subset of one event type.
-- `NotSupportedEvent` exists in the repo and may be declared in `sends` when a branch intentionally represents an unsupported path.
+- `NotSupported` exists in the repo and may be declared in `sends` when a branch intentionally represents an unsupported path.
 
 Practical limitations and guidance:
 - Do not invent Kawa decorators, helpers, runtime APIs, or built-in events that do not exist in this repository.

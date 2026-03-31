@@ -21,11 +21,11 @@ def test_get_actor_uuid():
 
 
 def test_get_event_uuid():
-    class MyEvent:
+    class My:
         pass
 
-    assert get_event_uuid(MyEvent) is not None
-    assert isinstance(get_event_uuid(MyEvent), UUID)
+    assert get_event_uuid(My) is not None
+    assert isinstance(get_event_uuid(My), UUID)
 
 
 def test_untab_string():

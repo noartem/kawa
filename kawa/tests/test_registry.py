@@ -9,7 +9,7 @@ from kawa.registry import Registry
 def mock_event_definition():
     event_def = MagicMock(spec=EventDefinition)
     event_def.id = "event1"
-    event_def.name = "TestEvent"
+    event_def.name = "Test"
     event_def.doc = "A test event"
     return event_def
 

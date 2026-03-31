@@ -20,6 +20,8 @@ class AdminShowcaseFlowSeeder extends Seeder
 
     private const FLOW_SLUG = 'admin-showcase-flow';
 
+    private const CRON_WEBHOOK_EXAMPLE_SLUG = 'admin-cron-webhook-example';
+
     public function run(): void
     {
         $admin = User::query()->where('email', self::ADMIN_EMAIL)->first();
@@ -29,6 +31,7 @@ class AdminShowcaseFlowSeeder extends Seeder
         }
 
         Flow::query()->where('slug', self::FLOW_SLUG)->first()?->delete();
+        Flow::query()->where('slug', self::CRON_WEBHOOK_EXAMPLE_SLUG)->first()?->delete();
 
         $codeVersionOne = $this->codeVersionOne();
         $codeVersionTwo = $this->codeVersionTwo();
@@ -170,7 +173,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 'level' => 'info',
                 'node_key' => 'ScheduleCollector',
                 'message' => 'Cron trigger created a seeded showcase intake.',
-                'context' => ['kind' => 'actor_invoked', 'event' => 'CronEvent.by("*/15 * * * *")'],
+                'context' => ['kind' => 'actor_invoked', 'event' => 'Cron.by("*/15 * * * *")'],
                 'created_at' => $latestDevelopmentStartedAt->addMinute(),
             ],
             [
@@ -327,6 +330,32 @@ class AdminShowcaseFlowSeeder extends Seeder
             'active_chat_conversation_id' => $activeConversation->id,
         ])->saveQuietly();
         $this->stamp($flow, $flowCreatedAt, $now->subMinutes(15));
+
+        $this->seedCronWebhookExample($admin, $now);
+    }
+
+    private function seedCronWebhookExample(User $admin, CarbonImmutable $now): void
+    {
+        $createdAt = $now->subMinutes(40);
+        $updatedAt = $now->subMinutes(5);
+
+        $exampleFlow = Flow::query()->create([
+            'user_id' => $admin->id,
+            'name' => 'Cron + Webhook Example',
+            'slug' => self::CRON_WEBHOOK_EXAMPLE_SLUG,
+            'description' => 'Manual admin example that starts from both a cron schedule and an inbound webhook.',
+            'code' => $this->cronWebhookExampleCode(),
+            'code_updated_at' => $updatedAt,
+            'status' => 'draft',
+            'container_id' => null,
+            'entrypoint' => 'main.py',
+            'image' => 'flow:dev',
+            'timezone' => 'Europe/Moscow',
+            'last_started_at' => null,
+            'last_finished_at' => null,
+        ]);
+
+        $this->stamp($exampleFlow, $createdAt, $updatedAt);
     }
 
     private function createConversationMessage(
@@ -393,7 +422,7 @@ class AdminShowcaseFlowSeeder extends Seeder
     {
         return [
             [
-                'id' => 'CronEvent',
+                'id' => 'Cron',
                 'source_kind' => 'import',
                 'source_module' => 'kawa.cron',
             ],
@@ -423,7 +452,7 @@ class AdminShowcaseFlowSeeder extends Seeder
         return [
             [
                 'id' => 'ScheduleCollector',
-                'receives' => ['CronEvent'],
+                'receives' => ['Cron'],
                 'sends' => ['IntakeRequested', 'Message'],
                 'source_kind' => 'main',
                 'source_line' => 22,
@@ -445,7 +474,7 @@ class AdminShowcaseFlowSeeder extends Seeder
     {
         return [
             [
-                'id' => 'CronEvent',
+                'id' => 'Cron',
                 'source_kind' => 'import',
                 'source_module' => 'kawa.cron',
             ],
@@ -495,7 +524,7 @@ class AdminShowcaseFlowSeeder extends Seeder
         return [
             [
                 'id' => 'ScheduleCollector',
-                'receives' => ['CronEvent.by("*/15 * * * *")', 'EscalationRequested'],
+                'receives' => ['Cron.by("*/15 * * * *")', 'EscalationRequested'],
                 'sends' => ['IntakeRequested', 'Message'],
                 'source_kind' => 'main',
                 'source_line' => 44,
@@ -549,14 +578,14 @@ class AdminShowcaseFlowSeeder extends Seeder
             'events' => [
                 ...$events,
                 [
-                    'id' => 'CronEvent.by("*/15 * * * *")',
+                    'id' => 'Cron.by("*/15 * * * *")',
                     'source_kind' => 'main',
                     'source_line' => 46,
                 ],
             ],
             'actors' => $actors,
             'nodes' => [
-                ['id' => 'CronEvent.by("*/15 * * * *")', 'type' => 'event', 'label' => 'CronEvent.by("*/15 * * * *")', 'source_kind' => 'main', 'source_line' => 46],
+                ['id' => 'Cron.by("*/15 * * * *")', 'type' => 'event', 'label' => 'Cron.by("*/15 * * * *")', 'source_kind' => 'main', 'source_line' => 46],
                 ['id' => 'EscalationRequested', 'type' => 'event', 'label' => 'EscalationRequested', 'source_kind' => 'main', 'source_line' => 31],
                 ['id' => 'IntakeRequested', 'type' => 'event', 'label' => 'IntakeRequested', 'source_kind' => 'main', 'source_line' => 10],
                 ['id' => 'IntakePrepared', 'type' => 'event', 'label' => 'IntakePrepared', 'source_kind' => 'main', 'source_line' => 17],
@@ -571,7 +600,7 @@ class AdminShowcaseFlowSeeder extends Seeder
                 ['id' => 'PublishDigest', 'type' => 'actor', 'label' => 'PublishDigest', 'source_kind' => 'main', 'source_line' => 123],
             ],
             'edges' => [
-                ['from' => 'CronEvent.by("*/15 * * * *")', 'to' => 'ScheduleCollector'],
+                ['from' => 'Cron.by("*/15 * * * *")', 'to' => 'ScheduleCollector'],
                 ['from' => 'EscalationRequested', 'to' => 'ScheduleCollector'],
                 ['from' => 'ScheduleCollector', 'to' => 'IntakeRequested'],
                 ['from' => 'ScheduleCollector', 'to' => 'Message'],
@@ -595,8 +624,7 @@ class AdminShowcaseFlowSeeder extends Seeder
     private function codeVersionOne(): string
     {
         return <<<'PY'
-from kawa import Context, Message, actor, event
-from kawa.cron import CronEvent
+from kawa import Context, Message, Cron, actor, event
 
 
 @event
@@ -611,9 +639,9 @@ class IntakePrepared:
     summary: str
 
 
-@actor(receivs=CronEvent.by("0 * * * *"), sends=(IntakeRequested, Message))
+@actor(receivs=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
 class ScheduleCollector:
-    def __call__(self, ctx: Context, event: CronEvent) -> None:
+    def __call__(self, ctx: Context, event: Cron) -> None:
         ticket_id = f"cron-{event.datetime.strftime('%H%M')}"
         ctx.dispatch(
             IntakeRequested(ticket_id=ticket_id, requested_by="scheduler")
@@ -636,8 +664,7 @@ PY;
     private function codeVersionTwo(): string
     {
         return <<<'PY'
-from kawa import Context, Message, actor, event
-from kawa.cron import CronEvent
+from kawa import Context, Message, Cron, actor, event
 from kawa.email import SendEmail
 
 
@@ -668,14 +695,14 @@ class DigestQueued:
 
 
 @actor(
-    receivs=CronEvent.by("*/15 * * * *"),
+    receivs=Cron.by("*/15 * * * *"),
     sends=(IntakeRequested, Message),
     min_instances=1,
     max_instances=2,
     keep_instance=True,
 )
 class ScheduleCollector:
-    def __call__(self, ctx: Context, event: CronEvent) -> None:
+    def __call__(self, ctx: Context, event: Cron) -> None:
         ticket_id = f"cron-{event.datetime.strftime('%H%M')}"
         ctx.dispatch(
             IntakeRequested(
@@ -731,8 +758,7 @@ PY;
     private function codeVersionThree(): string
     {
         return <<<'PY'
-from kawa import Context, Message, actor, event
-from kawa.cron import CronEvent
+from kawa import Context, Message, Cron, actor, event
 from kawa.email import SendEmail
 
 
@@ -769,7 +795,7 @@ class DigestQueued:
 
 
 @actor(
-    receivs=(CronEvent.by("*/15 * * * *"), EscalationRequested),
+    receivs=(Cron.by("*/15 * * * *"), EscalationRequested),
     sends=(IntakeRequested, Message),
     min_instances=1,
     max_instances=2,
@@ -777,7 +803,7 @@ class DigestQueued:
 )
 class ScheduleCollector:
     def __call__(self, ctx: Context, event) -> None:
-        if isinstance(event, CronEvent):
+        if isinstance(event, Cron):
             ticket_id = f"cron-{event.datetime.strftime('%H%M')}"
             requested_by = "scheduler"
             priority = "high"
@@ -859,6 +885,47 @@ def EscalationMonitor(ctx: Context, event: ApprovalRequested) -> None:
 @actor(receivs=DigestQueued, sends=Message)
 def PublishDigest(ctx: Context, event: DigestQueued) -> None:
     ctx.dispatch(Message(message=f"[digest] {event.ticket_id}: {event.summary}"))
+PY;
+    }
+
+    private function cronWebhookExampleCode(): string
+    {
+        return <<<'PY'
+from kawa import Context, Message, Webhook, Cron, actor, event
+
+
+@event
+class IntakeRequested:
+    source: str
+    details: str | None = None
+
+
+@actor(receivs=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
+def CollectScheduledIntake(ctx: Context, event: Cron) -> None:
+    ctx.dispatch(
+        IntakeRequested(
+            source="cron",
+            details=event.datetime.isoformat(),
+        )
+    )
+    ctx.dispatch(Message(message="[example] scheduled intake received"))
+
+
+@actor(receivs=Webhook.by("ops.intake"), sends=(IntakeRequested, Message))
+def CollectWebhookIntake(ctx: Context, event: Webhook) -> None:
+    ctx.dispatch(
+        IntakeRequested(
+            source="webhook",
+            details=str(event.payload),
+        )
+    )
+    ctx.dispatch(Message(message=f"[example] webhook {event.slug} received"))
+
+
+@actor(receivs=IntakeRequested, sends=Message)
+def PublishIntake(ctx: Context, event: IntakeRequested) -> None:
+    suffix = f" ({event.details})" if event.details else ""
+    ctx.dispatch(Message(message=f"[example] processed {event.source} intake{suffix}"))
 PY;
     }
 }

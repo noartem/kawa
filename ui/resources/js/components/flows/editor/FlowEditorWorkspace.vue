@@ -255,7 +255,7 @@ watch(
 <template>
     <section ref="workspaceSection" class="h-[100vh] p-4" @click="focusEditor">
         <div
-            class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_1fr_1fr]"
+            class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_minmax(16rem,2fr)_minmax(24rem,3fr)]"
         >
             <div
                 class="col-span-2 row-1 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
@@ -545,7 +545,9 @@ watch(
                         <p class="text-sm font-semibold text-foreground">
                             {{ t('flows.editor.changes.empty_title') }}
                         </p>
-                        <p class="h-10 mt-1 max-w-sm text-sm text-muted-foreground">
+                        <p
+                            class="mt-1 h-10 max-w-sm text-sm text-muted-foreground"
+                        >
                             {{ t('flows.editor.changes.empty_description') }}
                         </p>
                     </div>

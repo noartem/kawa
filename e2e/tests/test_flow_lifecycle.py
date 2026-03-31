@@ -6,8 +6,7 @@ from tests.helpers.graph_validation import graph_hash, validate_graph_structure
 
 
 FLOW_CODE = """
-from kawa import actor, event, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, Context, Cron
 
 
 @event
@@ -15,7 +14,7 @@ class Ping:
     pass
 
 
-@actor(receivs=CronEvent.by(\"*/5 * * * *\"))
+@actor(receivs=Cron.by(\"*/5 * * * *\"))
 def Starter(ctx: Context, event):
     print(\"start\")
 """

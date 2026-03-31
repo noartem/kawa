@@ -1,7 +1,6 @@
-from kawa import actor, event, NotSupportedEvent, Context
-from kawa.cron import CronEvent
+from kawa import actor, event, NotSupported, Context, Cron
 
 
-@actor(receivs=CronEvent.by("0 8 * * *"))
+@actor(receivs=Cron.by("0 8 * * *"))
 def MorningActor(ctx: Context, event):
     print("Good morning!")

@@ -195,7 +195,7 @@ class ErrorResponse(BaseModel):
 # Socket.IO Event Data Models
 
 
-class CreateContainerEvent(BaseModel):
+class CreateContainer(BaseModel):
     """Data for create_container Socket.IO event."""
 
     image: str = Field(..., description="Docker image name")
@@ -236,7 +236,7 @@ class CreateContainerEvent(BaseModel):
         return v.strip() if v else None
 
 
-class GenerateLockEvent(BaseModel):
+class GenerateLock(BaseModel):
     """Data for generate_lock command."""
 
     flow_id: int = Field(..., description="Flow ID")
@@ -252,7 +252,7 @@ class GenerateLockEvent(BaseModel):
         return v.strip()
 
 
-class ContainerOperationEvent(BaseModel):
+class ContainerOperation(BaseModel):
     """Data for container operation Socket.IO events."""
 
     container_id: str = Field(..., description="Container ID")
@@ -265,7 +265,7 @@ class ContainerOperationEvent(BaseModel):
         return v.strip()
 
 
-class UpdateContainerEvent(BaseModel):
+class UpdateContainer(BaseModel):
     """Data for update_container Socket.IO event."""
 
     container_id: str = Field(..., description="Container ID")
@@ -286,7 +286,7 @@ class UpdateContainerEvent(BaseModel):
         return v.strip()
 
 
-class SendMessageEvent(BaseModel):
+class SendMessage(BaseModel):
     """Data for send_message Socket.IO event."""
 
     container_id: str = Field(..., description="Container ID")
@@ -300,7 +300,7 @@ class SendMessageEvent(BaseModel):
         return v.strip()
 
 
-class ActivityLogEvent(BaseModel):
+class ActivityLog(BaseModel):
     """Data for activity log Socket.IO events."""
 
     activity_type: str = Field(..., description="Type of activity")
@@ -485,7 +485,7 @@ class HealthStatusHistory(BaseModel):
         self.last_recovery_attempt = datetime.now()
 
 
-class HealthCheckConfigEvent(BaseModel):
+class HealthCheckConfigPayload(BaseModel):
     """Data for health check configuration Socket.IO events."""
 
     container_id: str = Field(..., description="Container ID")

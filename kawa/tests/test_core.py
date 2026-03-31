@@ -9,46 +9,46 @@ from kawa.core import (
     ActorSendEventDefinition,
     ActorDefinition,
     EventDefinition,
-    NotSupportedEvent,
+    NotSupported,
 )
 from kawa.main import actor, event
 
 
 @event
-class MyEvent:
+class My:
     """This is a test event."""
 
     pass
 
 
 @event
-class AnotherEvent:
+class Another:
     pass
 
 
-@actor(receivs=(MyEvent,), sends=(AnotherEvent,))
-def my_actor(ctx: Context, event: MyEvent):
+@actor(receivs=(My,), sends=(Another,))
+def my_actor(ctx: Context, event: My):
     """This is a test actor."""
-    ctx.dispatch(AnotherEvent())
+    ctx.dispatch(Another())
 
 
 class MyActorClass:
     """This is a test actor class."""
 
-    def __call__(self, ctx: Context, event: MyEvent):
-        ctx.dispatch(AnotherEvent())
+    def __call__(self, ctx: Context, event: My):
+        ctx.dispatch(Another())
 
 
 def test_not_supported_event():
-    event = MyEvent()
-    not_supported = NotSupportedEvent(event)
+    event = My()
+    not_supported = NotSupported(event)
     assert not_supported.event == event
 
 
 def test_context_dispatch():
     with patch.object(Context, "dispatch", new_callable=MagicMock) as mock_dispatch:
         ctx = Context()
-        event = MyEvent()
+        event = My()
         ctx.dispatch(event)
         mock_dispatch.assert_called_once_with(event)
 
@@ -78,31 +78,31 @@ def test_context_dispatch_message_event_ignores_socket_errors():
 
 
 def test_event_filter():
-    event = MyEvent()
+    event = My()
     filter_func = MagicMock(return_value=True)
-    event_filter = EventFilter(MyEvent, {"key": "value"}, filter_func)
+    event_filter = EventFilter(My, {"key": "value"}, filter_func)
     assert event_filter(event)
     filter_func.assert_called_once_with(event)
 
 
 def test_actor_receive_event_definition():
-    definition = ActorReceiveEventDefinition(MyEvent)
-    assert definition.name == "MyEvent"
+    definition = ActorReceiveEventDefinition(My)
+    assert definition.name == "My"
     assert definition.doc == "This is a test event."
     assert definition.ctx == {}
 
 
 def test_actor_send_event_definition():
-    definition = ActorSendEventDefinition(AnotherEvent)
-    assert definition.name == "AnotherEvent"
+    definition = ActorSendEventDefinition(Another)
+    assert definition.name == "Another"
     assert definition.doc == ""
 
 
 def test__actor_definition_from_function():
     definition = ActorDefinition(
         my_actor,
-        receivs=(MyEvent,),
-        sends=(AnotherEvent,),
+        receivs=(My,),
+        sends=(Another,),
         min_instances=1,
         max_instances=5,
         keep_instance=timedelta(minutes=10),
@@ -120,14 +120,14 @@ def test_actor_definition_from_class():
     actor_instance = MyActorClass()
     definition = ActorDefinition(
         actor_instance,
-        receivs=(MyEvent,),
-        sends=(AnotherEvent,),
+        receivs=(My,),
+        sends=(Another,),
     )
     assert definition.name == "MyActorClass"
     assert definition.doc == "This is a test actor class."
 
 
 def test_event_definition():
-    definition = EventDefinition(MyEvent)
-    assert definition.name == "MyEvent"
+    definition = EventDefinition(My)
+    assert definition.name == "My"
     assert definition.doc == "This is a test event."
