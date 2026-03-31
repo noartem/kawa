@@ -4,21 +4,24 @@ namespace App\Services;
 
 use App\Models\Flow;
 use App\Models\FlowRun;
-use DateTimeInterface;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
 final class FlowWebhookService
 {
-    private const DEVELOPMENT_URL_TTL_MINUTES = 1440;
+    private const ENVIRONMENT_PRODUCTION = 'production';
+
+    private const ENVIRONMENT_DEVELOPMENT = 'development';
+
+    private const TOKEN_ENVIRONMENT_PRODUCTION = 'prod';
+
+    private const TOKEN_ENVIRONMENT_DEVELOPMENT = 'dev';
 
     /**
      * @var array<string, list<array{slug: string, source_line: int|null}>>
      */
     private array $codeWebhookCache = [];
-
-    private ?DateTimeInterface $developmentUrlExpiresAt = null;
 
     /**
      * @return list<array{slug: string, source_line: int|null, production_url: string|null, development_url: string|null}>
@@ -66,24 +69,80 @@ final class FlowWebhookService
                 'slug' => $declaration['slug'],
                 'source_line' => $declaration['source_line'],
                 'production_url' => $isProduction && $isReachable
-                     ? URL::signedRoute('webhooks.production.show', [
-                         'flow' => $flow,
-                         'slug' => $declaration['slug'],
-                     ])
-                     : null,
+                    ? $this->webhookUrl($flow, self::ENVIRONMENT_PRODUCTION, $declaration['slug'])
+                    : null,
                 'development_url' => ! $isProduction && $isReachable
-                    ? URL::temporarySignedRoute(
-                        'webhooks.development.show',
-                        $this->developmentUrlExpiresAt(),
-                        [
-                            'flow' => $flow,
-                            'run' => $run->id,
-                            'slug' => $declaration['slug'],
-                        ],
-                    )
+                    ? $this->webhookUrl($flow, self::ENVIRONMENT_DEVELOPMENT, $declaration['slug'])
                     : null,
             ];
         }, $declarations));
+    }
+
+    public function webhookUrl(Flow $flow, string $environment, string $slug): string
+    {
+        return route('webhooks.show', [
+            'token' => $this->webhookToken($flow, $environment, $slug),
+        ]);
+    }
+
+    public function webhookToken(Flow $flow, string $environment, string $slug): string
+    {
+        $normalizedSlug = trim($slug);
+
+        return $this->signTokenPayload($flow, [
+            'flow_id' => $flow->id,
+            'environment' => $this->tokenEnvironment($environment),
+            'slug' => $normalizedSlug,
+        ]);
+    }
+
+    /**
+     * @return array{flow: Flow, environment: 'production'|'development', slug: string}|null
+     */
+    public function resolveWebhookToken(string $token): ?array
+    {
+        $parts = explode('.', $token, 2);
+
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        [$encodedPayload] = $parts;
+        $decodedPayload = $this->base64UrlDecode($encodedPayload);
+
+        if (! is_string($decodedPayload)) {
+            return null;
+        }
+
+        $payload = json_decode($decodedPayload, true);
+
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $flowId = $payload['flow_id'] ?? null;
+        $environment = $this->applicationEnvironment($payload['environment'] ?? null);
+        $slug = trim((string) ($payload['slug'] ?? ''));
+
+        if (! is_int($flowId) || $flowId <= 0 || $environment === null || $slug === '') {
+            return null;
+        }
+
+        $flow = Flow::query()->find($flowId);
+
+        if (! $flow instanceof Flow) {
+            return null;
+        }
+
+        if (! $this->verifyTokenPayload($flow, $token)) {
+            return null;
+        }
+
+        return [
+            'flow' => $flow,
+            'environment' => $environment,
+            'slug' => $slug,
+        ];
     }
 
     public function resolveProductionRun(Flow $flow, string $slug): ?FlowRun
@@ -443,8 +502,104 @@ PY;
         }
     }
 
-    private function developmentUrlExpiresAt(): DateTimeInterface
+    private function tokenEnvironment(string $environment): string
     {
-        return $this->developmentUrlExpiresAt ??= now()->addMinutes(self::DEVELOPMENT_URL_TTL_MINUTES);
+        return match ($environment) {
+            self::ENVIRONMENT_PRODUCTION => self::TOKEN_ENVIRONMENT_PRODUCTION,
+            self::ENVIRONMENT_DEVELOPMENT => self::TOKEN_ENVIRONMENT_DEVELOPMENT,
+            default => throw new \InvalidArgumentException('Unsupported webhook environment.'),
+        };
+    }
+
+    /**
+     * @return 'production'|'development'|null
+     */
+    private function applicationEnvironment(mixed $environment): ?string
+    {
+        return match ($environment) {
+            self::TOKEN_ENVIRONMENT_PRODUCTION => self::ENVIRONMENT_PRODUCTION,
+            self::TOKEN_ENVIRONMENT_DEVELOPMENT => self::ENVIRONMENT_DEVELOPMENT,
+            default => null,
+        };
+    }
+
+    /**
+     * @param  array{flow_id: int|null, environment: string, slug: string}  $payload
+     */
+    private function signTokenPayload(Flow $flow, array $payload): string
+    {
+        $encodedPayload = $this->base64UrlEncode((string) json_encode($payload, JSON_UNESCAPED_SLASHES));
+        $signature = hash_hmac(
+            'sha256',
+            $encodedPayload,
+            $this->webhookTokenSecret($flow),
+            true,
+        );
+
+        return $encodedPayload.'.'.$this->base64UrlEncode($signature);
+    }
+
+    private function verifyTokenPayload(Flow $flow, string $token): bool
+    {
+        $parts = explode('.', $token, 2);
+
+        if (count($parts) !== 2) {
+            return false;
+        }
+
+        [$encodedPayload, $encodedSignature] = $parts;
+        $expectedSignature = hash_hmac(
+            'sha256',
+            $encodedPayload,
+            $this->storedWebhookTokenSecret($flow),
+            true,
+        );
+        $providedSignature = $this->base64UrlDecode($encodedSignature);
+
+        return is_string($providedSignature)
+            && hash_equals($expectedSignature, $providedSignature);
+    }
+
+    private function webhookTokenSecret(Flow $flow): string
+    {
+        $secret = $this->storedWebhookTokenSecret($flow);
+
+        if ($secret !== '') {
+            return $secret;
+        }
+
+        $secret = Str::random(40);
+        $flow->forceFill(['webhook_token_secret' => $secret])->saveQuietly();
+
+        return $secret;
+    }
+
+    private function storedWebhookTokenSecret(Flow $flow): string
+    {
+        $secret = $flow->webhook_token_secret;
+
+        if (is_string($secret) && $secret !== '') {
+            return $secret;
+        }
+
+        return '';
+    }
+
+    private function base64UrlEncode(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function base64UrlDecode(string $value): ?string
+    {
+        $remainder = strlen($value) % 4;
+
+        if ($remainder > 0) {
+            $value .= str_repeat('=', 4 - $remainder);
+        }
+
+        $decoded = base64_decode(strtr($value, '-_', '+/'), true);
+
+        return $decoded === false ? null : $decoded;
     }
 }

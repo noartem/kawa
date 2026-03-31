@@ -8,7 +8,6 @@ use App\Models\FlowRun;
 use App\Services\FlowManagerClient;
 use App\Services\FlowWebhookService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -20,61 +19,68 @@ final class FlowWebhookController extends Controller
         private readonly FlowWebhookService $webhooks,
     ) {}
 
-    public function showProduction(Request $request, Flow $flow, string $slug): InertiaResponse
+    public function show(string $token): InertiaResponse
     {
-        $this->ensureValidSignature($request);
-
-        $run = $this->webhooks->resolveProductionRun($flow, $slug);
+        $resolved = $this->resolveToken($token);
+        $run = $this->resolveRun(
+            $resolved['flow'],
+            $resolved['environment'],
+            $resolved['slug'],
+        );
         abort_if(! $run instanceof FlowRun, 404);
 
-        return Inertia::render('webhooks/Show', $this->viewPayload($flow, $run, $slug, $request->fullUrl()));
+        return Inertia::render('webhooks/Show', $this->viewPayload(
+            $resolved['flow'],
+            $run,
+            $resolved['environment'],
+            $resolved['slug'],
+            route('webhooks.show', ['token' => $token]),
+            $token,
+        ));
     }
 
-    public function dispatchProduction(
-        FlowWebhookRequest $request,
-        Flow $flow,
-        string $slug,
-    ): JsonResponse {
-        $this->ensureValidSignature($request);
-
-        $run = $this->webhooks->resolveProductionRun($flow, $slug);
+    public function dispatch(FlowWebhookRequest $request, string $token): JsonResponse
+    {
+        $resolved = $this->resolveToken($token);
+        $run = $this->resolveRun(
+            $resolved['flow'],
+            $resolved['environment'],
+            $resolved['slug'],
+        );
         abort_if(! $run instanceof FlowRun, 404);
 
-        return $this->dispatch($request, $flow, $run, $slug);
+        return $this->dispatchToRuntime(
+            $request,
+            $resolved['flow'],
+            $run,
+            $resolved['slug'],
+        );
     }
 
-    public function showDevelopment(Request $request, Flow $flow, string $slug): InertiaResponse
+    /**
+     * @return array{flow: Flow, environment: 'production'|'development', slug: string}
+     */
+    private function resolveToken(string $token): array
     {
-        $this->ensureValidSignature($request, requiresExpiration: true);
+        $resolved = $this->webhooks->resolveWebhookToken($token);
+        abort_if(! is_array($resolved), 404);
 
-        $resolvedRun = $this->webhooks->resolveDevelopmentRun(
-            $flow,
-            $slug,
-            $request->integer('run') ?: null,
-        );
-        abort_if(! $resolvedRun instanceof FlowRun, 404);
-
-        return Inertia::render('webhooks/Show', $this->viewPayload($flow, $resolvedRun, $slug, $request->fullUrl()));
+        return $resolved;
     }
 
-    public function dispatchDevelopment(
-        FlowWebhookRequest $request,
+    private function resolveRun(
         Flow $flow,
+        string $environment,
         string $slug,
-    ): JsonResponse {
-        $this->ensureValidSignature($request, requiresExpiration: true);
+    ): ?FlowRun {
+        if ($environment === 'production') {
+            return $this->webhooks->resolveProductionRun($flow, $slug);
+        }
 
-        $resolvedRun = $this->webhooks->resolveDevelopmentRun(
-            $flow,
-            $slug,
-            $request->integer('run') ?: null,
-        );
-        abort_if(! $resolvedRun instanceof FlowRun, 404);
-
-        return $this->dispatch($request, $flow, $resolvedRun, $slug);
+        return $this->webhooks->resolveDevelopmentRun($flow, $slug);
     }
 
-    private function dispatch(
+    private function dispatchToRuntime(
         FlowWebhookRequest $request,
         Flow $flow,
         FlowRun $run,
@@ -112,31 +118,28 @@ final class FlowWebhookController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function viewPayload(Flow $flow, FlowRun $run, string $slug, string $endpoint): array
-    {
+    private function viewPayload(
+        Flow $flow,
+        FlowRun $run,
+        string $environment,
+        string $slug,
+        string $endpoint,
+        string $token,
+    ): array {
         return [
             'flow' => [
                 'id' => $flow->id,
                 'name' => $flow->name,
             ],
+            'environment' => $environment,
             'run' => [
                 'id' => $run->id,
                 'type' => $run->type,
             ],
             'slug' => $slug,
+            'token' => $token,
             'endpoint' => $endpoint,
             'samplePayload' => json_encode(['message' => 'hello'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
         ];
-    }
-
-    private function ensureValidSignature(
-        Request $request,
-        bool $requiresExpiration = false,
-    ): void {
-        if ($requiresExpiration && (! $request->has('expires') || ! $request->filled('run'))) {
-            abort(404);
-        }
-
-        abort_unless($request->hasValidSignature(), 404);
     }
 }

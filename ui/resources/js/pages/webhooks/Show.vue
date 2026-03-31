@@ -3,16 +3,9 @@ import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { Head } from '@inertiajs/vue3';
-import { CheckCircle2, Globe, Send, WifiOff } from 'lucide-vue-next';
+import { CheckCircle2, Dot, Globe, Send, WifiOff } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -34,8 +27,10 @@ interface WebhookResponseState {
 
 const props = defineProps<{
     flow: FlowSummary;
+    environment: 'production' | 'development';
     run: RunSummary;
     slug: string;
+    token: string;
     endpoint: string;
     samplePayload: string;
 }>();
@@ -52,7 +47,7 @@ const responseState = ref<WebhookResponseState>({
 });
 
 const environmentLabel = computed(() => {
-    return props.run.type === 'production'
+    return props.environment === 'production'
         ? t('environments.production')
         : t('environments.development');
 });
@@ -152,202 +147,191 @@ const submitPayload = async (): Promise<void> => {
         isSubmitting.value = false;
     }
 };
+
+async function copyLink(link: string) {
+    try {
+        await navigator.clipboard.writeText(link);
+    } catch (error) {
+        console.error('Failed to copy link:', error);
+    }
+}
 </script>
 
 <template>
     <Head :title="`${t('flows.webhook_page.title')} ${slug}`" />
 
-    <main class="min-h-screen bg-background text-foreground">
-        <div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-            <section class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
-                <Card class="border-border/70 bg-card/95 shadow-sm">
-                    <CardHeader class="gap-4 border-b border-border/70 pb-6">
-                        <div class="flex flex-wrap items-start justify-between gap-4">
-                            <div class="space-y-3">
-                                <Badge variant="secondary" class="w-fit">
-                                    {{ t('flows.webhook_page.title') }}
-                                </Badge>
-                                <div class="space-y-2">
-                                    <CardTitle class="text-3xl font-semibold tracking-tight sm:text-4xl">
-                                        {{ slug }}
-                                    </CardTitle>
-                                    <CardDescription class="max-w-3xl text-sm leading-6 sm:text-base">
-                                        {{ t('flows.webhook_page.subtitle') }}
-                                    </CardDescription>
-                                </div>
-                            </div>
+    <main class="min-h-dvh bg-background text-foreground">
+        <div class="container mx-auto divide-y border-r border-l border-border">
+            <section class="p-4">
+                <Badge variant="secondary" class="w-fit">
+                    {{ t('flows.webhook_page.title') }}
+                </Badge>
+                <div class="space-y-2">
+                    <div
+                        class="text-3xl font-semibold tracking-tight sm:text-4xl"
+                    >
+                        {{ slug }}
+                    </div>
+                    <div class="max-w-3xl text-sm leading-6 sm:text-base">
+                        {{ t('flows.webhook_page.subtitle') }}
+                    </div>
+                </div>
+            </section>
 
-                            <div class="grid min-w-44 gap-3 rounded-xl border border-border/70 bg-muted/35 p-4 text-sm">
-                                <div>
-                                    <div class="text-xs font-medium text-muted-foreground">
-                                        {{ t('flows.webhook_page.active_run') }}
-                                    </div>
-                                    <div class="mt-1 text-xl font-semibold text-foreground">
-                                        #{{ run.id }}
-                                    </div>
-                                </div>
-                                <Badge variant="outline" class="w-fit capitalize">
-                                    {{ environmentLabel }}
-                                </Badge>
-                            </div>
+            <section class="flex divide-x">
+                <div class="grid flex-1 gap-2 p-4">
+                    <div
+                        class="flex items-center text-xs font-medium text-muted-foreground"
+                    >
+                        {{ t('flows.webhook_page.meta.flow') }}
+                        #{{ flow.id }}
+                        <Dot size="18" class="mb-px" />
+                        {{ t('flows.webhook_page.meta.run') }}
+                        #{{ run.id }}
+                        <Dot size="18" class="mb-px" />
+                        {{ environmentLabel }}
+                    </div>
+                    <div class="text-base font-semibold">
+                        {{ flow.name }}
+                    </div>
+                </div>
+
+                <div class="grid flex-1 gap-2 p-4">
+                    <div class="text-xs font-medium text-muted-foreground">
+                        {{ t('flows.webhook_page.meta.slug') }}
+                    </div>
+                    <code
+                        class="block text-sm font-medium break-all text-foreground"
+                    >
+                        {{ slug }}
+                    </code>
+                </div>
+
+                <div class="grid flex-1 gap-2 p-4">
+                    <div
+                        class="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                    >
+                        <Globe class="size-4" />
+                        {{ t('flows.webhook_page.endpoint') }}
+                    </div>
+                    <a
+                        class="block truncate text-sm leading-6 break-all text-foreground transition-all duration-100 active:translate-y-1 active:shadow-[0_0px_0_0_rgb(30,64,175)]"
+                        :href="endpoint"
+                        @click.prevent="copyLink(endpoint)"
+                    >
+                        {{ endpoint }}
+                    </a>
+                </div>
+            </section>
+
+            <section class="grid gap-4">
+                <div
+                    class="p-4 flex flex-wrap items-center justify-between gap-3"
+                >
+                    <div>
+                        <h2 class="text-sm font-semibold text-foreground">
+                            {{ t('flows.webhook_page.payload_title') }}
+                        </h2>
+                        <p class="text-xs text-muted-foreground">
+                            {{ t('flows.webhook_page.payload_hint') }}
+                        </p>
+                    </div>
+
+                    <Button
+                        type="button"
+                        class="min-w-36"
+                        :disabled="isSubmitting"
+                        @click="submitPayload"
+                    >
+                    <Spinner v-if="isSubmitting" />
+                    <Send v-else class="size-4" />
+                    {{ isSubmitting
+                            ? t('flows.webhook_page.sending')
+                                : t('flows.webhook_page.send')
+                        }}
+                    </Button>
+                </div>
+
+                <FlowCodeEditor
+                    v-model="payload"
+                    language="json"
+                    :disabled="isSubmitting"
+                    class="min-h-[26rem] overflow-hidden rounded-xl border border-input bg-background shadow-xs"
+                    :tab-size="4"
+                    :indent-with-tab="false"
+                    bottom-padding="1.25rem"
+                    aria-label="JSON payload editor"
+                    :aria-describedby="
+                        validationError
+                            ? 'webhook-payload-error'
+                            : undefined
+                    "
+                />
+
+                <Alert
+                    v-if="validationError"
+                    id="webhook-payload-error"
+                    variant="destructive"
+                    class="m-4"
+                >
+                    <AlertTitle>{{
+                        t('flows.webhook_page.invalid_json')
+                    }}</AlertTitle>
+                    <AlertDescription>
+                        {{ t('flows.webhook_page.invalid_json_message') }}
+                        {{ validationError }}
+                    </AlertDescription>
+                </Alert>
+            </section>
+
+            <section class="p-4">
+                <div
+                    class="flex flex-row items-start justify-between gap-4 space-y-0"
+                >
+                    <div>
+                        <div class="text-lg">
+                            {{ t('flows.webhook_page.response') }}
                         </div>
-                    </CardHeader>
-
-                    <CardContent class="grid gap-6 pt-6">
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <div class="rounded-xl border border-border/70 bg-background/70 p-4">
-                                <div class="text-xs font-medium text-muted-foreground">
-                                    {{ t('flows.webhook_page.meta.flow') }}
-                                </div>
-                                <div class="mt-2 text-base font-semibold">
-                                    {{ flow.name }}
-                                </div>
-                                <div class="mt-1 text-xs text-muted-foreground">
-                                    Flow #{{ flow.id }}
-                                </div>
-                            </div>
-
-                            <div class="rounded-xl border border-border/70 bg-background/70 p-4">
-                                <div class="text-xs font-medium text-muted-foreground">
-                                    {{ t('flows.webhook_page.request_format') }}
-                                </div>
-                                <div class="mt-2 text-base font-semibold">
-                                    <code>application/json</code>
-                                </div>
-                                <div class="mt-1 text-xs text-muted-foreground">
-                                    POST
-                                </div>
-                            </div>
+                        <div class="text-sm text-muted-foreground">
+                            {{ t('flows.webhook_page.delivery_steps.response') }}
                         </div>
+                    </div>
 
-                        <div class="rounded-xl border border-border/70 bg-muted/35 p-4">
-                            <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                                <Globe class="size-4" />
-                                {{ t('flows.webhook_page.endpoint') }}
-                            </div>
-                            <code class="mt-3 block break-all text-sm leading-6 text-foreground">
-                                {{ endpoint }}
-                            </code>
-                        </div>
+                    <Badge :variant="responseBadgeVariant" aria-live="polite">
+                        {{ responseState.label }}
+                    </Badge>
+                </div>
+                <div class="grid gap-3">
+                    <Alert
+                        v-if="responseState.status === 'success'"
+                        class="border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-300"
+                    >
+                        <CheckCircle2 class="size-4" />
+                        <AlertTitle>{{ responseState.label }}</AlertTitle>
+                        <AlertDescription>
+                            {{
+                                t('flows.webhook_page.delivery_steps.response')
+                            }}
+                        </AlertDescription>
+                    </Alert>
 
-                        <div class="grid gap-3">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <h2 class="text-sm font-semibold text-foreground">
-                                        {{ t('flows.webhook_page.payload_title') }}
-                                    </h2>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ t('flows.webhook_page.payload_hint') }}
-                                    </p>
-                                </div>
+                    <Alert
+                        v-else-if="responseState.status === 'error'"
+                        variant="destructive"
+                        class="px-4 py-3"
+                    >
+                        <WifiOff class="size-4" />
+                        <AlertTitle>{{ responseState.label }}</AlertTitle>
+                        <AlertDescription>
+                            {{ responseState.body }}
+                        </AlertDescription>
+                    </Alert>
 
-                                <Button
-                                    type="button"
-                                    class="min-w-36"
-                                    :disabled="isSubmitting"
-                                    @click="submitPayload"
-                                >
-                                    <Spinner v-if="isSubmitting" />
-                                    <Send v-else class="size-4" />
-                                    {{
-                                        isSubmitting
-                                            ? t('flows.webhook_page.sending')
-                                            : t('flows.webhook_page.send')
-                                    }}
-                                </Button>
-                            </div>
-
-                            <FlowCodeEditor
-                                v-model="payload"
-                                language="json"
-                                :disabled="isSubmitting"
-                                class="min-h-[26rem] overflow-hidden rounded-xl border border-input bg-background shadow-xs"
-                                :tab-size="4"
-                                :indent-with-tab="false"
-                                bottom-padding="1.25rem"
-                                aria-label="JSON payload editor"
-                                :aria-describedby="validationError ? 'webhook-payload-error' : undefined"
-                            />
-
-                            <Alert
-                                v-if="validationError"
-                                id="webhook-payload-error"
-                                variant="destructive"
-                            >
-                                <AlertTitle>{{ t('flows.webhook_page.invalid_json') }}</AlertTitle>
-                                <AlertDescription>
-                                    {{ t('flows.webhook_page.invalid_json_message') }}
-                                    {{ validationError }}
-                                </AlertDescription>
-                            </Alert>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <div class="grid gap-6">
-                    <Card class="border-border/70 bg-card/95 shadow-sm">
-                        <CardHeader>
-                            <CardTitle class="text-lg">
-                                {{ t('flows.webhook_page.delivery_title') }}
-                            </CardTitle>
-                            <CardDescription>
-                                {{ t('flows.webhook_page.response_idle') }}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent class="grid gap-3 text-sm text-muted-foreground">
-                            <div class="rounded-xl border border-border/70 bg-muted/35 p-4">
-                                1. {{ t('flows.webhook_page.delivery_steps.request') }}
-                            </div>
-                            <div class="rounded-xl border border-border/70 bg-muted/35 p-4">
-                                2. {{ t('flows.webhook_page.delivery_steps.handoff') }}
-                            </div>
-                            <div class="rounded-xl border border-border/70 bg-muted/35 p-4">
-                                3. {{ t('flows.webhook_page.delivery_steps.response') }}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card class="border-border/70 bg-card/95 shadow-sm">
-                        <CardHeader class="flex flex-row items-start justify-between gap-4 space-y-0">
-                            <div>
-                                <CardTitle class="text-lg">
-                                    {{ t('flows.webhook_page.response') }}
-                                </CardTitle>
-                                <CardDescription>
-                                    {{ t('flows.webhook_page.response_idle') }}
-                                </CardDescription>
-                            </div>
-
-                            <Badge :variant="responseBadgeVariant" aria-live="polite">
-                                {{ responseState.label }}
-                            </Badge>
-                        </CardHeader>
-                        <CardContent class="grid gap-4">
-                            <Alert
-                                v-if="responseState.status === 'success'"
-                                class="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                            >
-                                <CheckCircle2 class="size-4" />
-                                <AlertTitle>{{ responseState.label }}</AlertTitle>
-                                <AlertDescription>
-                                    {{ t('flows.webhook_page.delivery_steps.response') }}
-                                </AlertDescription>
-                            </Alert>
-
-                            <Alert v-else-if="responseState.status === 'error'" variant="destructive">
-                                <WifiOff class="size-4" />
-                                <AlertTitle>{{ responseState.label }}</AlertTitle>
-                                <AlertDescription>
-                                    {{ responseState.body }}
-                                </AlertDescription>
-                            </Alert>
-
-                            <pre
-                                aria-live="polite"
-                                class="min-h-56 overflow-x-auto rounded-xl border border-border/70 bg-muted/35 p-4 font-mono text-xs leading-6 text-foreground"
-                            >{{ responseState.body }}</pre>
-                        </CardContent>
-                    </Card>
+                    <pre
+                        aria-live="polite"
+                        class="min-h-36 overflow-x-auto rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-xs leading-6 text-foreground"
+                        >{{ responseState.body }}</pre
+                    >
                 </div>
             </section>
         </div>

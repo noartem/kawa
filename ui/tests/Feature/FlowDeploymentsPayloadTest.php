@@ -7,8 +7,8 @@ use App\Models\FlowHistory;
 use App\Models\FlowLog;
 use App\Models\FlowRun;
 use App\Models\User;
+use App\Services\FlowWebhookService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -92,11 +92,7 @@ PY,
 
         FlowLog::factory()->count(55)->forRun($newRun)->create();
 
-        $developmentEndpoint = $this->developmentWebhookUrl(
-            $flow,
-            $newRun,
-            'orders.created',
-        );
+        $developmentEndpoint = $this->webhookUrl($flow, 'development', 'orders.created');
 
         $response = $this->actingAs($user)->get(route('flows.show', $flow));
 
@@ -257,11 +253,7 @@ PY,
             'graph_snapshot' => null,
         ]);
 
-        $developmentEndpoint = $this->developmentWebhookUrl(
-            $flow,
-            $run,
-            'orders.created',
-        );
+        $developmentEndpoint = $this->webhookUrl($flow, 'development', 'orders.created');
 
         $response = $this->actingAs($user)->get(route('flows.show', $flow));
 
@@ -328,15 +320,8 @@ PY,
             ->component('flows/Editor')
             ->where('webhookEndpoints.0.slug', 'orders.created')
             ->where('webhookEndpoints.0.source_line', 6)
-            ->where('webhookEndpoints.0.production_url', URL::signedRoute('webhooks.production.show', [
-                'flow' => $flow,
-                'slug' => 'orders.created',
-            ]))
-            ->where('webhookEndpoints.0.development_url', $this->developmentWebhookUrl(
-                $flow,
-                $developmentRun,
-                'orders.created',
-            ))
+            ->where('webhookEndpoints.0.production_url', $this->webhookUrl($flow, 'production', 'orders.created'))
+            ->where('webhookEndpoints.0.development_url', $this->webhookUrl($flow, 'development', 'orders.created'))
         );
     }
 
@@ -421,19 +406,11 @@ PY,
         );
     }
 
-    private function developmentWebhookUrl(
+    private function webhookUrl(
         Flow $flow,
-        FlowRun $run,
+        string $environment,
         string $slug,
     ): string {
-        return URL::temporarySignedRoute(
-            'webhooks.development.show',
-            now()->addMinutes(1440),
-            [
-                'flow' => $flow,
-                'run' => $run->id,
-                'slug' => $slug,
-            ],
-        );
+        return app(FlowWebhookService::class)->webhookUrl($flow, $environment, $slug);
     }
 }

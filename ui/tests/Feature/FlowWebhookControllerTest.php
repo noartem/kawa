@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Models\Flow;
 use App\Models\FlowRun;
 use App\Services\FlowManagerClient;
+use App\Services\FlowWebhookService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\URL;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -17,18 +17,16 @@ class FlowWebhookControllerTest extends TestCase
     public function test_get_webhook_page_renders_for_active_production_run(): void
     {
         [$flow] = $this->webhookTarget('production');
-
-        $endpoint = URL::signedRoute('webhooks.production.show', [
-            'flow' => $flow,
-            'slug' => 'orders.created',
-        ]);
+        $endpoint = $this->webhookUrl($flow, 'production');
 
         $response = $this->get($endpoint);
 
         $response->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('webhooks/Show')
             ->where('slug', 'orders.created')
+            ->where('token', $this->webhookToken($flow, 'production'))
             ->where('endpoint', $endpoint)
+            ->where('environment', 'production')
             ->where('flow.id', $flow->id)
             ->where('flow.name', $flow->name)
             ->missing('flow.code')
@@ -41,15 +39,16 @@ class FlowWebhookControllerTest extends TestCase
     public function test_get_webhook_page_renders_for_active_development_run(): void
     {
         [$flow, $run] = $this->webhookTarget('development');
-
-        $endpoint = $this->temporaryDevelopmentRoute('webhooks.development.show', $flow, $run);
+        $endpoint = $this->webhookUrl($flow, 'development');
 
         $response = $this->get($endpoint);
 
         $response->assertOk()->assertInertia(fn (Assert $page) => $page
             ->component('webhooks/Show')
             ->where('slug', 'orders.created')
+            ->where('token', $this->webhookToken($flow, 'development'))
             ->where('endpoint', $endpoint)
+            ->where('environment', 'development')
             ->where('flow.id', $flow->id)
             ->where('run.id', $run->id)
             ->where('run.type', 'development')
@@ -76,10 +75,10 @@ class FlowWebhookControllerTest extends TestCase
             )
             ->andReturn(['ok' => true]);
 
-        $response = $this->postJson(URL::signedRoute('webhooks.production.dispatch', [
-            'flow' => $flow,
-            'slug' => 'orders.created',
-        ]), ['order_id' => 42]);
+        $response = $this->postJson(
+            route('webhooks.dispatch', ['token' => $this->webhookToken($flow, 'production')]),
+            ['order_id' => 42],
+        );
 
         $response
             ->assertOk()
@@ -96,10 +95,10 @@ class FlowWebhookControllerTest extends TestCase
     {
         [$flow] = $this->webhookTarget('production');
 
-        $response = $this->postJson(URL::signedRoute('webhooks.production.dispatch', [
-            'flow' => $flow,
-            'slug' => 'users.created',
-        ]), ['user_id' => 7]);
+        $response = $this->postJson(
+            route('webhooks.dispatch', ['token' => $this->webhookToken($flow, 'production', 'users.created')]),
+            ['user_id' => 7],
+        );
 
         $response->assertNotFound();
     }
@@ -116,10 +115,10 @@ class FlowWebhookControllerTest extends TestCase
                 'message' => 'RabbitMQ timeout while contacting runtime.',
             ]);
 
-        $response = $this->postJson(URL::signedRoute('webhooks.production.dispatch', [
-            'flow' => $flow,
-            'slug' => 'orders.created',
-        ]), ['order_id' => 42]);
+        $response = $this->postJson(
+            route('webhooks.dispatch', ['token' => $this->webhookToken($flow, 'production')]),
+            ['order_id' => 42],
+        );
 
         $response
             ->assertStatus(503)
@@ -132,47 +131,74 @@ class FlowWebhookControllerTest extends TestCase
     {
         [$flow] = $this->webhookTarget('production');
 
-        $response = $this->post(URL::signedRoute('webhooks.production.dispatch', [
-            'flow' => $flow,
-            'slug' => 'orders.created',
-        ]), ['order_id' => 42]);
+        $response = $this->post(
+            route('webhooks.dispatch', ['token' => $this->webhookToken($flow, 'production')]),
+            ['order_id' => 42],
+        );
 
         $response->assertSessionHasErrors('payload');
     }
 
     public function test_post_webhook_returns_404_for_inactive_development_run(): void
     {
-        [$flow, $run] = $this->webhookTarget('development', active: false);
+        [$flow] = $this->webhookTarget('development', active: false);
 
         $response = $this->postJson(
-            $this->temporaryDevelopmentRoute('webhooks.development.dispatch', $flow, $run),
+            route('webhooks.dispatch', ['token' => $this->webhookToken($flow, 'development')]),
             ['order_id' => 42],
         );
 
         $response->assertNotFound();
     }
 
-    public function test_development_webhook_endpoints_require_an_expiring_signature(): void
+    public function test_development_webhook_token_uses_the_latest_active_run(): void
     {
-        [$flow, $run] = $this->webhookTarget('development');
+        [$flow, $stoppedRun] = $this->webhookTarget('development');
+        $endpoint = $this->webhookUrl($flow, 'development');
 
-        $response = $this->get(URL::signedRoute('webhooks.development.show', [
-            'flow' => $flow,
-            'run' => $run->id,
-            'slug' => 'orders.created',
-        ]));
+        $stoppedRun->update([
+            'active' => false,
+            'status' => 'stopped',
+        ]);
 
-        $response->assertNotFound();
+        $newRun = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'container_id' => 'container-2',
+            'code_snapshot' => $flow->code,
+        ]);
+
+        $response = $this->get($endpoint);
+
+        $response->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('webhooks/Show')
+            ->where('run.id', $newRun->id)
+            ->where('environment', 'development')
+        );
     }
 
-    public function test_webhook_endpoints_require_a_valid_signature(): void
+    public function test_webhook_endpoint_returns_404_for_invalid_token(): void
+    {
+        $response = $this->get(route('webhooks.show', ['token' => 'invalid-token']));
+
+        $response->assertNotFound();
+
+        $postResponse = $this->postJson(
+            route('webhooks.dispatch', ['token' => 'invalid-token']),
+            ['order_id' => 42],
+        );
+
+        $postResponse->assertNotFound();
+    }
+
+    public function test_webhook_endpoint_returns_404_for_tampered_token(): void
     {
         [$flow] = $this->webhookTarget('production');
+        $token = $this->webhookToken($flow, 'production');
+        $tamperedToken = substr($token, 0, -1).(str_ends_with($token, 'a') ? 'b' : 'a');
 
-        $response = $this->postJson(route('webhooks.production.dispatch', [
-            'flow' => $flow,
-            'slug' => 'orders.created',
-        ]), ['order_id' => 42]);
+        $response = $this->get(route('webhooks.show', ['token' => $tamperedToken]));
 
         $response->assertNotFound();
     }
@@ -205,15 +231,19 @@ PY,
         return [$flow, $run];
     }
 
-    private function temporaryDevelopmentRoute(
-        string $routeName,
+    private function webhookUrl(
         Flow $flow,
-        FlowRun $run,
+        string $environment,
+        string $slug = 'orders.created',
     ): string {
-        return URL::temporarySignedRoute($routeName, now()->addMinutes(1440), [
-            'flow' => $flow,
-            'run' => $run->id,
-            'slug' => 'orders.created',
-        ]);
+        return app(FlowWebhookService::class)->webhookUrl($flow, $environment, $slug);
+    }
+
+    private function webhookToken(
+        Flow $flow,
+        string $environment,
+        string $slug = 'orders.created',
+    ): string {
+        return app(FlowWebhookService::class)->webhookToken($flow, $environment, $slug);
     }
 }

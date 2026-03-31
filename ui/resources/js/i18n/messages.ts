@@ -536,9 +536,11 @@ export const messages = {
                 invalid_json: 'Invalid JSON',
                 invalid_json_message: 'Fix JSON before sending the request.',
                 delivery_title: 'What happens next',
+                token_hint:
+                    'This stable token identifies the flow, environment, and webhook slug without depending on a specific run.',
                 delivery_steps: {
                     request:
-                        'The browser sends a signed POST request to this endpoint.',
+                        'The browser sends a POST request to this stable token endpoint.',
                     handoff:
                         'The payload is forwarded into the active flow runtime as a Webhook event.',
                     response:
@@ -547,6 +549,9 @@ export const messages = {
                 meta: {
                     flow: 'Flow',
                     environment: 'Environment',
+                    slug: 'Webhook slug',
+                    run: 'Current run',
+                    token: 'Webhook token',
                 },
             },
             past_deploys: {
@@ -1206,9 +1211,11 @@ export const messages = {
                 invalid_json: 'Некорректный JSON',
                 invalid_json_message: 'Исправьте JSON перед отправкой запроса.',
                 delivery_title: 'Что произойдет дальше',
+                token_hint:
+                    'Этот стабильный токен определяет поток, окружение и webhook slug без привязки к конкретному run.',
                 delivery_steps: {
                     request:
-                        'Браузер отправит подписанный POST-запрос на этот endpoint.',
+                        'Браузер отправит POST-запрос на этот стабильный token endpoint.',
                     handoff:
                         'Payload будет передан в активный рантайм потока как событие Webhook.',
                     response:
@@ -1217,6 +1224,9 @@ export const messages = {
                 meta: {
                     flow: 'Поток',
                     environment: 'Окружение',
+                    slug: 'Webhook slug',
+                    run: 'Текущий run',
+                    token: 'Webhook token',
                 },
             },
             past_deploys: {

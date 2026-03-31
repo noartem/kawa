@@ -38,11 +38,19 @@ class Flow extends Model
         'archived_at' => 'datetime',
     ];
 
+    protected $hidden = [
+        'webhook_token_secret',
+    ];
+
     protected static function booted(): void
     {
         static::creating(static function (Flow $flow): void {
             if (empty($flow->slug)) {
                 $flow->slug = Str::slug($flow->name) ?: Str::uuid()->toString();
+            }
+
+            if (empty($flow->webhook_token_secret)) {
+                $flow->webhook_token_secret = Str::random(40);
             }
         });
     }
