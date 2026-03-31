@@ -357,7 +357,7 @@ export const messages = {
                 node: 'Node: {node}',
                 payload: {
                     title: 'Payload',
-                    json_label: 'JSON',
+                    json_label: 'Payload',
                     expand_all: 'Expand all',
                     collapse_all: 'Collapse all',
                     expand_node: 'Expand section',
@@ -516,6 +516,38 @@ export const messages = {
             },
             deploy: {
                 label: 'Deploy #{id}',
+            },
+            webhook_page: {
+                title: 'Webhook endpoint',
+                subtitle:
+                    'Send a JSON payload to the active flow runtime and inspect the immediate HTTP response.',
+                endpoint: 'POST URL',
+                request_format: 'Request format',
+                active_run: 'Active run',
+                payload_title: 'JSON payload',
+                payload_hint: 'Empty editor sends null.',
+                send: 'Send webhook',
+                sending: 'Sending...',
+                response: 'Response',
+                response_idle: 'Awaiting request...',
+                response_success: 'Accepted',
+                response_error: 'Failed',
+                response_network_error: 'Network error',
+                invalid_json: 'Invalid JSON',
+                invalid_json_message: 'Fix JSON before sending the request.',
+                delivery_title: 'What happens next',
+                delivery_steps: {
+                    request:
+                        'The browser sends a signed POST request to this endpoint.',
+                    handoff:
+                        'The payload is forwarded into the active flow runtime as a Webhook event.',
+                    response:
+                        'The HTTP request returns immediately after the runtime accepts the handoff.',
+                },
+                meta: {
+                    flow: 'Flow',
+                    environment: 'Environment',
+                },
             },
             past_deploys: {
                 title: 'Past deployments',
@@ -991,7 +1023,7 @@ export const messages = {
                 node: 'Узел: {node}',
                 payload: {
                     title: 'Payload',
-                    json_label: 'JSON',
+                    json_label: 'Данные',
                     expand_all: 'Развернуть всё',
                     collapse_all: 'Свернуть всё',
                     expand_node: 'Развернуть секцию',
@@ -1154,6 +1186,38 @@ export const messages = {
             },
             deploy: {
                 label: 'Деплой #{id}',
+            },
+            webhook_page: {
+                title: 'Webhook endpoint',
+                subtitle:
+                    'Отправьте JSON payload в активный рантайм потока и сразу увидите HTTP-ответ.',
+                endpoint: 'POST URL',
+                request_format: 'Формат запроса',
+                active_run: 'Активный ран',
+                payload_title: 'JSON payload',
+                payload_hint: 'Пустой редактор отправляет null.',
+                send: 'Отправить webhook',
+                sending: 'Отправка...',
+                response: 'Ответ',
+                response_idle: 'Ожидание запроса...',
+                response_success: 'Принято',
+                response_error: 'Ошибка',
+                response_network_error: 'Ошибка сети',
+                invalid_json: 'Некорректный JSON',
+                invalid_json_message: 'Исправьте JSON перед отправкой запроса.',
+                delivery_title: 'Что произойдет дальше',
+                delivery_steps: {
+                    request:
+                        'Браузер отправит подписанный POST-запрос на этот endpoint.',
+                    handoff:
+                        'Payload будет передан в активный рантайм потока как событие Webhook.',
+                    response:
+                        'HTTP-запрос завершится сразу после того, как рантайм примет передачу.',
+                },
+                meta: {
+                    flow: 'Поток',
+                    environment: 'Окружение',
+                },
             },
             past_deploys: {
                 title: 'Прошлые деплои',

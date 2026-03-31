@@ -69,7 +69,7 @@ const props = withDefaults(
     defineProps<{
         modelValue?: string;
         disabled?: boolean;
-        language?: 'python' | 'text';
+        language?: 'python' | 'json' | 'text';
         indentWithTab?: boolean;
         tabSize?: number;
         bottomPadding?: string;

@@ -1,10 +1,11 @@
 import { python } from '@codemirror/lang-python';
+import { json } from '@codemirror/lang-json';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 
 interface CreateFlowCodeEditorExtensionsOptions {
-    language?: 'python' | 'text';
+    language?: 'python' | 'json' | 'text';
     bottomPadding?: string;
     lineWrapping?: boolean;
     isDarkTheme?: boolean;
@@ -12,6 +13,7 @@ interface CreateFlowCodeEditorExtensionsOptions {
 }
 
 const pythonExtension = python();
+const jsonExtension = json();
 
 export const createFlowCodeEditorExtensions = (
     options: CreateFlowCodeEditorExtensionsOptions = {},
@@ -70,6 +72,10 @@ export const createFlowCodeEditorExtensions = (
 
     if (language === 'python') {
         extensions.unshift(pythonExtension);
+    }
+
+    if (language === 'json') {
+        extensions.unshift(jsonExtension);
     }
 
     if (lineWrapping) {

@@ -924,9 +924,15 @@ onBeforeUnmount(() => {
                         v-if="event.webhook.productionUrl"
                         class="grid gap-1.5 text-[11px]"
                     >
-                        <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-2"
+                        >
                             <span class="text-muted-foreground">
-                                {{ t('flows.editor.discovery.production_webhook') }}
+                                {{
+                                    t(
+                                        'flows.editor.discovery.production_webhook',
+                                    )
+                                }}
                             </span>
                             <button
                                 type="button"
@@ -960,7 +966,7 @@ onBeforeUnmount(() => {
                             </button>
                         </div>
                         <code
-                            class="block break-all rounded-md bg-background px-2 py-1.5 leading-relaxed"
+                            class="block rounded-md bg-background px-2 py-1.5 leading-relaxed break-all"
                         >
                             {{ event.webhook.productionUrl }}
                         </code>
@@ -970,9 +976,15 @@ onBeforeUnmount(() => {
                         v-if="event.webhook.developmentUrl"
                         class="grid gap-1.5 text-[11px]"
                     >
-                        <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-2"
+                        >
                             <span class="text-muted-foreground">
-                                {{ t('flows.editor.discovery.development_webhook') }}
+                                {{
+                                    t(
+                                        'flows.editor.discovery.development_webhook',
+                                    )
+                                }}
                             </span>
                             <button
                                 type="button"
@@ -1006,7 +1018,7 @@ onBeforeUnmount(() => {
                             </button>
                         </div>
                         <code
-                            class="block break-all rounded-md bg-background px-2 py-1.5 leading-relaxed"
+                            class="block rounded-md bg-background px-2 py-1.5 leading-relaxed break-all"
                         >
                             {{ event.webhook.developmentUrl }}
                         </code>
@@ -1027,8 +1039,7 @@ onBeforeUnmount(() => {
     </section>
     <div
         v-else
-        class="flex h-full min-h-[320px] border border-dashed border-border
-        rounded-lg bg-muted/20 flex-col items-center justify-center px-6 text-center"
+        class="flex h-full min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"
     >
         <ScanSearch class="mb-4 size-10 text-muted-foreground/70" />
         <p class="text-sm font-semibold text-foreground">

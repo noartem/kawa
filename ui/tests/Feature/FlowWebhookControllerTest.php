@@ -7,6 +7,7 @@ use App\Models\FlowRun;
 use App\Services\FlowManagerClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class FlowWebhookControllerTest extends TestCase
@@ -24,12 +25,17 @@ class FlowWebhookControllerTest extends TestCase
 
         $response = $this->get($endpoint);
 
-        $response->assertOk();
-        $response->assertSee('orders.created');
-        $response->assertSee($endpoint, false);
-        $response->assertSee('JSON payload');
-        $response->assertSee('Send webhook');
-        $response->assertSee('Awaiting request...');
+        $response->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('webhooks/Show')
+            ->where('slug', 'orders.created')
+            ->where('endpoint', $endpoint)
+            ->where('flow.id', $flow->id)
+            ->where('flow.name', $flow->name)
+            ->missing('flow.code')
+            ->where('run.type', 'production')
+            ->missing('run.container_id')
+            ->where('samplePayload', "{\n    \"message\": \"hello\"\n}")
+        );
     }
 
     public function test_get_webhook_page_renders_for_active_development_run(): void
@@ -40,10 +46,15 @@ class FlowWebhookControllerTest extends TestCase
 
         $response = $this->get($endpoint);
 
-        $response->assertOk();
-        $response->assertSee('orders.created');
-        $response->assertSee(str_replace('&', '&amp;', $endpoint), false);
-        $response->assertSee('JSON payload');
+        $response->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('webhooks/Show')
+            ->where('slug', 'orders.created')
+            ->where('endpoint', $endpoint)
+            ->where('flow.id', $flow->id)
+            ->where('run.id', $run->id)
+            ->where('run.type', 'development')
+            ->missing('run.code_snapshot')
+        );
     }
 
     public function test_post_webhook_dispatches_payload_to_runtime(): void
@@ -91,6 +102,30 @@ class FlowWebhookControllerTest extends TestCase
         ]), ['user_id' => 7]);
 
         $response->assertNotFound();
+    }
+
+    public function test_post_webhook_hides_internal_dispatch_errors(): void
+    {
+        [$flow] = $this->webhookTarget('production');
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('sendMessage')
+            ->once()
+            ->andReturn([
+                'ok' => false,
+                'message' => 'RabbitMQ timeout while contacting runtime.',
+            ]);
+
+        $response = $this->postJson(URL::signedRoute('webhooks.production.dispatch', [
+            'flow' => $flow,
+            'slug' => 'orders.created',
+        ]), ['order_id' => 42]);
+
+        $response
+            ->assertStatus(503)
+            ->assertJson([
+                'message' => 'Failed to dispatch webhook payload.',
+            ]);
     }
 
     public function test_post_webhook_requires_json_content_type(): void

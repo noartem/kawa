@@ -112,6 +112,37 @@ const refreshOnlyProps = [
 const currentProduction = computed(() => props.productionRun);
 const currentDevelopment = computed(() => props.lastDevelopmentDeployment);
 const deployments = computed(() => props.deployments ?? []);
+const discoveryWebhookEndpoints = computed<FlowWebhookEndpoint[]>(() => {
+    const endpointsBySlug = new Map<string, FlowWebhookEndpoint>();
+
+    const mergeEndpoint = (endpoint: FlowWebhookEndpoint): void => {
+        const existing = endpointsBySlug.get(endpoint.slug);
+
+        if (!existing) {
+            endpointsBySlug.set(endpoint.slug, { ...endpoint });
+            return;
+        }
+
+        endpointsBySlug.set(endpoint.slug, {
+            slug: endpoint.slug,
+            source_line: existing.source_line ?? endpoint.source_line ?? null,
+            production_url:
+                existing.production_url ?? endpoint.production_url ?? null,
+            development_url:
+                existing.development_url ?? endpoint.development_url ?? null,
+        });
+    };
+
+    for (const endpoint of currentDevelopment.value?.webhooks ?? []) {
+        mergeEndpoint(endpoint);
+    }
+
+    for (const endpoint of props.webhookEndpoints) {
+        mergeEndpoint(endpoint);
+    }
+
+    return [...endpointsBySlug.values()];
+});
 const displayGraph = computed<Record<string, unknown> | null>(() => {
     return currentDevelopment.value?.graph ?? null;
 });
@@ -966,7 +997,7 @@ onBeforeUnmount(() => {
                 :active-chat="activeChat"
                 :chat-messages="displayedChatMessages"
                 :graph="displayGraph"
-                :webhook-endpoints="props.webhookEndpoints"
+                :webhook-endpoints="discoveryWebhookEndpoints"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
                 :development-logs="displayDevelopmentLogs"

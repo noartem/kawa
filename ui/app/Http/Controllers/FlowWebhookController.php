@@ -9,7 +9,9 @@ use App\Services\FlowManagerClient;
 use App\Services\FlowWebhookService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 final class FlowWebhookController extends Controller
 {
@@ -18,14 +20,14 @@ final class FlowWebhookController extends Controller
         private readonly FlowWebhookService $webhooks,
     ) {}
 
-    public function showProduction(Request $request, Flow $flow, string $slug): Response
+    public function showProduction(Request $request, Flow $flow, string $slug): InertiaResponse
     {
         $this->ensureValidSignature($request);
 
         $run = $this->webhooks->resolveProductionRun($flow, $slug);
         abort_if(! $run instanceof FlowRun, 404);
 
-        return response()->view('webhooks.show', $this->viewPayload($flow, $run, $slug, $request->fullUrl()));
+        return Inertia::render('webhooks/Show', $this->viewPayload($flow, $run, $slug, $request->fullUrl()));
     }
 
     public function dispatchProduction(
@@ -41,7 +43,7 @@ final class FlowWebhookController extends Controller
         return $this->dispatch($request, $flow, $run, $slug);
     }
 
-    public function showDevelopment(Request $request, Flow $flow, string $slug): Response
+    public function showDevelopment(Request $request, Flow $flow, string $slug): InertiaResponse
     {
         $this->ensureValidSignature($request, requiresExpiration: true);
 
@@ -52,7 +54,7 @@ final class FlowWebhookController extends Controller
         );
         abort_if(! $resolvedRun instanceof FlowRun, 404);
 
-        return response()->view('webhooks.show', $this->viewPayload($flow, $resolvedRun, $slug, $request->fullUrl()));
+        return Inertia::render('webhooks/Show', $this->viewPayload($flow, $resolvedRun, $slug, $request->fullUrl()));
     }
 
     public function dispatchDevelopment(
@@ -90,8 +92,14 @@ final class FlowWebhookController extends Controller
         ]);
 
         if (! ($response['ok'] ?? false)) {
+            Log::warning('Webhook dispatch failed.', [
+                'flow_id' => $flow->id,
+                'run_id' => $run->id,
+                'slug' => $slug,
+            ]);
+
             return response()->json([
-                'message' => $response['message'] ?? 'Failed to dispatch webhook payload.',
+                'message' => 'Failed to dispatch webhook payload.',
             ], 503);
         }
 
@@ -107,8 +115,14 @@ final class FlowWebhookController extends Controller
     private function viewPayload(Flow $flow, FlowRun $run, string $slug, string $endpoint): array
     {
         return [
-            'flow' => $flow,
-            'run' => $run,
+            'flow' => [
+                'id' => $flow->id,
+                'name' => $flow->name,
+            ],
+            'run' => [
+                'id' => $run->id,
+                'type' => $run->type,
+            ],
             'slug' => $slug,
             'endpoint' => $endpoint,
             'samplePayload' => json_encode(['message' => 'hello'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
