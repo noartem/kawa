@@ -358,10 +358,8 @@ const extractPayloadPreview = (
     return preview.length > 0 ? preview : null;
 };
 
-const resolvePayloadDetails = (
-    context: Record<string, unknown> | null,
-): PayloadDetails => {
-    if (!context || !hasOwnProperty(context, 'payload')) {
+const resolvePayloadDetailsFromValue = (value: unknown): PayloadDetails => {
+    if (typeof value === 'undefined') {
         return {
             hasPayload: false,
             payload: undefined,
@@ -371,9 +369,19 @@ const resolvePayloadDetails = (
 
     return {
         hasPayload: true,
-        payload: context.payload,
-        payloadPreview: extractPayloadPreview(context.payload),
+        payload: value,
+        payloadPreview: extractPayloadPreview(value),
     };
+};
+
+const resolvePayloadDetails = (
+    context: Record<string, unknown> | null,
+): PayloadDetails => {
+    if (!context || !hasOwnProperty(context, 'payload')) {
+        return resolvePayloadDetailsFromValue(undefined);
+    }
+
+    return resolvePayloadDetailsFromValue(context.payload);
 };
 
 const createTextSegment = (text: string): LogLabelSegment => ({
@@ -393,11 +401,12 @@ const createActorSegment = (actor: string): LogLabelSegment => ({
 const createEventSegment = (
     event: string,
     payloadDetails: PayloadDetails,
+    targetId?: string,
 ): LogLabelSegment => ({
     kind: 'event',
     text: event,
     target: {
-        id: event,
+        id: targetId ?? event,
         type: 'event',
     },
     payloadPreview: payloadDetails.payloadPreview,
@@ -456,6 +465,7 @@ const resolveActivityLabelSegments = (
     context: Record<string, unknown> | null,
 ): LogLabelSegment[] => {
     const payloadDetails = resolvePayloadDetails(context);
+    const detailsPayload = resolvePayloadDetailsFromValue(details?.payload);
 
     if (activityType === 'actor_invoked') {
         const actor = stringValue(details?.actor) ?? t('common.unknown');
@@ -483,6 +493,20 @@ const resolveActivityLabelSegments = (
         if (customEvent) {
             return [createEventSegment(customEvent, payloadDetails)];
         }
+    }
+
+    if (activityType === 'webhook_received') {
+        const slug = stringValue(details?.slug) ?? t('common.unknown');
+
+        return [
+            createTextSegment(t('flows.logs.inline.webhook_prefix')),
+            createEventSegment(
+                slug,
+                detailsPayload,
+                `Webhook.by(${slug})`,
+            ),
+            createTextSegment(t('flows.logs.inline.webhook_received_suffix')),
+        ];
     }
 
     return createPlainLabelSegments(resolveEventLabel(activityType));

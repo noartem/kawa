@@ -373,6 +373,8 @@ export const messages = {
                     invoked_by: ' invoked by ',
                     dispatched_event: ' dispatched ',
                     failed_suffix: ' failed',
+                    webhook_prefix: 'Webhook ',
+                    webhook_received_suffix: ' received',
                     cron_template_error_prefix: 'Cron template error for ',
                 },
                 events: {
@@ -398,6 +400,7 @@ export const messages = {
                     status_change: 'Status changed',
                     health_warning: 'Health warning',
                     container_crash: 'Container crash',
+                    webhook_received: 'Webhook received',
                     actor_event: 'Actor event',
                     actor_invoked: 'Actor invoked',
                     actor_invoked_label: 'Actor {actor} invoked by {event}',
@@ -1045,6 +1048,8 @@ export const messages = {
                     invoked_by: ' вызван событием ',
                     dispatched_event: ' отправил событие ',
                     failed_suffix: ' завершился с ошибкой',
+                    webhook_prefix: 'Webhook ',
+                    webhook_received_suffix: ' получен',
                     cron_template_error_prefix: 'Некорректный cron-шаблон у ',
                 },
                 events: {
@@ -1071,6 +1076,7 @@ export const messages = {
                     status_change: 'Изменение статуса',
                     health_warning: 'Предупреждение здоровья',
                     container_crash: 'Сбой контейнера',
+                    webhook_received: 'Webhook получен',
                     actor_event: 'Событие актора',
                     actor_invoked: 'Вызов актора',
                     actor_invoked_label:

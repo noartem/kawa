@@ -95,6 +95,31 @@ class TestUserActivityLogger:
         assert payload["details"]["direction"] == "sent"
 
     @pytest.mark.asyncio
+    async def test_log_webhook_received_from_sent_container_message(
+        self, activity_logger
+    ):
+        await activity_logger.container_message(
+            "cid",
+            {
+                "command": "webhook",
+                "data": {
+                    "slug": "payment.success",
+                    "payload": {
+                        "data": "wrong",
+                        "token": "secret-value",
+                    },
+                },
+            },
+            "sent",
+        )
+        payload = activity_logger.messaging.published_events[-1]["payload"]
+        assert payload["type"] == "webhook_received"
+        assert payload["message"] == "Webhook received"
+        assert payload["details"]["slug"] == "payment.success"
+        assert payload["details"]["payload"]["data"] == "wrong"
+        assert payload["details"]["payload"]["token"] == "[FILTERED]"
+
+    @pytest.mark.asyncio
     async def test_log_actor_event(self, activity_logger):
         await activity_logger.actor_event(
             "cid", "EmailActor", "email_sent", {"recipient": "user@example.com"}

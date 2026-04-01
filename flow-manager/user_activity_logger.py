@@ -64,6 +64,21 @@ class UserActivityLogger:
         message_data: Dict[str, Any],
         direction: str = "received",
     ) -> None:
+        if (
+            direction == "sent"
+            and isinstance(message_data, dict)
+            and message_data.get("command") == "webhook"
+        ):
+            webhook_data = message_data.get("data")
+            webhook_details = webhook_data if isinstance(webhook_data, dict) else {}
+
+            await self.webhook_received(
+                container_id,
+                str(webhook_details.get("slug", "")).strip() or "unknown",
+                webhook_details.get("payload"),
+            )
+            return
+
         filtered_message = self.sensivity_filter(message_data)
 
         action = "sent to" if direction == "sent" else "received from"
@@ -91,6 +106,26 @@ class UserActivityLogger:
 
         await self._emit_activity_log(
             "container_message", container_id, message, details
+        )
+
+    async def webhook_received(
+        self,
+        container_id: str,
+        slug: str,
+        payload: Optional[Any] = None,
+    ) -> None:
+        message = "Webhook received"
+        details = {
+            "container_id": container_id,
+            "slug": slug,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if payload is not None:
+            details["payload"] = self.sensivity_filter(payload)
+
+        await self._emit_activity_log(
+            "webhook_received", container_id, message, details
         )
 
     async def actor_event(
