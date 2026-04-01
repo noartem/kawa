@@ -14,10 +14,12 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class FlowController extends Controller
 {
@@ -31,36 +33,11 @@ class FlowController extends Controller
 
     private const DEPLOYMENTS_PER_PAGE = 15;
 
-    private const TEMPLATES = [
-        'blank' => '',
-        'cron' => <<<'PY'
-from kawa import Context, Message, Cron, actor
+    private const DEFAULT_TEMPLATE = 'cron';
 
-
-@actor(
-    receivs=Cron.by("* * * * *"),
-    sends=Message,
-)
-def EveryMinuteMessage(ctx: Context, event: Cron) -> None:
-    ctx.dispatch(
-        Message(
-            message=(
-                f"[system] cron tick {event.template} at "
-                f"{event.datetime.isoformat()}"
-            )
-        )
-    )
-PY
-        ,
-        'webhook' => <<<'PY'
-from kawa import Context, Webhook, actor
-
-
-@actor(receivs=Webhook.by("my-webhook"))
-def HandleWebhook(ctx: Context, event: Webhook) -> None:
-    print("Received webhook:", event.payload)
-PY
-        ,
+    private const TEMPLATE_FILES = [
+        'cron' => 'flow-templates/cron.py',
+        'webhook' => 'flow-templates/webhook.py',
     ];
 
     public function index(Request $request): Response
@@ -78,7 +55,7 @@ PY
     public function create(Request $request): Response
     {
         return Inertia::render('flows/Create', [
-            'defaultTemplate' => 'cron',
+            'defaultTemplate' => self::DEFAULT_TEMPLATE,
             'defaultTimezone' => config('app.timezone', 'UTC'),
             'timezoneOptions' => $this->timezoneOptions(),
         ]);
@@ -91,11 +68,11 @@ PY
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'template' => ['required', 'string', 'in:blank,cron,webhook'],
+            'template' => ['required', 'string', Rule::in($this->templateOptions())],
             'timezone' => ['nullable', 'string', 'timezone', Rule::in($timezoneOptions)],
         ]);
 
-        $code = self::TEMPLATES[$data['template']] ?? '';
+        $code = $this->templateCode($data['template']);
 
         $slug = Str::slug($data['name']) ?: Str::random(8);
         $suffix = 1;
@@ -610,5 +587,34 @@ PY
     private function timezoneOptions(): array
     {
         return \DateTimeZone::listIdentifiers();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function templateOptions(): array
+    {
+        return ['blank', ...array_keys(self::TEMPLATE_FILES)];
+    }
+
+    private function templateCode(string $template): string
+    {
+        if ($template === 'blank') {
+            return '';
+        }
+
+        $relativePath = self::TEMPLATE_FILES[$template] ?? null;
+
+        if (! is_string($relativePath)) {
+            throw new RuntimeException("Unknown flow template [{$template}].");
+        }
+
+        $path = resource_path($relativePath);
+
+        if (! File::exists($path)) {
+            throw new RuntimeException("Flow template file [{$relativePath}] not found.");
+        }
+
+        return File::get($path);
     }
 }

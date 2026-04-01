@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Flow;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -33,6 +34,7 @@ class FlowGraphDefaultsTest extends TestCase
         $this->assertNotNull($flow);
         $this->assertSame('Europe/Berlin', $flow->timezone);
         $this->assertNotNull($flow->code_updated_at);
+        $this->assertSame(File::get(resource_path('flow-templates/cron.py')), $flow->code);
         $this->assertFalse(Schema::hasColumn('flows', 'graph'));
         $this->assertFalse(Schema::hasColumn('flows', 'graph_generated_at'));
         $this->assertArrayNotHasKey('graph', $flow->getAttributes());
@@ -58,7 +60,29 @@ class FlowGraphDefaultsTest extends TestCase
             ->first();
 
         $this->assertNotNull($flow);
+        $this->assertSame('', $flow->code);
         $this->assertSame('UTC', $flow->timezone);
+    }
+
+    public function test_webhook_flow_uses_resource_template_code(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)->post(route('flows.store'), [
+            'name' => 'Webhook flow',
+            'description' => 'Webhook scenario',
+            'template' => 'webhook',
+            'timezone' => 'UTC',
+        ])->assertRedirect();
+
+        $flow = Flow::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'Webhook flow')
+            ->first();
+
+        $this->assertNotNull($flow);
+        $this->assertSame(File::get(resource_path('flow-templates/webhook.py')), $flow->code);
     }
 
     public function test_flow_creation_rejects_invalid_timezone(): void
