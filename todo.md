@@ -15,10 +15,10 @@
 - [x] Add backend/frontend tests for route access and flow-deployment ownership.
 
 ## 3. Fullscreen graph modal details
-- [ ] Extend the fullscreen graph modal to show Discovery-like actor/event details inside the modal.
-- [ ] Reuse the existing interaction model from `ui/resources/js/components/flows/editor/FlowDeploymentDetailsDialog.vue` where possible.
-- [ ] Keep the modal open while browsing details.
-- [ ] Close the modal and jump to code when `implementation` is clicked.
+- [x] Extend the fullscreen graph modal to show Discovery-like actor/event details inside the modal.
+- [x] Reuse the existing interaction model from `ui/resources/js/components/flows/editor/FlowDeploymentDetailsDialog.vue` where possible.
+- [x] Keep the modal open while browsing details.
+- [x] Close the modal and jump to code when `implementation` is clicked.
 
 ## 4. Event dispatch graph highlighting
 - [ ] Add a programmatic edge-highlight mechanism to `ui/resources/js/components/flows/FlowGraphRenderer.vue`.

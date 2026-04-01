@@ -175,6 +175,8 @@ const openDiscoveryNode = (payload: {
                 class="h-[28rem] min-h-0 lg:h-[32rem]"
                 :graph="deployment.graph"
                 :meta="graphMeta"
+                :webhook-endpoints="deployment.webhooks ?? []"
+                @jump-to-code="jumpToCode"
                 @node-select="openDiscoveryNode"
             />
 

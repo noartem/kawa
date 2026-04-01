@@ -577,7 +577,9 @@ watch(
                 class="col-start-2 row-start-2 h-full min-h-0"
                 :graph="graph"
                 :meta="graphMeta"
+                :webhook-endpoints="webhookEndpoints"
                 :outdated="graphIsOutdated"
+                @jump-to-code="jumpToCode"
                 @node-select="openDiscoveryNode"
             />
 

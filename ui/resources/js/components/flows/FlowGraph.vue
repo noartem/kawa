@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import FlowGraphRenderer from '@/components/flows/FlowGraphRenderer.vue';
+import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue';
+import type { FlowWebhookEndpoint } from '@/components/flows/editor/types';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -15,12 +17,18 @@ import {
     ZoomIn,
     ZoomOut,
 } from 'lucide-vue-next';
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 interface GraphNodePayload {
     id: string;
     type: 'event' | 'actor' | 'other';
+}
+
+interface DiscoverySelectionTarget {
+    id: string;
+    type: 'event' | 'actor';
+    requestKey: number;
 }
 
 interface GraphMeta {
@@ -41,11 +49,13 @@ const props = withDefaults(
     defineProps<{
         graph?: Record<string, unknown> | null;
         meta?: GraphMeta | null;
+        webhookEndpoints?: FlowWebhookEndpoint[];
         outdated?: boolean;
     }>(),
     {
         graph: null,
         meta: null,
+        webhookEndpoints: () => [],
         outdated: false,
     },
 );
@@ -55,11 +65,13 @@ const emit = defineEmits<{
         event: 'node-select',
         payload: { id: string; type: 'event' | 'actor' },
     ): void;
+    (event: 'jump-to-code', line: number): void;
 }>();
 
 const { t } = useI18n();
 
 const fullscreenOpen = ref(false);
+const fullscreenSelectedTarget = ref<DiscoverySelectionTarget | null>(null);
 const inlineZoom = ref(100);
 const modalZoom = ref(100);
 
@@ -124,6 +136,14 @@ const closeFullscreen = (): void => {
     fullscreenOpen.value = false;
 };
 
+watch(fullscreenOpen, (isOpen) => {
+    if (isOpen) {
+        return;
+    }
+
+    fullscreenSelectedTarget.value = null;
+});
+
 const zoomIn = (target: FlowGraphRendererExpose | null): void => {
     target?.zoomIn();
 };
@@ -136,7 +156,7 @@ const resetView = (target: FlowGraphRendererExpose | null): void => {
     target?.resetView();
 };
 
-const selectNode = (node: GraphNodePayload): void => {
+const selectInlineNode = (node: GraphNodePayload): void => {
     if (node.type !== 'actor' && node.type !== 'event') {
         return;
     }
@@ -145,6 +165,26 @@ const selectNode = (node: GraphNodePayload): void => {
         id: node.id,
         type: node.type,
     });
+};
+
+const selectModalNode = (node: GraphNodePayload): void => {
+    if (node.type !== 'actor' && node.type !== 'event') {
+        return;
+    }
+
+    fullscreenSelectedTarget.value = {
+        id: node.id,
+        type: node.type,
+        requestKey: Date.now(),
+    };
+};
+
+const handleModalJumpToCode = async (line: number): Promise<void> => {
+    closeFullscreen();
+
+    await nextTick();
+
+    emit('jump-to-code', line);
 };
 </script>
 
@@ -219,7 +259,7 @@ const selectNode = (node: GraphNodePayload): void => {
                     ref="inlineRenderer"
                     class="h-full w-full"
                     :graph="props.graph"
-                    @node-click="selectNode"
+                    @node-click="selectInlineNode"
                     @zoom-change="inlineZoom = $event"
                 />
             </div>
@@ -229,7 +269,7 @@ const selectNode = (node: GraphNodePayload): void => {
                 class="flex aspect-[16/9] w-full items-center justify-center p-4"
             >
                 <div
-                    class="h-full w-full flex flex-col items-center justify-center text-center"
+                    class="flex h-full w-full flex-col items-center justify-center text-center"
                 >
                     <Workflow class="mb-4 size-10 text-muted-foreground/70" />
                     <p class="text-sm font-semibold text-foreground">
@@ -286,8 +326,10 @@ const selectNode = (node: GraphNodePayload): void => {
                 {{ t('flows.graph.interaction_hint') }}
             </DialogDescription>
 
-            <div class="h-full">
-                <div class="relative h-full overflow-hidden">
+            <div
+                class="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(18rem,40vh)] lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1"
+            >
+                <div class="relative min-h-0 overflow-hidden">
                     <div
                         class="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border border-border/80 bg-background/90 p-1 shadow-sm backdrop-blur"
                     >
@@ -356,7 +398,7 @@ const selectNode = (node: GraphNodePayload): void => {
                             ref="modalRenderer"
                             class="h-full w-full"
                             :graph="props.graph"
-                            @node-click="selectNode"
+                            @node-click="selectModalNode"
                             @zoom-change="modalZoom = $event"
                         />
 
@@ -414,6 +456,29 @@ const selectNode = (node: GraphNodePayload): void => {
                                 graphMeta.updatedAt
                             }}</span>
                         </span>
+                    </div>
+                </div>
+
+                <div
+                    class="min-h-0 border-t border-border bg-background/80 lg:border-t-0 lg:border-l"
+                >
+                    <div
+                        class="flex h-full min-h-0 flex-col gap-3 p-4 pt-12 lg:pt-4"
+                    >
+                        <div
+                            class="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+                        >
+                            {{ t('flows.editor.tabs.discovery') }}
+                        </div>
+
+                        <FlowDiscoveryPanel
+                            class="h-full min-h-0"
+                            :graph="props.graph"
+                            :webhook-endpoints="props.webhookEndpoints"
+                            :selected-target="fullscreenSelectedTarget"
+                            :outdated="props.outdated"
+                            @jump-to-code="handleModalJumpToCode"
+                        />
                     </div>
                 </div>
             </div>
