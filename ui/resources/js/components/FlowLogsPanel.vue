@@ -798,7 +798,7 @@ const messageClass = computed(() =>
 );
 
 const containerClass = computed(() => {
-    return 'divide-y overflow-y-auto rounded-md border bg-muted/40';
+    return 'divide-y overflow-y-auto overscroll-contain rounded-md border bg-muted/40';
 });
 
 const nodeTokenClass =

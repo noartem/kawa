@@ -372,7 +372,7 @@ watch(
             </div>
 
             <div
-                class="col-start-1 row-span-2 row-start-2 min-h-0 overflow-y-auto"
+                class="col-start-1 row-span-2 row-start-2 min-h-0 overflow-hidden"
             >
                 <div v-if="activeTab === 'editor'" class="flex h-full flex-col">
                     <div
@@ -462,7 +462,7 @@ watch(
                         v-model:model-value="expandedHistoryValues"
                         type="multiple"
                         :unmount-on-hide="false"
-                        class="flex max-h-full flex-col overflow-y-auto rounded-lg border border-border bg-muted/15"
+                        class="flex max-h-full flex-col overflow-y-auto overscroll-contain rounded-lg border border-border bg-muted/15"
                     >
                         <AccordionItem
                             v-for="(historyCard, i) in historyCards"

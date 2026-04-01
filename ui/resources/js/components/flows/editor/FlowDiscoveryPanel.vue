@@ -659,7 +659,7 @@ onBeforeUnmount(() => {
     <section
         v-if="hasDiscoveryItems"
         ref="containerRef"
-        class="h-full divide-y overflow-y-auto rounded-xl border border-border"
+        class="h-full divide-y overflow-y-auto overscroll-contain rounded-xl border border-border"
         :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
     >
         <template v-if="actors.length">

@@ -50,10 +50,10 @@
 - [x] Keep the interaction lightweight so it fits naturally into the existing Discovery UI.
 
 ## 9. Prevent page scroll chaining from editor-side panels
-- [ ] Prevent outer page scrolling when inner scrollable areas reach their scroll bounds.
-- [ ] Apply this to the logs container, editor-side changes list, Discovery list, and chat panel.
-- [ ] Keep those panels feeling full-height and self-contained inside the editor workspace.
-- [ ] Preserve intentional scrolling inside the panel itself.
+- [x] Prevent outer page scrolling when inner scrollable areas reach their scroll bounds.
+- [x] Apply this to the logs container, editor-side changes list, Discovery list, and chat panel.
+- [x] Keep those panels feeling full-height and self-contained inside the editor workspace.
+- [x] Preserve intentional scrolling inside the panel itself.
 
 ## 10. Verification and quality
 - [ ] Run targeted tests for each task immediately after implementation.

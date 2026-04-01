@@ -119,7 +119,7 @@ onMounted(() => {
 
         <div
             ref="messagesViewport"
-            class="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+            class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
         >
             <FlowConversationMessages
                 v-if="hasMessages"
