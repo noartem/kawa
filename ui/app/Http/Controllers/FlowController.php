@@ -165,6 +165,26 @@ class FlowController extends Controller
         ]);
     }
 
+    public function deployment(Flow $flow, FlowRun $deployment): Response
+    {
+        abort_if($deployment->flow_id !== $flow->id, 404);
+
+        $deploymentPayload = $this->buildDeploymentsFromRuns(
+            $flow,
+            collect([$deployment]),
+        )[0] ?? null;
+
+        abort_if(! is_array($deploymentPayload), 404);
+
+        return Inertia::render('flows/Deployment', [
+            'flow' => [
+                'id' => $flow->id,
+                'name' => $flow->name,
+            ],
+            'deployment' => $deploymentPayload,
+        ]);
+    }
+
     public function update(
         Request $request,
         Flow $flow,

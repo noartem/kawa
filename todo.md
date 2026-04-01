@@ -7,12 +7,12 @@
 - [x] Add or update backend tests covering webhook source-line selection.
 
 ## 2. Webhook page navigation and dedicated deployment page
-- [ ] Make `flow #N "name"` on `ui/resources/js/pages/webhooks/Show.vue` link to the flow page.
-- [ ] Make `run #N` on `ui/resources/js/pages/webhooks/Show.vue` link to a dedicated deployment page.
-- [ ] Add a new route/page for a single deployment, shaped like `/flows/{flow}/deployments/{deployment}`.
-- [ ] Show top navigation/breadcrumbs from the deployment page back to flows index, the flow page, and all deployments.
-- [ ] Reuse existing deployment details UI instead of duplicating it.
-- [ ] Add backend/frontend tests for route access and flow-deployment ownership.
+- [x] Make `flow #N "name"` on `ui/resources/js/pages/webhooks/Show.vue` link to the flow page.
+- [x] Make `run #N` on `ui/resources/js/pages/webhooks/Show.vue` link to a dedicated deployment page.
+- [x] Add a new route/page for a single deployment, shaped like `/flows/{flow}/deployments/{deployment}`.
+- [x] Show top navigation/breadcrumbs from the deployment page back to flows index, the flow page, and all deployments.
+- [x] Reuse existing deployment details UI instead of duplicating it.
+- [x] Add backend/frontend tests for route access and flow-deployment ownership.
 
 ## 3. Fullscreen graph modal details
 - [ ] Extend the fullscreen graph modal to show Discovery-like actor/event details inside the modal.
@@ -60,3 +60,8 @@
 - [ ] If tests fail, fix the task and rerun the tester flow.
 - [ ] Run code review for each completed task and address findings before marking it done.
 - [ ] Create a dedicated git commit for each completed task.
+
+## 11. Final full E2E verification
+- [ ] Run the complete end-to-end verification sweep after all tasks are done.
+- [ ] Run all relevant automated tests, including the full E2E suite.
+- [ ] Verify the full system works stably and correctly after the whole task set is complete.

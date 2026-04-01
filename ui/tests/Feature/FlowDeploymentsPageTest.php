@@ -128,4 +128,50 @@ class FlowDeploymentsPageTest extends TestCase
             ->where('deployments.data.2.id', $latestRun->id)
         );
     }
+
+    public function test_deployment_show_page_renders_requested_deployment(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+        $deployment = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'production',
+            'status' => 'success',
+            'container_id' => 'container-123',
+            'code_snapshot' => $flow->code,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.deployments.show', [
+            'flow' => $flow,
+            'deployment' => $deployment,
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Deployment')
+            ->where('flow.id', $flow->id)
+            ->where('flow.name', $flow->name)
+            ->where('deployment.id', $deployment->id)
+            ->where('deployment.type', 'production')
+            ->where('deployment.status', 'success')
+        );
+    }
+
+    public function test_deployment_show_page_returns_404_when_deployment_does_not_belong_to_flow(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+        $otherFlow = Flow::factory()->forUser($user)->createOne();
+        $deployment = FlowRun::factory()->forFlow($otherFlow)->createOne();
+
+        $response = $this->actingAs($user)->get(route('flows.deployments.show', [
+            'flow' => $flow,
+            'deployment' => $deployment,
+        ]));
+
+        $response->assertNotFound();
+    }
 }

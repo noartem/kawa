@@ -4,7 +4,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { Head } from '@inertiajs/vue3';
+import { show as flowShow } from '@/routes/flows';
+import { show as flowDeploymentShow } from '@/routes/flows/deployments';
+import { Head, Link } from '@inertiajs/vue3';
 import { CheckCircle2, Dot, Globe, Send, WifiOff } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -52,15 +54,15 @@ const environmentLabel = computed(() => {
         : t('environments.development');
 });
 
-const responseBadgeVariant = computed(() => {
-    switch (responseState.value.status) {
-        case 'success':
-            return 'default';
-        case 'error':
-            return 'destructive';
-        default:
-            return 'secondary';
-    }
+const flowUrl = computed(() => {
+    return flowShow({ flow: props.flow.id }).url;
+});
+
+const deploymentUrl = computed(() => {
+    return flowDeploymentShow({
+        flow: props.flow.id,
+        deployment: props.run.id,
+    }).url;
 });
 
 const parsedPayload = computed(() => {
@@ -173,10 +175,20 @@ async function copyLink(link: string) {
                     </Badge>
 
                     {{ t('flows.webhook_page.meta.flow') }}
-                    #{{ flow.id }} "{{ flow.name }}"
+                    <Link
+                        :href="flowUrl"
+                        class="ml-1 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                    >
+                        #{{ flow.id }} "{{ flow.name }}"
+                    </Link>
                     <Dot size="18" class="mb-px" />
                     {{ t('flows.webhook_page.meta.run') }}
-                    #{{ run.id }}
+                    <Link
+                        :href="deploymentUrl"
+                        class="ml-1 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                    >
+                        #{{ run.id }}
+                    </Link>
                     <Dot size="18" class="mb-px" />
                     {{ environmentLabel }}
                 </div>

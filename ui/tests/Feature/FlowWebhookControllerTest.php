@@ -16,7 +16,7 @@ class FlowWebhookControllerTest extends TestCase
 
     public function test_get_webhook_page_renders_for_active_production_run(): void
     {
-        [$flow] = $this->webhookTarget('production');
+        [$flow, $run] = $this->webhookTarget('production');
         $endpoint = $this->webhookUrl($flow, 'production');
 
         $response = $this->get($endpoint);
@@ -29,6 +29,7 @@ class FlowWebhookControllerTest extends TestCase
             ->where('environment', 'production')
             ->where('flow.id', $flow->id)
             ->where('flow.name', $flow->name)
+            ->where('run.id', $run->id)
             ->missing('flow.code')
             ->where('run.type', 'production')
             ->missing('run.container_id')
