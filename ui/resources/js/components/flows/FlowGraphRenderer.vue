@@ -3,6 +3,11 @@ import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import Sigma from 'sigma';
 import {
+    resolveDispatchHighlightEdgeIds,
+    resolveEdgeHighlightAttributes,
+    type DispatchPathHighlight,
+} from './graphHighlights';
+import {
     computed,
     nextTick,
     onBeforeUnmount,
@@ -60,7 +65,10 @@ let intersectionObserver: IntersectionObserver | null = null;
 let mountRetryFrame: number | null = null;
 let mountRetryCount = 0;
 let hoveredNodeId: string | null = null;
-let highlightedEdgeIds = new Set<string>();
+let hoverHighlightedEdgeIds = new Set<string>();
+let programmaticEdgeHighlights = new Map<string, number>();
+let programmaticHighlightFrame: number | null = null;
+let pendingDispatchHighlight: DispatchPathHighlight | null = null;
 const hasBeenVisible = ref(false);
 const renderedGraphSignature = ref<string | null>(null);
 
@@ -87,6 +95,8 @@ const DEFAULT_CAMERA_STATE: CameraStateSnapshot = {
 };
 const LAYOUT_PADDING = 0.22;
 const MAX_MOUNT_RETRIES = 30;
+const PROGRAMMATIC_HIGHLIGHT_FLASH_MS = 180;
+const PROGRAMMATIC_HIGHLIGHT_FADE_MS = 1320;
 
 const clearMountRetry = (): void => {
     if (mountRetryFrame === null) {
@@ -95,6 +105,15 @@ const clearMountRetry = (): void => {
 
     cancelAnimationFrame(mountRetryFrame);
     mountRetryFrame = null;
+};
+
+const clearProgrammaticHighlightFrame = (): void => {
+    if (programmaticHighlightFrame === null) {
+        return;
+    }
+
+    cancelAnimationFrame(programmaticHighlightFrame);
+    programmaticHighlightFrame = null;
 };
 
 const resolveGraphId = (value: unknown): string | null => {
@@ -114,7 +133,7 @@ const shortenLabel = (label: string): string => {
 };
 
 const resolveSourceLine = (value: unknown): number | null => {
-    if (!Number.isInteger(value)) {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
         return null;
     }
 
@@ -346,6 +365,94 @@ const edgeColor = (type: GraphNodeType): string => {
     }
 };
 
+const clamp = (value: number, min: number, max: number): number => {
+    return Math.min(max, Math.max(min, value));
+};
+
+const getProgrammaticHighlightStrength = (edgeId: string): number => {
+    const startedAt = programmaticEdgeHighlights.get(edgeId);
+
+    if (typeof startedAt !== 'number') {
+        return 0;
+    }
+
+    const elapsed = performance.now() - startedAt;
+    if (elapsed <= PROGRAMMATIC_HIGHLIGHT_FLASH_MS) {
+        return 1;
+    }
+
+    return clamp(
+        1 -
+            (elapsed - PROGRAMMATIC_HIGHLIGHT_FLASH_MS) /
+                PROGRAMMATIC_HIGHLIGHT_FADE_MS,
+        0,
+        1,
+    );
+};
+
+const pruneProgrammaticHighlights = (): boolean => {
+    const now = performance.now();
+    let hasActiveHighlights = false;
+
+    for (const [edgeId, startedAt] of programmaticEdgeHighlights) {
+        if (
+            now - startedAt >=
+            PROGRAMMATIC_HIGHLIGHT_FLASH_MS + PROGRAMMATIC_HIGHLIGHT_FADE_MS
+        ) {
+            programmaticEdgeHighlights.delete(edgeId);
+            continue;
+        }
+
+        hasActiveHighlights = true;
+    }
+
+    return hasActiveHighlights;
+};
+
+const scheduleProgrammaticHighlightRefresh = (): void => {
+    if (programmaticHighlightFrame !== null) {
+        return;
+    }
+
+    programmaticHighlightFrame = requestAnimationFrame(() => {
+        programmaticHighlightFrame = null;
+
+        const hasActiveHighlights = pruneProgrammaticHighlights();
+        sigmaRenderer?.refresh();
+
+        if (hasActiveHighlights) {
+            scheduleProgrammaticHighlightRefresh();
+        }
+    });
+};
+
+const highlightDispatchPath = (highlight: DispatchPathHighlight): void => {
+    if (!sigmaRenderer) {
+        pendingDispatchHighlight = highlight;
+        return;
+    }
+
+    pendingDispatchHighlight = null;
+
+    const edgeIds = resolveDispatchHighlightEdgeIds(props.graph, highlight);
+    if (edgeIds.size === 0) {
+        return;
+    }
+
+    const startedAt = performance.now();
+
+    for (const edgeId of edgeIds) {
+        if (!sigmaRenderer.getGraph().hasEdge(edgeId)) {
+            continue;
+        }
+
+        programmaticEdgeHighlights.set(edgeId, startedAt);
+    }
+
+    sigmaRenderer.refresh();
+    scheduleProgrammaticHighlightRefresh();
+};
+
 const drawRoundedLabel = (
     context: CanvasRenderingContext2D,
     data: {
@@ -442,6 +549,7 @@ const buildGraphSignature = (
 
 const destroyRenderer = (): void => {
     clearMountRetry();
+    clearProgrammaticHighlightFrame();
 
     if (releaseCameraListener) {
         releaseCameraListener();
@@ -461,7 +569,8 @@ const destroyRenderer = (): void => {
     renderedGraphSignature.value = null;
 
     hoveredNodeId = null;
-    highlightedEdgeIds = new Set<string>();
+    hoverHighlightedEdgeIds = new Set<string>();
+    programmaticEdgeHighlights = new Map<string, number>();
 };
 
 const buildSigmaGraph = (): {
@@ -552,28 +661,26 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
         hideLabelsOnMove: false,
         renderLabels: true,
         renderEdgeLabels: false,
+        zIndex: true,
         defaultNodeType: 'circle',
         defaultEdgeType: 'arrow',
         enableEdgeEvents: false,
         defaultDrawNodeHover: () => {},
         edgeReducer: (edge, data) => {
-            if (!hoveredNodeId) {
-                return {};
-            }
+            const programmaticHighlightStrength =
+                getProgrammaticHighlightStrength(edge);
 
-            if (highlightedEdgeIds.has(edge)) {
-                const edgeSize = typeof data.size === 'number' ? data.size : 2;
-
-                return {
-                    size: Math.max(edgeSize, 3.2),
-                    zIndex: 1,
-                };
-            }
-
-            return {
-                color: 'rgba(148, 163, 184, 0.12)',
-                zIndex: 0,
-            };
+            return resolveEdgeHighlightAttributes({
+                edgeId: edge,
+                baseColor:
+                    typeof data.color === 'string'
+                        ? data.color
+                        : edgeColor('other'),
+                baseSize: typeof data.size === 'number' ? data.size : 2,
+                hoveredNodeId,
+                hoverHighlightedEdgeIds,
+                programmaticHighlightStrength,
+            });
         },
         labelFont: 'IBM Plex Sans, Inter, system-ui, sans-serif',
         labelSize: 12,
@@ -599,7 +706,7 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
 
     const onEnterNode = ({ node }: { node: string }): void => {
         hoveredNodeId = node;
-        highlightedEdgeIds = new Set(edgeIdsByNode.get(node) ?? []);
+        hoverHighlightedEdgeIds = new Set(edgeIdsByNode.get(node) ?? []);
         sigmaRenderer?.refresh();
     };
 
@@ -609,7 +716,7 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
         }
 
         hoveredNodeId = null;
-        highlightedEdgeIds = new Set<string>();
+        hoverHighlightedEdgeIds = new Set<string>();
         sigmaRenderer?.refresh();
     };
 
@@ -634,6 +741,10 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
     camera.setState(cameraState ?? DEFAULT_CAMERA_STATE);
     onCameraUpdate();
     renderedGraphSignature.value = buildGraphSignature(props.graph);
+
+    if (pendingDispatchHighlight) {
+        highlightDispatchPath(pendingDispatchHighlight);
+    }
 };
 
 const withCamera = (callback: (ratio: number) => void): void => {
@@ -675,11 +786,14 @@ defineExpose({
     zoomIn,
     zoomOut,
     resetView,
+    highlightDispatchPath,
 });
 
 watch(
     () => props.graph,
     async () => {
+        pendingDispatchHighlight = null;
+
         if (!hasRenderableGraph.value) {
             destroyRenderer();
             emit('zoom-change', 100);

@@ -2,11 +2,15 @@
 import FlowLogPayloadPopover from '@/components/FlowLogPayloadPopover.vue';
 import { cn } from '@/lib/utils';
 import {
+    resolveDispatchPathHighlight,
+    resolveNewLogs,
+} from './FlowLogsPanel.helpers';
+import type { DispatchPathHighlight } from './flows/graphHighlights';
+import {
     computed,
     nextTick,
     onMounted,
     ref,
-    useAttrs,
     watch,
     type HTMLAttributes,
 } from 'vue';
@@ -75,10 +79,10 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     'select-node': [payload: FlowTarget];
+    'dispatch-edge-highlight': [payload: DispatchPathHighlight];
 }>();
 
 const { t, te } = useI18n();
-const attrs = useAttrs();
 
 const logsContainerRef = ref<HTMLElement | null>(null);
 const scrollBottomThreshold = 12;
@@ -787,10 +791,6 @@ const containerClass = computed(() => {
     return 'divide-y overflow-y-auto rounded-md border bg-muted/40';
 });
 
-const isNodeSelectionEnabled = computed(() => {
-    return Boolean(attrs.onSelectNode);
-});
-
 const nodeTokenClass =
     'inline rounded-sm border-b border-transparent text-foreground';
 
@@ -803,7 +803,7 @@ const selectNode = (
     target: FlowTarget | undefined,
     event: MouseEvent,
 ): void => {
-    if (!target || !isNodeSelectionEnabled.value) {
+    if (!target) {
         return;
     }
 
@@ -838,6 +838,22 @@ onMounted(async () => {
     await nextTick();
     scrollToBottom();
 });
+
+watch(
+    () => props.logs.map((log) => log.id),
+    (_nextLogIds, previousLogIds) => {
+        const newLogs = resolveNewLogs(props.logs, previousLogIds?.[0] ?? null);
+
+        for (const log of [...newLogs].reverse()) {
+            const highlight = resolveDispatchPathHighlight(log);
+            if (!highlight) {
+                continue;
+            }
+
+            emit('dispatch-edge-highlight', highlight);
+        }
+    },
+);
 
 watch(
     () => ({
@@ -903,7 +919,7 @@ watch(
                             <button
                                 v-else-if="
                                     segment.kind === 'actor' &&
-                                    isNodeSelectionEnabled
+                                    segment.target
                                 "
                                 type="button"
                                 :class="nodeButtonClass"
@@ -922,24 +938,16 @@ watch(
                                     class="inline-flex min-w-0 items-baseline"
                                 >
                                     <component
-                                        :is="
-                                            isNodeSelectionEnabled
-                                                ? 'button'
-                                                : 'span'
-                                        "
-                                        :type="
-                                            isNodeSelectionEnabled
-                                                ? 'button'
-                                                : undefined
-                                        "
+                                        :is="segment.target ? 'button' : 'span'"
+                                        :type="segment.target ? 'button' : undefined"
                                         :class="[
                                             nodeTokenClass,
-                                            isNodeSelectionEnabled
+                                            segment.target
                                                 ? nodeButtonClass
                                                 : nodeLabelClass,
                                         ]"
                                         @click="
-                                            isNodeSelectionEnabled
+                                            segment.target
                                                 ? selectNode(
                                                       segment.target,
                                                       $event,
@@ -957,7 +965,7 @@ watch(
                                 </span>
                             </template>
                             <button
-                                v-else-if="isNodeSelectionEnabled"
+                                v-else-if="segment.target"
                                 type="button"
                                 :class="nodeButtonClass"
                                 @click="selectNode(segment.target, $event)"

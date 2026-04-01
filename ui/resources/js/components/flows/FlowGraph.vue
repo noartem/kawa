@@ -17,6 +17,12 @@ import {
     ZoomIn,
     ZoomOut,
 } from 'lucide-vue-next';
+import {
+    flushPendingDispatchPathHighlight,
+    propagateDispatchPathHighlight,
+    type DispatchHighlightTarget,
+    type DispatchPathHighlight,
+} from './graphHighlights';
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -39,7 +45,7 @@ interface GraphMeta {
     freshnessLabel?: string;
 }
 
-interface FlowGraphRendererExpose {
+interface FlowGraphRendererExpose extends DispatchHighlightTarget {
     zoomIn: () => void;
     zoomOut: () => void;
     resetView: () => void;
@@ -74,6 +80,7 @@ const fullscreenOpen = ref(false);
 const fullscreenSelectedTarget = ref<DiscoverySelectionTarget | null>(null);
 const inlineZoom = ref(100);
 const modalZoom = ref(100);
+const pendingModalDispatchHighlight = ref<DispatchPathHighlight | null>(null);
 
 const inlineRenderer = ref<FlowGraphRendererExpose | null>(null);
 const modalRenderer = ref<FlowGraphRendererExpose | null>(null);
@@ -130,6 +137,10 @@ const openFullscreen = async (): Promise<void> => {
     fullscreenOpen.value = true;
     await nextTick();
     modalRenderer.value?.resetView();
+    pendingModalDispatchHighlight.value = flushPendingDispatchPathHighlight(
+        modalRenderer.value,
+        pendingModalDispatchHighlight.value,
+    );
 };
 
 const closeFullscreen = (): void => {
@@ -144,6 +155,14 @@ watch(fullscreenOpen, (isOpen) => {
     fullscreenSelectedTarget.value = null;
 });
 
+watch(
+    () => props.graph,
+    () => {
+        pendingModalDispatchHighlight.value = null;
+    },
+    { deep: true },
+);
+
 const zoomIn = (target: FlowGraphRendererExpose | null): void => {
     target?.zoomIn();
 };
@@ -155,6 +174,24 @@ const zoomOut = (target: FlowGraphRendererExpose | null): void => {
 const resetView = (target: FlowGraphRendererExpose | null): void => {
     target?.resetView();
 };
+
+const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
+    pendingModalDispatchHighlight.value = payload;
+
+    propagateDispatchPathHighlight(
+        [inlineRenderer.value, modalRenderer.value],
+        payload,
+    );
+
+    pendingModalDispatchHighlight.value = modalRenderer.value ? null : payload;
+};
+
+watch(modalRenderer, (renderer) => {
+    pendingModalDispatchHighlight.value = flushPendingDispatchPathHighlight(
+        renderer,
+        pendingModalDispatchHighlight.value,
+    );
+});
 
 const selectInlineNode = (node: GraphNodePayload): void => {
     if (node.type !== 'actor' && node.type !== 'event') {
@@ -186,6 +223,10 @@ const handleModalJumpToCode = async (line: number): Promise<void> => {
 
     emit('jump-to-code', line);
 };
+
+defineExpose({
+    highlightDispatchPath,
+});
 </script>
 
 <template>

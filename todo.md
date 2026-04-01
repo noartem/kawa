@@ -21,10 +21,10 @@
 - [x] Close the modal and jump to code when `implementation` is clicked.
 
 ## 4. Event dispatch graph highlighting
-- [ ] Add a programmatic edge-highlight mechanism to `ui/resources/js/components/flows/FlowGraphRenderer.vue`.
-- [ ] Highlight dispatch-related path edges in green.
-- [ ] Animate the highlight as flash-then-fade without breaking hover highlighting.
-- [ ] Verify the behavior in inline and fullscreen graph views.
+- [x] Add a programmatic edge-highlight mechanism to `ui/resources/js/components/flows/FlowGraphRenderer.vue`.
+- [x] Highlight dispatch-related path edges in green.
+- [x] Animate the highlight as flash-then-fade without breaking hover highlighting.
+- [x] Verify the behavior in inline and fullscreen graph views.
 
 ## 5. Fresh log highlighting
 - [ ] Add transient freshness state for newly arrived logs in `ui/resources/js/components/FlowLogsPanel.vue`.

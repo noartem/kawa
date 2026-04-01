@@ -42,6 +42,16 @@ interface DiscoverySelectionTarget {
     requestKey: number;
 }
 
+interface DispatchPathHighlight {
+    actor: string;
+    event: string;
+    triggerEvent: string | null;
+}
+
+interface FlowGraphExpose {
+    highlightDispatchPath: (payload: DispatchPathHighlight) => void;
+}
+
 const code = defineModel<string>('code', { required: true });
 const chatDraft = defineModel<string>('chatDraft', { required: true });
 
@@ -154,6 +164,7 @@ const activeTab = ref<'editor' | 'chat' | 'discovery' | 'changes'>('editor');
 const expandedHistoryIds = ref<Set<number>>(new Set());
 const workspaceSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
+const flowGraph = ref<FlowGraphExpose | null>(null);
 const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
 
 let suppressWorkspaceScroll = false;
@@ -231,6 +242,10 @@ const openDiscoveryNode = async (payload: {
     };
     activeTab.value = 'discovery';
     await nextTick();
+};
+
+const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
+    flowGraph.value?.highlightDispatchPath(payload);
 };
 
 watch(
@@ -574,6 +589,7 @@ watch(
             </div>
 
             <FlowGraph
+                ref="flowGraph"
                 class="col-start-2 row-start-2 h-full min-h-0"
                 :graph="graph"
                 :meta="graphMeta"
@@ -588,6 +604,7 @@ watch(
                 :logs="developmentLogs"
                 :empty-message="t('flows.logs.empty_dev')"
                 compact
+                @dispatch-edge-highlight="highlightDispatchPath"
                 @select-node="openDiscoveryNode"
             />
         </div>

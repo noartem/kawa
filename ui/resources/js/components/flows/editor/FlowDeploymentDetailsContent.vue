@@ -19,6 +19,16 @@ interface DiscoverySelectionTarget {
     requestKey: number;
 }
 
+interface DispatchPathHighlight {
+    actor: string;
+    event: string;
+    triggerEvent: string | null;
+}
+
+interface FlowGraphExpose {
+    highlightDispatchPath: (payload: DispatchPathHighlight) => void;
+}
+
 const props = defineProps<{
     deployment: FlowDeployment | null;
     statusTone: (status?: string | null) => string;
@@ -33,6 +43,7 @@ const { t } = useI18n();
 const codeSection = ref<HTMLElement | null>(null);
 const overviewSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
+const flowGraph = ref<FlowGraphExpose | null>(null);
 const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
 
 const graphMeta = computed(() => {
@@ -74,6 +85,10 @@ const openDiscoveryNode = (payload: {
         ...payload,
         requestKey: Date.now(),
     };
+};
+
+const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
+    flowGraph.value?.highlightDispatchPath(payload);
 };
 </script>
 
@@ -172,6 +187,7 @@ const openDiscoveryNode = (payload: {
             </div>
 
             <FlowGraph
+                ref="flowGraph"
                 class="h-[28rem] min-h-0 lg:h-[32rem]"
                 :graph="deployment.graph"
                 :meta="graphMeta"
@@ -186,6 +202,7 @@ const openDiscoveryNode = (payload: {
                 :empty-message="t('flows.logs.empty')"
                 compact
                 dense
+                @dispatch-edge-highlight="highlightDispatchPath"
             />
         </div>
     </div>
