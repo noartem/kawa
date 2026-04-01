@@ -32,10 +32,10 @@
 - [x] Preserve current autoscroll and stable row rendering behavior.
 
 ## 6. Chat markdown via unified
-- [ ] Replace the custom renderer in `ui/resources/js/lib/markdown.ts` with a safe `unified` pipeline.
-- [ ] Add the required markdown and sanitization dependencies.
-- [ ] Preserve expected markdown features used in chat messages.
-- [ ] Add focused tests for safe rendering.
+- [x] Replace the custom renderer in `ui/resources/js/lib/markdown.ts` with a safe `unified` pipeline.
+- [x] Add the required markdown and sanitization dependencies.
+- [x] Preserve expected markdown features used in chat messages.
+- [x] Add focused tests for safe rendering.
 
 ## 7. Changes tab accordion migration
 - [ ] Replace the manual changes-tab expand/collapse implementation with Reka UI accordion primitives.
