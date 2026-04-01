@@ -44,10 +44,10 @@
 - [x] Verify keyboard accessibility and expected open/close behavior.
 
 ## 8. Webhook Discovery quick JSON sender
-- [ ] Add an inline send-JSON control on the webhook event items inside the Discovery tab.
-- [ ] Let the user enter JSON and dispatch it directly from Discovery without opening the separate webhook page.
-- [ ] Reuse existing webhook dispatch behavior and validation where possible.
-- [ ] Keep the interaction lightweight so it fits naturally into the existing Discovery UI.
+- [x] Add an inline send-JSON control on the webhook event items inside the Discovery tab.
+- [x] Let the user enter JSON and dispatch it directly from Discovery without opening the separate webhook page.
+- [x] Reuse existing webhook dispatch behavior and validation where possible.
+- [x] Keep the interaction lightweight so it fits naturally into the existing Discovery UI.
 
 ## 9. Prevent page scroll chaining from editor-side panels
 - [ ] Prevent outer page scrolling when inner scrollable areas reach their scroll bounds.

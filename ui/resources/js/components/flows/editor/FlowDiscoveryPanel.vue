@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FlowWebhookEndpoint } from '@/components/flows/editor/types';
+import FlowWebhookQuickSender from '@/components/flows/editor/FlowWebhookQuickSender.vue';
 import {
     Tooltip,
     TooltipContent,
@@ -8,7 +9,7 @@ import {
 } from '@/components/ui/tooltip';
 import cronstrue from 'cronstrue';
 import 'cronstrue/locales/ru';
-import { ArrowUpRight, Check, ScanSearch } from 'lucide-vue-next';
+import { ArrowUpRight, ScanSearch } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -82,9 +83,6 @@ const highlightedKey = ref<string | null>(null);
 const itemRefs = new Map<string, HTMLElement>();
 
 let highlightTimer: ReturnType<typeof setTimeout> | null = null;
-let copiedTimer: ReturnType<typeof setTimeout> | null = null;
-
-const copiedWebhookKey = ref<string | null>(null);
 
 const resolveGraphId = (value: unknown): string | null => {
     if (typeof value === 'string' && value.trim().length > 0) {
@@ -582,15 +580,6 @@ const clearHighlightTimer = (): void => {
     highlightTimer = null;
 };
 
-const clearCopiedTimer = (): void => {
-    if (copiedTimer === null) {
-        return;
-    }
-
-    clearTimeout(copiedTimer);
-    copiedTimer = null;
-};
-
 const focusItem = async (
     type: DiscoveryItemType,
     id: string,
@@ -649,62 +638,6 @@ const implementationLabel = (line: number | null): string => {
     });
 };
 
-const webhookCopyLabel = (key: string): string => {
-    return copiedWebhookKey.value === key
-        ? t('flows.editor.discovery.webhook_copied')
-        : t('flows.editor.discovery.copy_webhook');
-};
-
-const copyWithFallback = (value: string): boolean => {
-    if (typeof document === 'undefined') {
-        return false;
-    }
-
-    const textarea = document.createElement('textarea');
-    textarea.value = value;
-    textarea.setAttribute('readonly', 'true');
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-
-    try {
-        return document.execCommand('copy');
-    } catch {
-        return false;
-    } finally {
-        document.body.removeChild(textarea);
-    }
-};
-
-const copyWebhookUrl = async (url: string, key: string): Promise<void> => {
-    let copied = false;
-
-    try {
-        if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(url);
-            copied = true;
-        }
-    } catch {
-        copied = false;
-    }
-
-    if (!copied) {
-        copied = copyWithFallback(url);
-    }
-
-    if (!copied) {
-        return;
-    }
-
-    copiedWebhookKey.value = key;
-    clearCopiedTimer();
-    copiedTimer = setTimeout(() => {
-        copiedWebhookKey.value = null;
-        copiedTimer = null;
-    }, 1800);
-};
-
 watch(
     () => props.selectedTarget?.requestKey,
     (requestKey) => {
@@ -719,7 +652,6 @@ watch(
 
 onBeforeUnmount(() => {
     clearHighlightTimer();
-    clearCopiedTimer();
 });
 </script>
 
@@ -748,17 +680,15 @@ onBeforeUnmount(() => {
                         ? 'bg-amber-400/10'
                         : ''
                 "
-                role="button"
-                tabindex="0"
                 @click="handleItemClick('actor', actor.id)"
-                @keydown.enter.prevent="handleItemClick('actor', actor.id)"
-                @keydown.space.prevent="handleItemClick('actor', actor.id)"
             >
-                <div
-                    class="mb-1 truncate font-mono text-sm font-semibold text-foreground"
+                <button
+                    type="button"
+                    class="mb-1 w-fit max-w-full truncate font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    @click.stop="handleItemClick('actor', actor.id)"
                 >
                     {{ actor.name }}
-                </div>
+                </button>
 
                 <div
                     v-if="actor.receives.length > 0"
@@ -826,24 +756,19 @@ onBeforeUnmount(() => {
                         ? 'bg-amber-400/10'
                         : ''
                 "
-                role="button"
-                tabindex="0"
                 @click="handleItemClick('event', event.id)"
-                @keydown.enter.prevent="handleItemClick('event', event.id)"
-                @keydown.space.prevent="handleItemClick('event', event.id)"
             >
-                <TooltipProvider
-                    v-if="event.cronDescription"
-                    :delay-duration="0"
-                >
+                <TooltipProvider v-if="event.cronDescription" :delay-duration="0">
                     <Tooltip>
-                        <div
-                            class="mb-1 truncate font-mono text-sm font-semibold text-foreground"
-                        >
-                            <span>{{
-                                splitCronEventName(event.name)?.prefix
-                            }}</span>
-                            <TooltipTrigger as-child>
+                        <TooltipTrigger as-child>
+                            <button
+                                type="button"
+                                class="mb-1 w-fit max-w-full truncate text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                                @click.stop="handleItemClick('event', event.id)"
+                            >
+                                <span>{{
+                                    splitCronEventName(event.name)?.prefix
+                                }}</span>
                                 <span
                                     class="border-b border-current px-0.5 transition-colors hover:bg-amber-300/35 data-[state=open]:bg-amber-300/35"
                                 >
@@ -852,22 +777,24 @@ onBeforeUnmount(() => {
                                             ?.expression
                                     }}
                                 </span>
-                            </TooltipTrigger>
-                            <span>{{
-                                splitCronEventName(event.name)?.suffix
-                            }}</span>
-                        </div>
+                                <span>{{
+                                    splitCronEventName(event.name)?.suffix
+                                }}</span>
+                            </button>
+                        </TooltipTrigger>
                         <TooltipContent side="bottom" class="max-w-xs text-xs">
                             {{ event.cronDescription }}
                         </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
-                <div
+                <button
                     v-else
-                    class="mb-1 flex min-w-0 flex-wrap items-center gap-2 font-mono text-sm font-semibold text-foreground"
+                    type="button"
+                    class="mb-1 flex min-w-0 w-fit max-w-full flex-wrap items-center gap-2 text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    @click.stop="handleItemClick('event', event.id)"
                 >
                     <span class="min-w-0 truncate">{{ event.name }}</span>
-                </div>
+                </button>
 
                 <div
                     v-if="event.consumedBy.length > 0"
@@ -920,121 +847,17 @@ onBeforeUnmount(() => {
                         </span>
                     </div>
 
-                    <div
+                    <FlowWebhookQuickSender
                         v-if="event.webhook.productionUrl"
-                        class="grid gap-1.5 text-[11px]"
-                    >
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-muted-foreground">
-                                {{
-                                    t(
-                                        'flows.editor.discovery.production_webhook',
-                                    )
-                                }}
-                            </span>
-                            <span class="flex-1" />
-                            <a
-                                target="_blank"
-                                :href="event.webhook.productionUrl"
-                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                            >
-                                {{ t('flows.editor.discovery.open_webhook') }}
-                            </a>
-                            <button
-                                type="button"
-                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                                :class="
-                                    copiedWebhookKey ===
-                                    `production:${event.webhook.slug}`
-                                        ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                                        : ''
-                                "
-                                @click.stop="
-                                    copyWebhookUrl(
-                                        event.webhook.productionUrl,
-                                        `production:${event.webhook.slug}`,
-                                    )
-                                "
-                            >
-                                <Check
-                                    v-if="
-                                        copiedWebhookKey ===
-                                        `production:${event.webhook.slug}`
-                                    "
-                                    class="size-3"
-                                    aria-hidden="true"
-                                />
-                                {{
-                                    webhookCopyLabel(
-                                        `production:${event.webhook.slug}`,
-                                    )
-                                }}
-                            </button>
-                        </div>
-                        <code
-                            class="block rounded-md bg-background px-2 py-1.5 leading-relaxed break-all"
-                        >
-                            {{ event.webhook.productionUrl }}
-                        </code>
-                    </div>
+                        :label="t('flows.editor.discovery.production_webhook')"
+                        :endpoint="event.webhook.productionUrl"
+                    />
 
-                    <div
+                    <FlowWebhookQuickSender
                         v-if="event.webhook.developmentUrl"
-                        class="grid gap-1.5 text-[11px]"
-                    >
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="text-muted-foreground">
-                                {{
-                                    t(
-                                        'flows.editor.discovery.development_webhook',
-                                    )
-                                }}
-                            </span>
-                            <span class="flex-1" />
-                            <a
-                                target="_blank"
-                                :href="event.webhook.developmentUrl"
-                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                            >
-                                {{ t('flows.editor.discovery.open_webhook') }}
-                            </a>
-                            <button
-                                type="button"
-                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                                :class="
-                                    copiedWebhookKey ===
-                                    `development:${event.webhook.slug}`
-                                        ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                                        : ''
-                                "
-                                @click.stop="
-                                    copyWebhookUrl(
-                                        event.webhook.developmentUrl,
-                                        `development:${event.webhook.slug}`,
-                                    )
-                                "
-                            >
-                                <Check
-                                    v-if="
-                                        copiedWebhookKey ===
-                                        `development:${event.webhook.slug}`
-                                    "
-                                    class="size-3"
-                                    aria-hidden="true"
-                                />
-                                {{
-                                    webhookCopyLabel(
-                                        `development:${event.webhook.slug}`,
-                                    )
-                                }}
-                            </button>
-                        </div>
-                        <code
-                            class="block rounded-md bg-background px-2 py-1.5 leading-relaxed break-all"
-                        >
-                            {{ event.webhook.developmentUrl }}
-                        </code>
-                    </div>
+                        :label="t('flows.editor.discovery.development_webhook')"
+                        :endpoint="event.webhook.developmentUrl"
+                    />
                 </div>
 
                 <button

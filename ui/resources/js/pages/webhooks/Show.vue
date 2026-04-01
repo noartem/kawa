@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWebhookDispatch } from '@/composables/useWebhookDispatch';
 import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,7 @@ import { show as flowShow } from '@/routes/flows';
 import { show as flowDeploymentShow } from '@/routes/flows/deployments';
 import { Head, Link } from '@inertiajs/vue3';
 import { CheckCircle2, Dot, Globe, Send, WifiOff } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 interface FlowSummary {
@@ -19,12 +20,6 @@ interface FlowSummary {
 interface RunSummary {
     id: number;
     type: string;
-}
-
-interface WebhookResponseState {
-    status: 'idle' | 'sending' | 'success' | 'error';
-    label: string;
-    body: string;
 }
 
 const props = defineProps<{
@@ -39,14 +34,26 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const payload = ref(props.samplePayload);
-const validationError = ref<string | null>(null);
-const isSubmitting = ref(false);
-const responseState = ref<WebhookResponseState>({
-    status: 'idle',
-    label: t('flows.webhook_page.response'),
-    body: t('flows.webhook_page.response_idle'),
+const webhookDispatchMessages = computed(() => {
+    return {
+        genericError: t('errors.generic'),
+        invalidJson: t('flows.webhook_page.invalid_json'),
+        response: t('flows.webhook_page.response'),
+        responseError: t('flows.webhook_page.response_error'),
+        responseIdle: t('flows.webhook_page.response_idle'),
+        responseNetworkError: t('flows.webhook_page.response_network_error'),
+        responseSuccess: t('flows.webhook_page.response_success'),
+        sending: t('flows.webhook_page.sending'),
+    };
 });
+
+const {
+    isSubmitting,
+    payload,
+    responseState,
+    submitPayload,
+    validationError,
+} = useWebhookDispatch(() => props.endpoint, props.samplePayload, webhookDispatchMessages);
 
 const environmentLabel = computed(() => {
     return props.environment === 'production'
@@ -64,91 +71,6 @@ const deploymentUrl = computed(() => {
         deployment: props.run.id,
     }).url;
 });
-
-const parsedPayload = computed(() => {
-    const trimmedPayload = payload.value.trim();
-
-    if (trimmedPayload === '') {
-        return 'null';
-    }
-
-    return trimmedPayload;
-});
-
-const setResponseState = (
-    status: WebhookResponseState['status'],
-    label: string,
-    body: string,
-): void => {
-    responseState.value = { status, label, body };
-};
-
-const validatePayload = (): boolean => {
-    try {
-        const normalizedPayload = JSON.stringify(
-            JSON.parse(parsedPayload.value),
-            null,
-            4,
-        );
-
-        payload.value = normalizedPayload;
-        validationError.value = null;
-        return true;
-    } catch (error) {
-        validationError.value =
-            error instanceof Error ? error.message : t('errors.generic');
-        setResponseState(
-            'error',
-            t('flows.webhook_page.invalid_json'),
-            validationError.value,
-        );
-
-        return false;
-    }
-};
-
-const submitPayload = async (): Promise<void> => {
-    if (isSubmitting.value || !validatePayload()) {
-        return;
-    }
-
-    isSubmitting.value = true;
-    setResponseState(
-        'sending',
-        t('flows.webhook_page.sending'),
-        t('flows.webhook_page.sending'),
-    );
-
-    try {
-        const response = await fetch(props.endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-            },
-            body: parsedPayload.value,
-        });
-
-        const rawBody = await response.text();
-        const formattedBody = rawBody.trim() === '' ? 'null' : rawBody;
-
-        setResponseState(
-            response.ok ? 'success' : 'error',
-            response.ok
-                ? t('flows.webhook_page.response_success')
-                : t('flows.webhook_page.response_error'),
-            `${response.status} ${response.statusText}\n${formattedBody}`,
-        );
-    } catch (error) {
-        setResponseState(
-            'error',
-            t('flows.webhook_page.response_network_error'),
-            error instanceof Error ? error.message : t('errors.generic'),
-        );
-    } finally {
-        isSubmitting.value = false;
-    }
-};
 
 async function copyLink(link: string) {
     try {
