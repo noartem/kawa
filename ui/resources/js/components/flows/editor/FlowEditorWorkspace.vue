@@ -12,6 +12,17 @@ import type {
     GraphMeta,
     HistoryCard,
 } from '@/components/flows/editor/types';
+import {
+    getHistoryAccordionValue,
+    retainExpandedHistoryValues,
+} from '@/components/flows/editor/historyAccordion';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionHeader,
+    AccordionItem,
+    AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -162,7 +173,7 @@ const statusChipIcon = computed(() => {
 });
 
 const activeTab = ref<'editor' | 'chat' | 'discovery' | 'changes'>('editor');
-const expandedHistoryIds = ref<Set<number>>(new Set());
+const expandedHistoryValues = ref<string[]>([]);
 const workspaceSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
 const flowGraph = ref<FlowGraphExpose | null>(null);
@@ -170,22 +181,6 @@ const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
 
 let suppressWorkspaceScroll = false;
 let restoreWorkspaceScrollTimer: ReturnType<typeof setTimeout> | null = null;
-
-const isHistoryExpanded = (historyId: number): boolean => {
-    return expandedHistoryIds.value.has(historyId);
-};
-
-const toggleHistoryCard = (historyId: number): void => {
-    const nextExpandedIds = new Set(expandedHistoryIds.value);
-
-    if (nextExpandedIds.has(historyId)) {
-        nextExpandedIds.delete(historyId);
-    } else {
-        nextExpandedIds.add(historyId);
-    }
-
-    expandedHistoryIds.value = nextExpandedIds;
-};
 
 const clearWorkspaceScrollSuppression = (): void => {
     suppressWorkspaceScroll = false;
@@ -252,17 +247,18 @@ const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
 watch(
     () => props.historyCards,
     (nextHistoryCards) => {
-        const availableHistoryIds = new Set(
+        const nextExpandedValues = retainExpandedHistoryValues(
             nextHistoryCards.map((historyCard) => historyCard.item.id),
-        );
-        const nextExpandedIds = new Set(
-            [...expandedHistoryIds.value].filter((historyId) =>
-                availableHistoryIds.has(historyId),
-            ),
+            expandedHistoryValues.value,
         );
 
-        if (nextExpandedIds.size !== expandedHistoryIds.value.size) {
-            expandedHistoryIds.value = nextExpandedIds;
+        if (
+            nextExpandedValues.length !== expandedHistoryValues.value.length ||
+            nextExpandedValues.some(
+                (value, index) => expandedHistoryValues.value[index] !== value,
+            )
+        ) {
+            expandedHistoryValues.value = nextExpandedValues;
         }
     },
     { immediate: true },
@@ -461,115 +457,113 @@ watch(
                 </div>
 
                 <template v-else>
-                    <div
+                    <Accordion
                         v-if="historyCards.length"
+                        v-model:model-value="expandedHistoryValues"
+                        type="multiple"
+                        :unmount-on-hide="false"
                         class="flex max-h-full flex-col overflow-y-auto rounded-lg border border-border bg-muted/15"
                     >
-                        <article
+                        <AccordionItem
                             v-for="(historyCard, i) in historyCards"
                             :key="historyCard.item.id"
+                            :value="getHistoryAccordionValue(historyCard.item.id)"
+                            v-slot="{ open }"
                         >
-                            <div
-                                :class="
-                                    cn(
-                                        'sticky top-0 z-50 flex flex-wrap items-center justify-between gap-2 border-b bg-background px-4 py-2 text-xs text-muted-foreground',
-                                        {
-                                            'border-none':
-                                                i === historyCards.length - 1 &&
-                                                !isHistoryExpanded(
-                                                    historyCard.item.id,
-                                                ),
-                                        },
-                                    )
-                                "
-                                role="button"
-                                tabindex="0"
-                                @click="toggleHistoryCard(historyCard.item.id)"
-                                @keydown.enter.prevent="
-                                    toggleHistoryCard(historyCard.item.id)
-                                "
-                                @keydown.space.prevent="
-                                    toggleHistoryCard(historyCard.item.id)
-                                "
-                            >
-                                <span class="inline-flex items-center gap-2">
-                                    <History class="size-4" />
-                                    {{
-                                        t('flows.history.version', {
-                                            id: historyCard.item.id,
-                                        })
-                                    }}
-                                </span>
-
-                                <div class="flex items-center gap-3">
-                                    <span>{{
-                                        formatDate(historyCard.item.created_at)
-                                    }}</span>
-
-                                    <span
-                                        class="font-semibold text-emerald-500"
-                                    >
-                                        +{{ historyCard.diffChanges.added }}
-                                    </span>
-                                    <span class="font-semibold text-rose-500">
-                                        -{{ historyCard.diffChanges.removed }}
-                                    </span>
-
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8"
-                                        :aria-expanded="
-                                            isHistoryExpanded(
-                                                historyCard.item.id,
-                                            )
-                                        "
-                                        :aria-controls="`history-details-${historyCard.item.id}`"
-                                        @click.stop="
-                                            toggleHistoryCard(
-                                                historyCard.item.id,
-                                            )
-                                        "
-                                    >
-                                        <ChevronDown
-                                            class="size-4 transition-transform"
-                                            :class="
-                                                isHistoryExpanded(
-                                                    historyCard.item.id,
-                                                )
-                                                    ? 'rotate-180'
-                                                    : ''
-                                            "
-                                        />
-                                        <span class="sr-only"
-                                            >Toggle history details</span
+                            <article>
+                                <AccordionHeader
+                                    :class="
+                                        cn(
+                                            'sticky top-0 z-50 border-b bg-background text-xs text-muted-foreground',
+                                            {
+                                                'border-none':
+                                                    i === historyCards.length - 1 &&
+                                                    !open,
+                                            },
+                                        )
+                                    "
+                                >
+                                    <AccordionTrigger as-child>
+                                        <button
+                                            type="button"
+                                            class="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-2 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"
                                         >
-                                    </Button>
-                                </div>
-                            </div>
+                                            <span
+                                                class="inline-flex items-center gap-2"
+                                            >
+                                                <History class="size-4" />
+                                                {{
+                                                    t('flows.history.version', {
+                                                        id: historyCard.item.id,
+                                                    })
+                                                }}
+                                            </span>
 
-                            <div
-                                v-show="isHistoryExpanded(historyCard.item.id)"
-                                :class="
-                                    cn(
-                                        'relative overflow-hidden rounded-lg bg-linear-to-br from-background to-muted/25',
-                                        {
-                                            'border-b':
-                                                i !== historyCards.length - 1,
-                                        },
-                                    )
-                                "
-                            >
-                                <FlowCodeMergeView
-                                    :id="`history-details-${historyCard.item.id}`"
-                                    :original-value="historyCard.originalCode"
-                                    :modified-value="historyCard.modifiedCode"
-                                    class="h-52 text-xs"
-                                />
-                            </div>
-                        </article>
-                    </div>
+                                            <span class="flex items-center gap-3">
+                                                <span>{{
+                                                    formatDate(
+                                                        historyCard.item.created_at,
+                                                    )
+                                                }}</span>
+
+                                                <span
+                                                    class="font-semibold text-emerald-500"
+                                                >
+                                                    +{{
+                                                        historyCard.diffChanges
+                                                            .added
+                                                    }}
+                                                </span>
+                                                <span
+                                                    class="font-semibold text-rose-500"
+                                                >
+                                                    -{{
+                                                        historyCard.diffChanges
+                                                            .removed
+                                                    }}
+                                                </span>
+
+                                                <span
+                                                    class="inline-flex size-8 items-center justify-center"
+                                                >
+                                                    <ChevronDown
+                                                        class="size-4 transition-transform"
+                                                        :class="
+                                                            open
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        "
+                                                    />
+                                                </span>
+                                                <span class="sr-only"
+                                                    >Toggle history details</span
+                                                >
+                                            </span>
+                                        </button>
+                                    </AccordionTrigger>
+                                </AccordionHeader>
+
+                                <AccordionContent
+                                    :class="
+                                        cn(
+                                            'relative overflow-hidden rounded-lg bg-linear-to-br from-background to-muted/25',
+                                            {
+                                                'border-b':
+                                                    i !== historyCards.length - 1,
+                                            },
+                                        )
+                                    "
+                                >
+                                    <FlowCodeMergeView
+                                        :id="`history-details-${historyCard.item.id}`"
+                                        :original-value="historyCard.originalCode"
+                                        :modified-value="historyCard.modifiedCode"
+                                        class="h-52 text-xs"
+                                    />
+                                </AccordionContent>
+                            </article>
+                        </AccordionItem>
+                    </Accordion>
                     <div
                         v-else
                         class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-6 text-center"

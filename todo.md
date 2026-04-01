@@ -38,10 +38,10 @@
 - [x] Add focused tests for safe rendering.
 
 ## 7. Changes tab accordion migration
-- [ ] Replace the manual changes-tab expand/collapse implementation with Reka UI accordion primitives.
-- [ ] Keep the existing visual styling unchanged.
-- [ ] Add local accordion wrappers under `ui/resources/js/components/ui` if needed.
-- [ ] Verify keyboard accessibility and expected open/close behavior.
+- [x] Replace the manual changes-tab expand/collapse implementation with Reka UI accordion primitives.
+- [x] Keep the existing visual styling unchanged.
+- [x] Add local accordion wrappers under `ui/resources/js/components/ui` if needed.
+- [x] Verify keyboard accessibility and expected open/close behavior.
 
 ## 8. Webhook Discovery quick JSON sender
 - [ ] Add an inline send-JSON control on the webhook event items inside the Discovery tab.
