@@ -1,6 +1,7 @@
-from kawa import Context, Webhook, actor  # type: ignore
+from kawa import Context, Webhook, Message, actor 
 
 
 @actor(receivs=Webhook.by("my-webhook"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
-    print("Received webhook:", event.payload)
+    ctx.dispatch(Message(f"Received webhook: {event.payload}"))
+
