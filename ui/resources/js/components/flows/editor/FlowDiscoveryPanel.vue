@@ -924,9 +924,7 @@ onBeforeUnmount(() => {
                         v-if="event.webhook.productionUrl"
                         class="grid gap-1.5 text-[11px]"
                     >
-                        <div
-                            class="flex flex-wrap items-center justify-between gap-2"
-                        >
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="text-muted-foreground">
                                 {{
                                     t(
@@ -934,6 +932,14 @@ onBeforeUnmount(() => {
                                     )
                                 }}
                             </span>
+                            <span class="flex-1" />
+                            <a
+                                target="_blank"
+                                :href="event.webhook.productionUrl"
+                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                            >
+                                {{ t('flows.editor.discovery.open_webhook') }}
+                            </a>
                             <button
                                 type="button"
                                 class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
@@ -976,9 +982,7 @@ onBeforeUnmount(() => {
                         v-if="event.webhook.developmentUrl"
                         class="grid gap-1.5 text-[11px]"
                     >
-                        <div
-                            class="flex flex-wrap items-center justify-between gap-2"
-                        >
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="text-muted-foreground">
                                 {{
                                     t(
@@ -986,6 +990,14 @@ onBeforeUnmount(() => {
                                     )
                                 }}
                             </span>
+                            <span class="flex-1" />
+                            <a
+                                target="_blank"
+                                :href="event.webhook.developmentUrl"
+                                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                            >
+                                {{ t('flows.editor.discovery.open_webhook') }}
+                            </a>
                             <button
                                 type="button"
                                 class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"

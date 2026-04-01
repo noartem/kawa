@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { createFlowCodeEditorExtensions } from '@/components/flows/codeEditorExtensions';
 import { useDarkThemeClass } from '@/composables/useDarkThemeClass';
+import { cn } from '@/lib/utils';
 import { EditorSelection, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, type DecorationSet, EditorView } from '@codemirror/view';
-import { computed, onBeforeUnmount, ref, useAttrs } from 'vue';
+import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
+import {
+    computed,
+    onBeforeUnmount,
+    ref,
+    useAttrs,
+    type HTMLAttributes,
+} from 'vue';
 import { Codemirror } from 'vue-codemirror';
 
 const highlightLineEffect = StateEffect.define<number>();
@@ -74,6 +81,7 @@ const props = withDefaults(
         tabSize?: number;
         bottomPadding?: string;
         lineWrapping?: boolean;
+        class?: HTMLAttributes['class'];
     }>(),
     {
         modelValue: '',
@@ -213,15 +221,16 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Codemirror
-        :key="themeKey"
-        v-model="model"
-        :disabled="disabled"
-        :indent-with-tab="indentWithTab"
-        :tab-size="tabSize"
-        :extensions="codeEditorExtensions"
-        class="flow-code-editor min-h-[9rem] overflow-hidden text-sm"
-        v-bind="attrs"
-        @ready="handleReady"
-    />
+    <div :class="cn('flow-code-editor overflow-hidden text-sm', props.class)">
+        <Codemirror
+            :key="themeKey"
+            v-model="model"
+            :disabled="disabled"
+            :indent-with-tab="indentWithTab"
+            :tab-size="tabSize"
+            :extensions="codeEditorExtensions"
+            v-bind="attrs"
+            @ready="handleReady"
+        />
+    </div>
 </template>

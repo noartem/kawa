@@ -160,54 +160,38 @@ async function copyLink(link: string) {
 <template>
     <Head :title="`${t('flows.webhook_page.title')} ${slug}`" />
 
-    <main class="min-h-dvh bg-background text-foreground">
-        <div class="container mx-auto divide-y border-r border-l border-border">
+    <main class="flex min-h-dvh bg-background text-foreground">
+        <div
+            class="container mx-auto min-h-full divide-y border-r border-l border-border"
+        >
             <section class="p-4">
-                <Badge variant="secondary" class="w-fit">
-                    {{ t('flows.webhook_page.title') }}
-                </Badge>
-                <div class="space-y-2">
-                    <div
-                        class="text-3xl font-semibold tracking-tight sm:text-4xl"
-                    >
-                        {{ slug }}
-                    </div>
-                    <div class="max-w-3xl text-sm leading-6 sm:text-base">
-                        {{ t('flows.webhook_page.subtitle') }}
-                    </div>
+                <div
+                    class="flex items-center text-xs font-medium text-muted-foreground"
+                >
+                    <Badge variant="secondary" class="mr-2 w-fit">
+                        {{ t('flows.webhook_page.title') }}
+                    </Badge>
+
+                    {{ t('flows.webhook_page.meta.flow') }}
+                    #{{ flow.id }} "{{ flow.name }}"
+                    <Dot size="18" class="mb-px" />
+                    {{ t('flows.webhook_page.meta.run') }}
+                    #{{ run.id }}
+                    <Dot size="18" class="mb-px" />
+                    {{ environmentLabel }}
+                </div>
+
+                <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
+                    {{ slug }}
+                </h1>
+
+                <div class="mt-2 max-w-3xl text-sm leading-6 sm:text-base">
+                    {{ t('flows.webhook_page.subtitle') }}
                 </div>
             </section>
 
-            <section class="flex divide-x">
-                <div class="grid flex-1 gap-2 p-4">
-                    <div
-                        class="flex items-center text-xs font-medium text-muted-foreground"
-                    >
-                        {{ t('flows.webhook_page.meta.flow') }}
-                        #{{ flow.id }}
-                        <Dot size="18" class="mb-px" />
-                        {{ t('flows.webhook_page.meta.run') }}
-                        #{{ run.id }}
-                        <Dot size="18" class="mb-px" />
-                        {{ environmentLabel }}
-                    </div>
-                    <div class="text-base font-semibold">
-                        {{ flow.name }}
-                    </div>
-                </div>
-
-                <div class="grid flex-1 gap-2 p-4">
-                    <div class="text-xs font-medium text-muted-foreground">
-                        {{ t('flows.webhook_page.meta.slug') }}
-                    </div>
-                    <code
-                        class="block text-sm font-medium break-all text-foreground"
-                    >
-                        {{ slug }}
-                    </code>
-                </div>
-
-                <div class="grid flex-1 gap-2 p-4">
+            <section class="grid grid-cols-[1fr_auto] divide-x">
+                <div class="grid gap-0.5 bg-muted/35 px-4 py-3">
                     <div
                         class="flex items-center gap-2 text-xs font-medium text-muted-foreground"
                     >
@@ -215,68 +199,40 @@ async function copyLink(link: string) {
                         {{ t('flows.webhook_page.endpoint') }}
                     </div>
                     <a
-                        class="block truncate text-sm leading-6 break-all text-foreground transition-all duration-100 active:translate-y-1 active:shadow-[0_0px_0_0_rgb(30,64,175)]"
+                        class="block truncate text-sm leading-6 text-foreground"
                         :href="endpoint"
                         @click.prevent="copyLink(endpoint)"
                     >
                         {{ endpoint }}
                     </a>
                 </div>
-            </section>
 
-            <section class="grid gap-4">
-                <div
-                    class="p-4 flex flex-wrap items-center justify-between gap-3"
+                <Button
+                    type="button"
+                    variant="ghost"
+                    class="h-full w-44 rounded-none border-none lg:self-stretch"
+                    :disabled="isSubmitting"
+                    @click="submitPayload"
                 >
-                    <div>
-                        <h2 class="text-sm font-semibold text-foreground">
-                            {{ t('flows.webhook_page.payload_title') }}
-                        </h2>
-                        <p class="text-xs text-muted-foreground">
-                            {{ t('flows.webhook_page.payload_hint') }}
-                        </p>
-                    </div>
-
-                    <Button
-                        type="button"
-                        class="min-w-36"
-                        :disabled="isSubmitting"
-                        @click="submitPayload"
-                    >
                     <Spinner v-if="isSubmitting" />
                     <Send v-else class="size-4" />
-                    {{ isSubmitting
+                    {{
+                        isSubmitting
                             ? t('flows.webhook_page.sending')
-                                : t('flows.webhook_page.send')
-                        }}
-                    </Button>
-                </div>
+                            : t('flows.webhook_page.send')
+                    }}
+                </Button>
+            </section>
 
-                <FlowCodeEditor
-                    v-model="payload"
-                    language="json"
-                    :disabled="isSubmitting"
-                    class="min-h-[26rem] overflow-hidden rounded-xl border border-input bg-background shadow-xs"
-                    :tab-size="4"
-                    :indent-with-tab="false"
-                    bottom-padding="1.25rem"
-                    aria-label="JSON payload editor"
-                    :aria-describedby="
-                        validationError
-                            ? 'webhook-payload-error'
-                            : undefined
-                    "
-                />
-
+            <section v-if="validationError">
                 <Alert
-                    v-if="validationError"
                     id="webhook-payload-error"
                     variant="destructive"
-                    class="m-4"
+                    class="border-none"
                 >
-                    <AlertTitle>{{
-                        t('flows.webhook_page.invalid_json')
-                    }}</AlertTitle>
+                    <AlertTitle>
+                        {{ t('flows.webhook_page.invalid_json') }}
+                    </AlertTitle>
                     <AlertDescription>
                         {{ t('flows.webhook_page.invalid_json_message') }}
                         {{ validationError }}
@@ -284,30 +240,36 @@ async function copyLink(link: string) {
                 </Alert>
             </section>
 
-            <section class="p-4">
-                <div
-                    class="flex flex-row items-start justify-between gap-4 space-y-0"
-                >
-                    <div>
-                        <div class="text-lg">
-                            {{ t('flows.webhook_page.response') }}
-                        </div>
-                        <div class="text-sm text-muted-foreground">
-                            {{ t('flows.webhook_page.delivery_steps.response') }}
-                        </div>
-                    </div>
+            <section class="grid">
+                <FlowCodeEditor
+                    v-model="payload"
+                    language="json"
+                    :disabled="isSubmitting"
+                    class="h-[50dvh] border-none bg-background"
+                    :tab-size="4"
+                    :indent-with-tab="false"
+                    bottom-padding="1.25rem"
+                    aria-label="JSON payload editor"
+                    :aria-describedby="
+                        validationError ? 'webhook-payload-error' : undefined
+                    "
+                />
+            </section>
 
-                    <Badge :variant="responseBadgeVariant" aria-live="polite">
-                        {{ responseState.label }}
-                    </Badge>
-                </div>
+            <section class="grid gap-3 p-4">
+                <h2 class="text-lg">
+                    {{ t('flows.webhook_page.response') }}
+                </h2>
+
                 <div class="grid gap-3">
                     <Alert
                         v-if="responseState.status === 'success'"
                         class="border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-emerald-700 dark:text-emerald-300"
                     >
                         <CheckCircle2 class="size-4" />
-                        <AlertTitle>{{ responseState.label }}</AlertTitle>
+                        <AlertTitle>
+                            {{ responseState.label }}
+                        </AlertTitle>
                         <AlertDescription>
                             {{
                                 t('flows.webhook_page.delivery_steps.response')
@@ -321,7 +283,9 @@ async function copyLink(link: string) {
                         class="px-4 py-3"
                     >
                         <WifiOff class="size-4" />
-                        <AlertTitle>{{ responseState.label }}</AlertTitle>
+                        <AlertTitle>
+                            {{ responseState.label }}
+                        </AlertTitle>
                         <AlertDescription>
                             {{ responseState.body }}
                         </AlertDescription>
@@ -330,8 +294,8 @@ async function copyLink(link: string) {
                     <pre
                         aria-live="polite"
                         class="min-h-36 overflow-x-auto rounded-xl border border-border/70 bg-muted/35 p-3 font-mono text-xs leading-6 text-foreground"
-                        >{{ responseState.body }}</pre
-                    >
+                        v-text="responseState.body"
+                    />
                 </div>
             </section>
         </div>

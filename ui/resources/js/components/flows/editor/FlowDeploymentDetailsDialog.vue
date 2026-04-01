@@ -74,9 +74,9 @@ const openDiscoveryNode = (payload: {
 <template>
     <Dialog v-model:open="open">
         <DialogContent
-            class="grid h-[90vh] max-h-[90vh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden xl:max-w-[1400px]"
+            class="grid h-[90vh] max-h-[90vh] grid-rows-[auto_minmax(0,1fr)] gap-0 divide-y overflow-hidden p-0 xl:max-w-[1400px]"
         >
-            <DialogHeader class="space-y-1 pb-1">
+            <DialogHeader class="space-y-1 px-6 pt-6 pb-3">
                 <DialogTitle
                     v-if="deploymentCard"
                     class="flex flex-wrap items-center gap-x-2 gap-y-1"
@@ -147,7 +147,7 @@ const openDiscoveryNode = (payload: {
 
             <div
                 v-if="deploymentCard"
-                class="grid min-h-0 gap-3 overflow-hidden lg:grid-cols-2 lg:grid-rows-[minmax(0,32vh)_minmax(16rem,2fr)_minmax(24rem,3fr)]"
+                class="grid min-h-0 gap-3 overflow-y-auto px-6 pt-4 lg:grid-cols-2 lg:grid-rows-[minmax(32rem,32vh)_minmax(32rem,2fr)_minmax(32rem,3fr)]"
             >
                 <div
                     ref="codeSection"
@@ -184,7 +184,7 @@ const openDiscoveryNode = (payload: {
 
                 <FlowLogsPanel
                     :logs="deploymentCard.deployment.logs"
-                    class="h-full min-h-0 lg:col-span-2"
+                    class="col-span-2 h-full min-h-0"
                     :empty-message="t('flows.logs.empty')"
                     compact
                     dense

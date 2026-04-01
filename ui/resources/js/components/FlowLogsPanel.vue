@@ -844,125 +844,119 @@ watch(
 </script>
 
 <template>
-    <div v-if="logs.length">
-        <div ref="logsContainerRef" :class="cn(containerClass, props.class)">
+    <div
+        v-if="logs.length"
+        ref="logsContainerRef"
+        :class="cn(containerClass, props.class)"
+    >
+        <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
             <div
-                v-for="log in displayLogs"
-                :key="log.id"
-                :class="itemPaddingClass"
+                class="flex items-start justify-between gap-3 text-xs text-muted-foreground"
             >
                 <div
-                    class="flex items-start justify-between gap-3 text-xs text-muted-foreground"
+                    class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"
                 >
-                    <div
-                        class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1"
+                    <span
+                        class="tracking-wide uppercase"
+                        :class="log.levelClass"
                     >
-                        <span
-                            class="tracking-wide uppercase"
-                            :class="log.levelClass"
+                        {{ log.levelLabel }}
+                    </span>
+                    <span
+                        v-if="log.labelSegments.length"
+                        class="min-w-0 flex-1 text-muted-foreground"
+                    >
+                        <template
+                            v-for="(segment, segmentIndex) in log.labelSegments"
+                            :key="`${log.id}-${segment.kind}-${segmentIndex}`"
                         >
-                            {{ log.levelLabel }}
-                        </span>
-                        <span
-                            v-if="log.labelSegments.length"
-                            class="min-w-0 flex-1 text-muted-foreground"
-                        >
-                            <template
-                                v-for="(
-                                    segment, segmentIndex
-                                ) in log.labelSegments"
-                                :key="`${log.id}-${segment.kind}-${segmentIndex}`"
+                            <span
+                                v-if="segment.kind === 'text'"
+                                class="whitespace-pre-wrap"
                             >
+                                {{ segment.text }}
+                            </span>
+                            <button
+                                v-else-if="
+                                    segment.kind === 'actor' &&
+                                    isNodeSelectionEnabled
+                                "
+                                type="button"
+                                :class="nodeButtonClass"
+                                @click="selectNode(segment.target, $event)"
+                            >
+                                {{ segment.text }}
+                            </button>
+                            <span
+                                v-else-if="segment.kind === 'actor'"
+                                :class="[nodeTokenClass, nodeLabelClass]"
+                            >
+                                {{ segment.text }}
+                            </span>
+                            <template v-else-if="segment.kind === 'event'">
                                 <span
-                                    v-if="segment.kind === 'text'"
-                                    class="whitespace-pre-wrap"
+                                    class="inline-flex min-w-0 items-baseline"
                                 >
-                                    {{ segment.text }}
-                                </span>
-                                <button
-                                    v-else-if="
-                                        segment.kind === 'actor' &&
-                                        isNodeSelectionEnabled
-                                    "
-                                    type="button"
-                                    :class="nodeButtonClass"
-                                    @click="selectNode(segment.target, $event)"
-                                >
-                                    {{ segment.text }}
-                                </button>
-                                <span
-                                    v-else-if="segment.kind === 'actor'"
-                                    :class="[nodeTokenClass, nodeLabelClass]"
-                                >
-                                    {{ segment.text }}
-                                </span>
-                                <template v-else-if="segment.kind === 'event'">
-                                    <span
-                                        class="inline-flex min-w-0 items-baseline"
+                                    <component
+                                        :is="
+                                            isNodeSelectionEnabled
+                                                ? 'button'
+                                                : 'span'
+                                        "
+                                        :type="
+                                            isNodeSelectionEnabled
+                                                ? 'button'
+                                                : undefined
+                                        "
+                                        :class="[
+                                            nodeTokenClass,
+                                            isNodeSelectionEnabled
+                                                ? nodeButtonClass
+                                                : nodeLabelClass,
+                                        ]"
+                                        @click="
+                                            isNodeSelectionEnabled
+                                                ? selectNode(
+                                                      segment.target,
+                                                      $event,
+                                                  )
+                                                : undefined
+                                        "
                                     >
-                                        <component
-                                            :is="
-                                                isNodeSelectionEnabled
-                                                    ? 'button'
-                                                    : 'span'
-                                            "
-                                            :type="
-                                                isNodeSelectionEnabled
-                                                    ? 'button'
-                                                    : undefined
-                                            "
-                                            :class="[
-                                                nodeTokenClass,
-                                                isNodeSelectionEnabled
-                                                    ? nodeButtonClass
-                                                    : nodeLabelClass,
-                                            ]"
-                                            @click="
-                                                isNodeSelectionEnabled
-                                                    ? selectNode(
-                                                          segment.target,
-                                                          $event,
-                                                      )
-                                                    : undefined
-                                            "
-                                        >
-                                            {{ segment.text }}
-                                        </component>
+                                        {{ segment.text }}
+                                    </component>
 
-                                        <FlowLogPayloadPopover
-                                            v-if="segment.hasPayload"
-                                            :payload="segment.payload"
-                                        />
-                                    </span>
-                                </template>
-                                <button
-                                    v-else-if="isNodeSelectionEnabled"
-                                    type="button"
-                                    :class="nodeButtonClass"
-                                    @click="selectNode(segment.target, $event)"
-                                >
-                                    {{ segment.text }}
-                                </button>
-                                <span
-                                    v-else
-                                    :class="[nodeTokenClass, nodeLabelClass]"
-                                >
-                                    {{ segment.text }}
+                                    <FlowLogPayloadPopover
+                                        v-if="segment.hasPayload"
+                                        :payload="segment.payload"
+                                    />
                                 </span>
                             </template>
-                        </span>
-                    </div>
-                    <span class="shrink-0">{{
-                        formatDate(log.created_at)
-                    }}</span>
+                            <button
+                                v-else-if="isNodeSelectionEnabled"
+                                type="button"
+                                :class="nodeButtonClass"
+                                @click="selectNode(segment.target, $event)"
+                            >
+                                {{ segment.text }}
+                            </button>
+                            <span
+                                v-else
+                                :class="[nodeTokenClass, nodeLabelClass]"
+                            >
+                                {{ segment.text }}
+                            </span>
+                        </template>
+                    </span>
                 </div>
-                <p v-if="log.renderedMessage" :class="messageClass">
-                    {{ log.renderedMessage }}
-                </p>
-                <p v-if="log.node_key" class="text-xs text-muted-foreground">
-                    {{ t('flows.logs.node', { node: log.node_key }) }}
-                </p>
+                <span class="shrink-0">{{ formatDate(log.created_at) }}</span>
             </div>
+            <p v-if="log.renderedMessage" :class="messageClass">
+                {{ log.renderedMessage }}
+            </p>
+            <p v-if="log.node_key" class="text-xs text-muted-foreground">
+                {{ t('flows.logs.node', { node: log.node_key }) }}
+            </p>
         </div>
     </div>
     <div

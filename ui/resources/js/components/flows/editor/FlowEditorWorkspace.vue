@@ -21,6 +21,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import {
     AlertCircle,
     ChevronDown,
@@ -446,15 +447,25 @@ watch(
                 <template v-else>
                     <div
                         v-if="historyCards.length"
-                        class="grid gap-2 overflow-y-auto pr-1"
+                        class="flex max-h-full flex-col overflow-y-auto rounded-lg border border-border bg-muted/15"
                     >
                         <article
-                            v-for="historyCard in historyCards"
+                            v-for="(historyCard, i) in historyCards"
                             :key="historyCard.item.id"
-                            class="rounded-lg border border-border bg-muted/15 p-3"
                         >
                             <div
-                                class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"
+                                :class="
+                                    cn(
+                                        'sticky top-0 z-50 flex flex-wrap items-center justify-between gap-2 border-b bg-background px-4 py-2 text-xs text-muted-foreground',
+                                        {
+                                            'border-none':
+                                                i === historyCards.length - 1 &&
+                                                !isHistoryExpanded(
+                                                    historyCard.item.id,
+                                                ),
+                                        },
+                                    )
+                                "
                                 role="button"
                                 tabindex="0"
                                 @click="toggleHistoryCard(historyCard.item.id)"
@@ -523,8 +534,16 @@ watch(
                             </div>
 
                             <div
-                                v-if="isHistoryExpanded(historyCard.item.id)"
-                                class="relative mt-2 overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25"
+                                v-show="isHistoryExpanded(historyCard.item.id)"
+                                :class="
+                                    cn(
+                                        'relative overflow-hidden rounded-lg bg-linear-to-br from-background to-muted/25',
+                                        {
+                                            'border-b':
+                                                i !== historyCards.length - 1,
+                                        },
+                                    )
+                                "
                             >
                                 <FlowCodeMergeView
                                     :id="`history-details-${historyCard.item.id}`"
