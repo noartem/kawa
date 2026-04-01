@@ -2,12 +2,16 @@
 import FlowLogPayloadPopover from '@/components/FlowLogPayloadPopover.vue';
 import { cn } from '@/lib/utils';
 import {
+    resolveFreshLogIds,
     resolveDispatchPathHighlight,
     resolveNewLogs,
+    resolveStreamReplaySuppression,
+    retainVisibleLogIds,
 } from './FlowLogsPanel.helpers';
 import type { DispatchPathHighlight } from './flows/graphHighlights';
 import {
     computed,
+    onBeforeUnmount,
     nextTick,
     onMounted,
     ref,
@@ -66,6 +70,7 @@ interface DisplayLog extends FlowLog {
 const props = withDefaults(
     defineProps<{
         logs: FlowLog[];
+        streamKey?: string | number | null;
         emptyMessage: string;
         compact?: boolean;
         dense?: boolean;
@@ -88,6 +93,11 @@ const logsContainerRef = ref<HTMLElement | null>(null);
 const scrollBottomThreshold = 12;
 const payloadPreviewLimit = 6;
 const inlineValueMaxLength = 80;
+const freshLogIds = ref<Set<number>>(new Set());
+
+const FRESH_LOG_HIGHLIGHT_MS = 2600;
+const freshLogTimers = new Map<number, ReturnType<typeof setTimeout>>();
+let pendingReplaySuppressionStreamKey: string | number | null | undefined;
 
 const eventMessagePattern = /^Event:\s*(.+)$/i;
 
@@ -799,6 +809,73 @@ const nodeButtonClass =
 
 const nodeLabelClass = 'cursor-default';
 
+const scheduleFreshLogRemoval = (logId: number): void => {
+    const existingTimer = freshLogTimers.get(logId);
+    if (existingTimer) {
+        clearTimeout(existingTimer);
+    }
+
+    freshLogTimers.set(
+        logId,
+        setTimeout(() => {
+            freshLogTimers.delete(logId);
+
+            if (!freshLogIds.value.has(logId)) {
+                return;
+            }
+
+            const nextFreshLogIds = new Set(freshLogIds.value);
+            nextFreshLogIds.delete(logId);
+            freshLogIds.value = nextFreshLogIds;
+        }, FRESH_LOG_HIGHLIGHT_MS),
+    );
+};
+
+const markLogsFresh = (logIds: number[]): void => {
+    if (logIds.length === 0) {
+        return;
+    }
+
+    const nextFreshLogIds = new Set(freshLogIds.value);
+
+    for (const logId of logIds) {
+        nextFreshLogIds.add(logId);
+        scheduleFreshLogRemoval(logId);
+    }
+
+    freshLogIds.value = nextFreshLogIds;
+};
+
+const clearFreshLogs = (): void => {
+    for (const timer of freshLogTimers.values()) {
+        clearTimeout(timer);
+    }
+
+    freshLogTimers.clear();
+    freshLogIds.value = new Set();
+};
+
+const pruneFreshLogs = (): void => {
+    const retainedFreshLogIds = retainVisibleLogIds(props.logs, freshLogIds.value);
+    const removedLogIds = [...freshLogIds.value].filter(
+        (logId) => !retainedFreshLogIds.has(logId),
+    );
+
+    for (const logId of removedLogIds) {
+        const timer = freshLogTimers.get(logId);
+        if (!timer) {
+            continue;
+        }
+
+        clearTimeout(timer);
+        freshLogTimers.delete(logId);
+    }
+
+    if (removedLogIds.length > 0) {
+        freshLogIds.value = retainedFreshLogIds;
+    }
+};
+
 const selectNode = (
     target: FlowTarget | undefined,
     event: MouseEvent,
@@ -839,10 +916,44 @@ onMounted(async () => {
     scrollToBottom();
 });
 
+onBeforeUnmount(() => {
+    clearFreshLogs();
+    pendingReplaySuppressionStreamKey = undefined;
+});
+
 watch(
-    () => props.logs.map((log) => log.id),
-    (_nextLogIds, previousLogIds) => {
-        const newLogs = resolveNewLogs(props.logs, previousLogIds?.[0] ?? null);
+    () => ({
+        streamKey: props.streamKey ?? null,
+        logIds: props.logs.map((log) => log.id),
+    }),
+    (nextState, previousState) => {
+        const replaySuppression = resolveStreamReplaySuppression(
+            nextState.streamKey,
+            previousState?.streamKey,
+            nextState.logIds,
+            previousState?.logIds,
+            pendingReplaySuppressionStreamKey,
+        );
+        const streamChanged = replaySuppression.suppressReplay;
+
+        pendingReplaySuppressionStreamKey = replaySuppression.pendingStreamKey;
+
+        if (streamChanged) {
+            clearFreshLogs();
+        }
+
+        pruneFreshLogs();
+
+        const previousNewestId = previousState?.logIds[0] ?? null;
+        const newLogs = resolveNewLogs(props.logs, previousNewestId, {
+            streamChanged,
+        });
+
+        markLogsFresh(
+            resolveFreshLogIds(props.logs, previousNewestId, {
+                streamChanged,
+            }),
+        );
 
         for (const log of [...newLogs].reverse()) {
             const highlight = resolveDispatchPathHighlight(log);
@@ -889,7 +1000,14 @@ watch(
         ref="logsContainerRef"
         :class="cn(containerClass, props.class)"
     >
-        <div v-for="log in displayLogs" :key="log.id" :class="itemPaddingClass">
+        <div
+            v-for="log in displayLogs"
+            :key="log.id"
+            :class="[
+                itemPaddingClass,
+                freshLogIds.has(log.id) ? 'fresh-log-entry' : '',
+            ]"
+        >
             <div
                 class="flex items-start justify-between gap-3 text-xs text-muted-foreground"
             >
@@ -998,3 +1116,26 @@ watch(
         {{ emptyMessage }}
     </div>
 </template>
+
+<style scoped>
+@keyframes fresh-log-entry-fade {
+    0% {
+        background-color: rgb(34 197 94 / 0.16);
+        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.2);
+    }
+
+    45% {
+        background-color: rgb(34 197 94 / 0.1);
+        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.14);
+    }
+
+    100% {
+        background-color: rgb(34 197 94 / 0);
+        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0);
+    }
+}
+
+.fresh-log-entry {
+    animation: fresh-log-entry-fade 2600ms ease-out forwards;
+}
+</style>

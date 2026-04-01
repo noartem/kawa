@@ -27,9 +27,9 @@
 - [x] Verify the behavior in inline and fullscreen graph views.
 
 ## 5. Fresh log highlighting
-- [ ] Add transient freshness state for newly arrived logs in `ui/resources/js/components/FlowLogsPanel.vue`.
-- [ ] Tint new logs slightly green and fade the effect over time.
-- [ ] Preserve current autoscroll and stable row rendering behavior.
+- [x] Add transient freshness state for newly arrived logs in `ui/resources/js/components/FlowLogsPanel.vue`.
+- [x] Tint new logs slightly green and fade the effect over time.
+- [x] Preserve current autoscroll and stable row rendering behavior.
 
 ## 6. Chat markdown via unified
 - [ ] Replace the custom renderer in `ui/resources/js/lib/markdown.ts` with a safe `unified` pipeline.

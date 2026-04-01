@@ -6,6 +6,15 @@ interface FlowLogRecord {
     context?: Record<string, unknown> | null;
 }
 
+interface ResolveNewLogsOptions {
+    streamChanged?: boolean;
+}
+
+export interface StreamReplaySuppression<TKey extends string | number | null> {
+    suppressReplay: boolean;
+    pendingStreamKey: TKey | undefined;
+}
+
 const eventMessagePattern = /^Event:\s*(.+)$/i;
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -71,7 +80,12 @@ export const resolveDispatchPathHighlight = (
 export const resolveNewLogs = <TLog extends { id: number }>(
     nextLogs: TLog[],
     previousNewestId: number | null | undefined,
+    options: ResolveNewLogsOptions = {},
 ): TLog[] => {
+    if (options.streamChanged) {
+        return [];
+    }
+
     if (typeof previousNewestId !== 'number') {
         return [];
     }
@@ -89,4 +103,63 @@ export const resolveNewLogs = <TLog extends { id: number }>(
     }
 
     return nextLogs.filter((log) => log.id > previousNewestId);
+};
+
+export const resolveFreshLogIds = <TLog extends { id: number }>(
+    nextLogs: TLog[],
+    previousNewestId: number | null | undefined,
+    options: ResolveNewLogsOptions = {},
+): number[] => {
+    return resolveNewLogs(nextLogs, previousNewestId, options).map(
+        (log) => log.id,
+    );
+};
+
+export const resolveStreamReplaySuppression = <
+    TKey extends string | number | null,
+>(
+    nextStreamKey: TKey,
+    previousStreamKey: TKey | undefined,
+    nextLogIds: number[],
+    previousLogIds: number[] | undefined,
+    pendingStreamKey: TKey | undefined,
+): StreamReplaySuppression<TKey> => {
+    const streamChanged =
+        previousStreamKey !== undefined && nextStreamKey !== previousStreamKey;
+
+    const shouldSuppressReplay =
+        streamChanged || pendingStreamKey === nextStreamKey;
+
+    if (!shouldSuppressReplay) {
+        return {
+            suppressReplay: false,
+            pendingStreamKey: undefined,
+        };
+    }
+
+    const logIdsChanged =
+        previousLogIds !== undefined &&
+        (nextLogIds.length !== previousLogIds.length ||
+            nextLogIds.some((logId, index) => logId !== previousLogIds[index]));
+
+    const shouldKeepPendingSuppression =
+        !logIdsChanged || nextLogIds.length === 0;
+
+    return {
+        suppressReplay: true,
+        pendingStreamKey: shouldKeepPendingSuppression
+            ? nextStreamKey
+            : undefined,
+    };
+};
+
+export const retainVisibleLogIds = <TLog extends { id: number }>(
+    nextLogs: TLog[],
+    trackedLogIds: Iterable<number>,
+): Set<number> => {
+    const visibleLogIds = new Set(nextLogs.map((log) => log.id));
+
+    return new Set(
+        [...trackedLogIds].filter((logId) => visibleLogIds.has(logId)),
+    );
 };

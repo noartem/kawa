@@ -73,6 +73,7 @@ const props = defineProps<{
     webhookEndpoints: FlowWebhookEndpoint[];
     graphMeta: GraphMeta;
     graphIsOutdated: boolean;
+    logStreamKey?: string | number | null;
     developmentLogs: Array<{
         id: number;
         level?: string | null;
@@ -602,6 +603,7 @@ watch(
             <FlowLogsPanel
                 class="col-start-2 row-start-3 h-full min-h-0"
                 :logs="developmentLogs"
+                :stream-key="logStreamKey"
                 :empty-message="t('flows.logs.empty_dev')"
                 compact
                 @dispatch-edge-highlight="highlightDispatchPath"

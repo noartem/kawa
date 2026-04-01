@@ -198,6 +198,7 @@ const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
 
             <FlowLogsPanel
                 :logs="deployment.logs"
+                :stream-key="deployment.id"
                 class="col-span-2 h-[28rem] min-h-0 lg:h-[32rem]"
                 :empty-message="t('flows.logs.empty')"
                 compact

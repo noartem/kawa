@@ -1000,6 +1000,7 @@ onBeforeUnmount(() => {
                 :webhook-endpoints="discoveryWebhookEndpoints"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
+                :log-stream-key="currentDevelopment?.id ?? null"
                 :development-logs="displayDevelopmentLogs"
                 :format-recent-date="formatRecentDate"
                 :format-date="formatDate"
