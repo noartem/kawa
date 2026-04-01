@@ -1,0 +1,62 @@
+# TODO
+
+## 1. Webhook discovery implementation target
+- [x] Trace webhook implementation line selection in `ui/resources/js/components/flows/editor/FlowDiscoveryPanel.vue`.
+- [x] Make `implementation` point to the first actual `Webhook.by(...)` usage/call site instead of an imported event line.
+- [x] Preserve the current fallback path when graph data is unavailable.
+- [x] Add or update backend tests covering webhook source-line selection.
+
+## 2. Webhook page navigation and dedicated deployment page
+- [ ] Make `flow #N "name"` on `ui/resources/js/pages/webhooks/Show.vue` link to the flow page.
+- [ ] Make `run #N` on `ui/resources/js/pages/webhooks/Show.vue` link to a dedicated deployment page.
+- [ ] Add a new route/page for a single deployment, shaped like `/flows/{flow}/deployments/{deployment}`.
+- [ ] Show top navigation/breadcrumbs from the deployment page back to flows index, the flow page, and all deployments.
+- [ ] Reuse existing deployment details UI instead of duplicating it.
+- [ ] Add backend/frontend tests for route access and flow-deployment ownership.
+
+## 3. Fullscreen graph modal details
+- [ ] Extend the fullscreen graph modal to show Discovery-like actor/event details inside the modal.
+- [ ] Reuse the existing interaction model from `ui/resources/js/components/flows/editor/FlowDeploymentDetailsDialog.vue` where possible.
+- [ ] Keep the modal open while browsing details.
+- [ ] Close the modal and jump to code when `implementation` is clicked.
+
+## 4. Event dispatch graph highlighting
+- [ ] Add a programmatic edge-highlight mechanism to `ui/resources/js/components/flows/FlowGraphRenderer.vue`.
+- [ ] Highlight dispatch-related path edges in green.
+- [ ] Animate the highlight as flash-then-fade without breaking hover highlighting.
+- [ ] Verify the behavior in inline and fullscreen graph views.
+
+## 5. Fresh log highlighting
+- [ ] Add transient freshness state for newly arrived logs in `ui/resources/js/components/FlowLogsPanel.vue`.
+- [ ] Tint new logs slightly green and fade the effect over time.
+- [ ] Preserve current autoscroll and stable row rendering behavior.
+
+## 6. Chat markdown via unified
+- [ ] Replace the custom renderer in `ui/resources/js/lib/markdown.ts` with a safe `unified` pipeline.
+- [ ] Add the required markdown and sanitization dependencies.
+- [ ] Preserve expected markdown features used in chat messages.
+- [ ] Add focused tests for safe rendering.
+
+## 7. Changes tab accordion migration
+- [ ] Replace the manual changes-tab expand/collapse implementation with Reka UI accordion primitives.
+- [ ] Keep the existing visual styling unchanged.
+- [ ] Add local accordion wrappers under `ui/resources/js/components/ui` if needed.
+- [ ] Verify keyboard accessibility and expected open/close behavior.
+
+## 8. Webhook Discovery quick JSON sender
+- [ ] Add an inline send-JSON control on the webhook event items inside the Discovery tab.
+- [ ] Let the user enter JSON and dispatch it directly from Discovery without opening the separate webhook page.
+- [ ] Reuse existing webhook dispatch behavior and validation where possible.
+- [ ] Keep the interaction lightweight so it fits naturally into the existing Discovery UI.
+
+## 9. Prevent page scroll chaining from editor-side panels
+- [ ] Prevent outer page scrolling when inner scrollable areas reach their scroll bounds.
+- [ ] Apply this to the logs container, editor-side changes list, Discovery list, and chat panel.
+- [ ] Keep those panels feeling full-height and self-contained inside the editor workspace.
+- [ ] Preserve intentional scrolling inside the panel itself.
+
+## 10. Verification and quality
+- [ ] Run targeted tests for each task immediately after implementation.
+- [ ] If tests fail, fix the task and rerun the tester flow.
+- [ ] Run code review for each completed task and address findings before marking it done.
+- [ ] Create a dedicated git commit for each completed task.

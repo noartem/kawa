@@ -284,13 +284,18 @@ final class FlowWebhookService
      */
     private function runWebhooks(Flow $flow, FlowRun $run, ?string $code = null): array
     {
+        $resolvedCode = $code ?? $this->runCode($flow, $run);
         $graphDeclarations = $this->graphWebhooks($run);
+        $declaredDeclarations = $this->declaredWebhooks($resolvedCode);
 
         if ($graphDeclarations !== []) {
-            return $graphDeclarations;
+            return $this->mergeWebhookDeclarations(
+                $graphDeclarations,
+                $declaredDeclarations,
+            );
         }
 
-        return $this->declaredWebhooks($code ?? $this->runCode($flow, $run));
+        return $declaredDeclarations;
     }
 
     /**
@@ -341,6 +346,43 @@ final class FlowWebhookService
         }
 
         return array_values($declarationsBySlug);
+    }
+
+    /**
+     * @param  list<array{slug: string, source_line: int|null}>  $graphDeclarations
+     * @param  list<array{slug: string, source_line: int|null}>  $declaredDeclarations
+     * @return list<array{slug: string, source_line: int|null}>
+     */
+    private function mergeWebhookDeclarations(array $graphDeclarations, array $declaredDeclarations): array
+    {
+        if ($graphDeclarations === []) {
+            return $declaredDeclarations;
+        }
+
+        if ($declaredDeclarations === []) {
+            return $graphDeclarations;
+        }
+
+        $declaredBySlug = [];
+
+        foreach ($declaredDeclarations as $declaration) {
+            $declaredBySlug[$declaration['slug']] = $declaration;
+        }
+
+        $mergedDeclarations = [];
+
+        foreach ($graphDeclarations as $declaration) {
+            $declaredDeclaration = $declaredBySlug[$declaration['slug']] ?? null;
+
+            $mergedDeclarations[] = [
+                'slug' => $declaration['slug'],
+                'source_line' => $declaredDeclaration['source_line'] ?? $declaration['source_line'],
+            ];
+
+            unset($declaredBySlug[$declaration['slug']]);
+        }
+
+        return $mergedDeclarations;
     }
 
     private function extractWebhookSlug(string $eventName): ?string

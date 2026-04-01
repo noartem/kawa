@@ -267,6 +267,123 @@ PY,
         );
     }
 
+    public function test_editor_payload_prefers_first_declared_webhook_call_site_over_graph_source_line(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def FirstHandler(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def SecondHandler(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+        ]);
+
+        $run = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => 'dev-container-graph-webhook',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [[
+                    'id' => 'Webhook.by("orders.created")',
+                    'type' => 'event',
+                    'source_line' => 1,
+                    'source_kind' => 'import',
+                    'source_module' => 'shared.events',
+                ]],
+                'edges' => [],
+                'events' => [[
+                    'id' => 'Webhook.by("orders.created")',
+                    'source_line' => 1,
+                ]],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $run->id)
+            ->where('lastDevelopmentDeployment.graph.nodes.0.source_line', 1)
+            ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
+            ->where('lastDevelopmentDeployment.webhooks.0.source_line', 4)
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.source_line', 4)
+            ->where('deployments.0.webhooks.0.source_line', 4)
+        );
+    }
+
+    public function test_editor_payload_does_not_append_declared_webhooks_missing_from_graph(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'code' => <<<'PY'
+from kawa import Context, Webhook, actor
+
+
+@actor(receivs=Webhook.by("orders.created"))
+def HandleOrders(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+
+
+@actor(receivs=Webhook.by("users.created"))
+def HandleUsers(ctx: Context, event: Webhook) -> None:
+    print(event.payload)
+PY,
+        ]);
+
+        $developmentEndpoint = $this->webhookUrl($flow, 'development', 'orders.created');
+
+        $run = FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'development',
+            'status' => 'running',
+            'active' => true,
+            'container_id' => 'dev-container-graph-only',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [[
+                    'id' => 'Webhook.by("orders.created")',
+                    'type' => 'event',
+                    'source_line' => 1,
+                ]],
+                'edges' => [],
+                'events' => [[
+                    'id' => 'Webhook.by("orders.created")',
+                    'source_line' => 1,
+                ]],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('lastDevelopmentDeployment.id', $run->id)
+            ->has('webhookEndpoints', 1)
+            ->where('webhookEndpoints.0.slug', 'orders.created')
+            ->where('webhookEndpoints.0.development_url', $developmentEndpoint)
+            ->has('lastDevelopmentDeployment.webhooks', 1)
+            ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
+            ->has('deployments.0.webhooks', 1)
+            ->where('deployments.0.webhooks.0.slug', 'orders.created')
+        );
+    }
+
     public function test_editor_payload_prefers_development_source_line_for_shared_webhook_slug(): void
     {
         $this->travelTo(now()->startOfSecond());
