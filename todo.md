@@ -55,18 +55,7 @@
 - [x] Keep those panels feeling full-height and self-contained inside the editor workspace.
 - [x] Preserve intentional scrolling inside the panel itself.
 
-## 10. Verification and quality
-- [ ] Run targeted tests for each task immediately after implementation.
-- [ ] If tests fail, fix the task and rerun the tester flow.
-- [ ] Run code review for each completed task and address findings before marking it done.
-- [ ] Create a dedicated git commit for each completed task.
-
-## 11. Final full E2E verification
-- [ ] Run the complete end-to-end verification sweep after all tasks are done.
-- [ ] Run all relevant automated tests, including the full E2E suite.
-- [ ] Verify the full system works stably and correctly after the whole task set is complete.
-
-## 12. Доработки (проверить лично)
+## 10. Доработки (проверить лично)
 - [ ] Затухание новых логов немного быстрее
 - [ ] Добавить анимацию на появление логов
 - [ ] Добавить анимацию для аккардеона изменений
@@ -78,4 +67,7 @@
 - [ ] В просмотр payload в логах добавить кнопку "скопировать"
 - [ ] LLM чат не работает после первого сообщения - проблема скорее всего в том как отправляется история, в историю надо включать моменты apply отдельным сообщением
 - [ ] Штука с превентом скролла сделана точно в Changes, наверно в других очевидных местах тоже, но проблема с редактором кода (Code editor) - там не скролл работает по прежнему и в конце начинает скролить страницу
+
+## 11. E2E
+- [ ] Запусти все тесты и проверки, сделай полный отчет по состоянию проекта
 
