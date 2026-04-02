@@ -546,10 +546,10 @@ watch(
                                 <AccordionContent
                                     :class="
                                         cn(
-                                            'relative overflow-hidden rounded-lg bg-linear-to-br from-background to-muted/25',
+                                            'relative overflow-hidden bg-linear-to-br from-background to-muted/25',
                                             {
                                                 'border-b':
-                                                    i !== historyCards.length - 1,
+                                                    i !== historyCards.length - 1 && open,
                                             },
                                         )
                                     "

@@ -115,7 +115,6 @@ const getDiffSummary = (
     message: FlowChatMessage,
 ): {
     added: number;
-    modified: number;
     removed: number;
 } => {
     const diff = message.diff ?? '';
@@ -123,7 +122,6 @@ const getDiffSummary = (
     if (diff.trim() === '') {
         return {
             added: 0,
-            modified: 0,
             removed: 0,
         };
     }
@@ -132,7 +130,11 @@ const getDiffSummary = (
     let removed = 0;
 
     for (const line of diff.split('\n')) {
-        if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
+        if (
+            line.startsWith('+++') ||
+            line.startsWith('---') ||
+            line.startsWith('@@')
+        ) {
             continue;
         }
 
@@ -146,19 +148,16 @@ const getDiffSummary = (
         }
     }
 
-    const modified = Math.min(added, removed);
-
     return {
-        added: Math.max(added - modified, 0),
-        modified,
-        removed: Math.max(removed - modified, 0),
+        added,
+        removed,
     };
 };
 
 const getVisibleDiffSummaryItems = (
     message: FlowChatMessage,
 ): Array<{
-    key: 'added' | 'modified' | 'removed';
+    key: 'added' | 'removed';
     count: number;
     label: string;
     className: string;
@@ -170,19 +169,15 @@ const getVisibleDiffSummaryItems = (
             key: 'added',
             count: summary.added,
             label: t('flows.editor.chat.lines_added'),
-            className: 'text-emerald-700 dark:text-emerald-400',
-        },
-        {
-            key: 'modified',
-            count: summary.modified,
-            label: t('flows.editor.chat.lines_changed'),
-            className: 'text-amber-700 dark:text-amber-400',
+            className:
+                'inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 font-semibold text-emerald-700 dark:text-emerald-400',
         },
         {
             key: 'removed',
             count: summary.removed,
             label: t('flows.editor.chat.lines_removed'),
-            className: 'text-rose-700 dark:text-rose-400',
+            className:
+                'inline-flex items-center rounded-md bg-rose-500/10 px-2 py-1 font-semibold text-rose-700 dark:text-rose-400',
         },
     ].filter((item) => item.count > 0);
 };
@@ -196,7 +191,9 @@ const getVisibleDiffSummaryItems = (
             :class="messageSurfaceClass(message)"
         >
             <div class="mb-2 flex items-start justify-between gap-3">
-                <div class="inline-flex items-center gap-1.5 text-sm font-medium">
+                <div
+                    class="inline-flex items-center gap-1.5 text-sm font-medium"
+                >
                     <component
                         :is="
                             message.status === 'error'
@@ -268,7 +265,11 @@ const getVisibleDiffSummaryItems = (
             </div>
 
             <div
-                v-if="interactive && message.status === 'error' && message.retryable"
+                v-if="
+                    interactive &&
+                    message.status === 'error' &&
+                    message.retryable
+                "
                 class="mt-3"
             >
                 <Button
@@ -283,82 +284,110 @@ const getVisibleDiffSummaryItems = (
             </div>
 
             <div
-                v-if="
+                v-show="
                     !message.transient &&
                     message.role === 'assistant' &&
                     hasMeaningfulCodeChanges(message)
                 "
-                class="mt-3 space-y-2"
+                class="mt-3"
             >
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span
-                            v-for="item in getVisibleDiffSummaryItems(message)"
-                            :key="`${message.id}-${item.key}`"
-                            :class="item.className"
-                        >
-                            {{
-                                item.key === 'added'
-                                    ? '+'
-                                    : item.key === 'modified'
-                                      ? '~'
-                                      : '-'
-                            }}{{ item.count }} {{ item.label }}
-                        </span>
-                    </div>
+                <div class="rounded-lg border border-border bg-muted/15">
+                    <div
+                        class="sticky -top-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-background/95 px-3 py-2 text-xs text-muted-foreground backdrop-blur-sm"
+                        :class="
+                            isDiffExpanded(message.id)
+                                ? 'border-b border-border rounded-b-none'
+                                : ''
+                        "
+                    >
+                        <div class="flex flex-wrap items-center gap-2">
+                            <template v-if="interactive">
+                                <Button
+                                    size="sm"
+                                    class="h-8 rounded-md px-2.5"
+                                    :disabled="!canApplyProposal(message)"
+                                    @click="emit('apply-proposal', message)"
+                                >
+                                    <Sparkles class="size-4" />
+                                    {{ t('flows.editor.chat.apply') }}
+                                </Button>
 
-                    <div class="flex flex-wrap items-center gap-1.5">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    class="h-8 rounded-md border-0 bg-muted/60 px-2.5 shadow-none"
+                                    :disabled="!canApplyProposal(message)"
+                                    @click="
+                                        emit('apply-and-save-proposal', message)
+                                    "
+                                >
+                                    {{ t('flows.editor.chat.apply_and_save') }}
+                                </Button>
+                            </template>
+
+                            <span
+                                v-for="item in getVisibleDiffSummaryItems(
+                                    message,
+                                )"
+                                :key="`${message.id}-${item.key}`"
+                                :class="item.className"
+                            >
+                                {{ item.key === 'added' ? '+' : '-'
+                                }}{{ item.count }}
+                                {{ item.label }}
+                            </span>
+                        </div>
+
                         <Button
                             size="sm"
-                            variant="outline"
-                            class="h-8 rounded-md border-0 bg-muted/60 px-2.5 shadow-none"
+                            variant="ghost"
+                            class="h-8 shrink-0 rounded-md px-2.5 text-muted-foreground shadow-none hover:bg-muted/60"
                             @click="toggleDiff(message.id)"
                         >
-                            <component
-                                :is="isDiffExpanded(message.id) ? ChevronUp : ChevronDown"
-                                class="size-4"
-                            />
                             {{
                                 isDiffExpanded(message.id)
                                     ? t('flows.editor.chat.collapse_diff')
                                     : t('flows.editor.chat.expand_diff')
                             }}
+                            <component
+                                :is="
+                                    isDiffExpanded(message.id)
+                                        ? ChevronUp
+                                        : ChevronDown
+                                "
+                                class="size-4"
+                            />
                         </Button>
-
-                        <template v-if="interactive">
-                            <Button
-                                size="sm"
-                                class="h-8 rounded-md px-2.5"
-                                :disabled="!canApplyProposal(message)"
-                                @click="emit('apply-proposal', message)"
-                            >
-                                <Sparkles class="size-4" />
-                                {{ t('flows.editor.chat.apply') }}
-                            </Button>
-
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                class="h-8 rounded-md border-0 bg-muted/60 px-2.5 shadow-none"
-                                :disabled="!canApplyProposal(message)"
-                                @click="emit('apply-and-save-proposal', message)"
-                            >
-                                {{ t('flows.editor.chat.apply_and_save') }}
-                            </Button>
-                        </template>
                     </div>
-                </div>
 
-                <div
-                    v-if="isDiffExpanded(message.id)"
-                    class="overflow-hidden rounded-lg bg-background"
-                >
-                    <FlowCodeMergeView
-                        :id="`chat-diff-${message.id}`"
-                        :original-value="message.source_code ?? currentCode"
-                        :modified-value="message.proposed_code ?? currentCode"
-                        class="h-56 text-xs"
-                    />
+                    <div
+                        class="grid transition-[grid-template-rows] duration-200 ease-out"
+                        :class="
+                            isDiffExpanded(message.id)
+                                ? 'grid-rows-[1fr]'
+                                : 'grid-rows-[0fr]'
+                        "
+                    >
+                        <div
+                            class="overflow-hidden rounded-b-lg bg-linear-to-br from-background to-muted/25 transition duration-200 ease-out"
+                            :class="
+                                isDiffExpanded(message.id)
+                                    ? 'opacity-100'
+                                    : 'pointer-events-none opacity-0'
+                            "
+                        >
+                            <FlowCodeMergeView
+                                :id="`chat-diff-${message.id}`"
+                                :original-value="
+                                    message.source_code ?? currentCode
+                                "
+                                :modified-value="
+                                    message.proposed_code ?? currentCode
+                                "
+                                class="h-56 text-xs"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
         </article>
