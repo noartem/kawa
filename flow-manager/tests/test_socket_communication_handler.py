@@ -147,3 +147,34 @@ class TestSocketCommunicationHandler:
             {"type": "runtime_hello"},
         )
         assert handler.has_active_connection("container-1") is False
+
+    @pytest.mark.asyncio
+    async def test_reader_loop_keeps_runtime_connected_on_callback_error(self, handler):
+        client = Mock()
+        handler._clients["container-1"] = client
+        handler._message_queues["container-1"] = asyncio.Queue()
+        handler.set_message_callback(
+            AsyncMock(side_effect=[RuntimeError("boom"), None])
+        )
+
+        messages = iter(
+            [
+                {"type": "runtime_events", "events": []},
+                {"type": "runtime_ack"},
+                SocketConnectionError("socket closed"),
+            ]
+        )
+
+        async def read_message(_container_id, _client):
+            result = next(messages)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        handler._read_message_from_client = AsyncMock(side_effect=read_message)
+
+        await handler._reader_loop("container-1", client)
+
+        assert handler._message_callback.await_count == 2
+        assert handler._read_message_from_client.await_count == 3
+        assert handler.has_active_connection("container-1") is False

@@ -5,6 +5,7 @@ This module tests the core container lifecycle management functionality
 including creation, start/stop operations, and cleanup.
 """
 
+import asyncio
 import os
 import json
 from unittest.mock import MagicMock, Mock, patch
@@ -217,6 +218,49 @@ class TestContainerManager:
         mock_container.stop.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_stop_container_kills_after_timeout(
+        self, container_manager, mock_container
+    ):
+        """Test stop fallback kills container after timeout."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                return mock_container
+
+            if func is mock_container.stop:
+                raise asyncio.TimeoutError()
+
+            if func is mock_container.kill:
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        await container_manager.stop_container("test-container-id")
+
+        container_manager.logger.container_operation.assert_called_once_with(
+            "stop",
+            "test-container-id",
+            {"status": "stopped", "forced": True},
+        )
+
+    @pytest.mark.asyncio
+    async def test_stop_container_times_out_if_lookup_hangs(self, container_manager):
+        """Test stop fails fast when container lookup hangs."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                await asyncio.sleep(60)
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        with pytest.raises(APIError, match="Timed out stopping container"):
+            await container_manager.stop_container("test-container-id")
+
+    @pytest.mark.asyncio
     async def test_restart_container_success(self, container_manager, mock_container):
         """Test successful container restart."""
         # Setup
@@ -292,6 +336,43 @@ class TestContainerManager:
         assert len(result) == 1
         assert isinstance(result[0], ContainerInfo)
         assert result[0].id == "test-container-id"
+
+    @pytest.mark.asyncio
+    async def test_list_containers_skips_disappeared_container(
+        self, container_manager, mock_container
+    ):
+        """Test listing skips containers removed during inspection."""
+        missing_container = MagicMock()
+        missing_container.name = "missing-container"
+        type(missing_container).id = property(lambda self: "missing-container-id")
+        type(missing_container).attrs = property(
+            lambda self: (_ for _ in ()).throw(NotFound("Container not found"))
+        )
+
+        container_manager.docker_client.containers.list.return_value = [
+            mock_container,
+            missing_container,
+        ]
+
+        result = await container_manager.list_containers()
+
+        assert len(result) == 1
+        assert result[0].id == "test-container-id"
+
+    @pytest.mark.asyncio
+    async def test_list_containers_times_out_when_docker_hangs(self, container_manager):
+        """Test listing fails fast when Docker listing hangs."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.list:
+                await asyncio.sleep(60)
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        with pytest.raises(asyncio.TimeoutError):
+            await container_manager.list_containers()
 
     @pytest.mark.asyncio
     async def test_update_container_success(

@@ -385,7 +385,18 @@ class SocketCommunicationHandler:
                 self.logger.communication(container_id, "received", message)
 
                 if self._message_callback is not None:
-                    await self._message_callback(container_id, message)
+                    try:
+                        await self._message_callback(container_id, message)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        self.logger.error(
+                            exc,
+                            {
+                                "operation": "runtime_message_callback",
+                                "container_id": container_id,
+                            },
+                        )
         except asyncio.CancelledError:
             raise
         except Exception as exc:

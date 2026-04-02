@@ -2,9 +2,8 @@
 import FlowPastChatDetailsDialog from '@/components/flows/editor/FlowPastChatDetailsDialog.vue';
 import type { FlowChatConversation } from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@inertiajs/vue3';
-import { ArrowUpRight, History } from 'lucide-vue-next';
+import { ArrowUpRight } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 

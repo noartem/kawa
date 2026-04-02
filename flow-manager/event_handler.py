@@ -101,6 +101,8 @@ class EventHandler:
                     reply_to=reply_to,
                     correlation_id=correlation_id,
                 )
+        except asyncio.CancelledError:
+            raise
         except Exception as exc:
             await self._emit_error(action, data, exc, reply_to, correlation_id)
 
@@ -171,56 +173,39 @@ class EventHandler:
     async def handle_start_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = ContainerOperation(**data)
         await self.container_manager.start_container(event_data.container_id)
-        containers = await self.container_manager.list_containers()
-        container_name = next(
-            (c.name for c in containers if c.id == event_data.container_id),
-            event_data.container_id,
-        )
         await self.user_logger.container_started(
-            event_data.container_id, container_name
+            event_data.container_id, event_data.container_id
         )
         return {"container_id": event_data.container_id, "status": "running"}
 
     async def handle_stop_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = ContainerOperation(**data)
-        containers = await self.container_manager.list_containers()
-        container_name = next(
-            (c.name for c in containers if c.id == event_data.container_id),
-            event_data.container_id,
-        )
         await self.container_manager.stop_container(event_data.container_id)
         await self.user_logger.container_stopped(
-            event_data.container_id, container_name
+            event_data.container_id, event_data.container_id
         )
         return {"container_id": event_data.container_id, "status": "stopped"}
 
     async def handle_restart_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = ContainerOperation(**data)
-        containers = await self.container_manager.list_containers()
-        container_name = next(
-            (c.name for c in containers if c.id == event_data.container_id),
-            event_data.container_id,
-        )
         await self.container_manager.restart_container(event_data.container_id)
         await self.user_logger.container_restarted(
-            event_data.container_id, container_name
+            event_data.container_id, event_data.container_id
         )
         return {"container_id": event_data.container_id, "status": "running"}
 
     async def handle_update_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = UpdateContainer(**data)
-        containers = await self.container_manager.list_containers()
-        container_name = next(
-            (c.name for c in containers if c.id == event_data.container_id),
-            event_data.container_id,
-        )
         updated_container_id = await self.container_manager.update_container(
             event_data.container_id, event_data.code_path
         )
         self.socket_handler.link_socket_key(
             event_data.container_id, updated_container_id
         )
-        await self.user_logger.container_updated(updated_container_id, container_name)
+        await self.user_logger.container_updated(
+            updated_container_id,
+            event_data.container_id,
+        )
         return {
             "container_id": updated_container_id,
             "previous_container_id": event_data.container_id,
@@ -230,15 +215,10 @@ class EventHandler:
 
     async def handle_delete_container(self, data: Dict[str, Any]) -> Dict[str, Any]:
         event_data = ContainerOperation(**data)
-        containers = await self.container_manager.list_containers()
-        container_name = next(
-            (c.name for c in containers if c.id == event_data.container_id),
-            event_data.container_id,
-        )
         await self.socket_handler.cleanup_socket(event_data.container_id)
         await self.container_manager.delete_container(event_data.container_id)
         await self.user_logger.container_deleted(
-            event_data.container_id, container_name
+            event_data.container_id, event_data.container_id
         )
         return {"container_id": event_data.container_id, "status": "deleted"}
 
@@ -363,6 +343,8 @@ class EventHandler:
         async def _run() -> None:
             try:
                 await coroutine
+            except asyncio.CancelledError:
+                return
             except Exception as exc:
                 self.logger.error(
                     exc,

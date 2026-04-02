@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, Optional
 
 import aio_pika
+from aiormq.exceptions import ChannelInvalidStateError
 
 from messaging import CommandHandler, Messaging
 from system_logger import SystemLogger
@@ -16,7 +17,7 @@ class RabbitMQMessaging(Messaging):
         command_queue: Optional[str] = None,
         response_queue: Optional[str] = None,
         event_exchange: Optional[str] = None,
-        prefetch_count: int = 20,
+        prefetch_count: int = 1,
     ):
         self.logger = logger
         self.url = url or os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
@@ -31,11 +32,12 @@ class RabbitMQMessaging(Messaging):
         )
         self.prefetch_count = prefetch_count
 
-        self.connection: Optional[aio_pika.RobustConnection] = None
-        self.channel: Optional[aio_pika.abc.AbstractChannel] = None
-        self.event_exchange: Optional[aio_pika.abc.AbstractExchange] = None
-        self.command_queue: Optional[aio_pika.abc.AbstractQueue] = None
-        self.response_queue: Optional[aio_pika.abc.AbstractQueue] = None
+        self.connection: Optional[Any] = None
+        self.command_channel: Optional[Any] = None
+        self.publish_channel: Optional[Any] = None
+        self.event_exchange: Optional[Any] = None
+        self.command_queue: Optional[Any] = None
+        self.response_queue: Optional[Any] = None
         self._consumer_tag: Optional[str] = None
 
     async def connect(self) -> None:
@@ -50,24 +52,11 @@ class RabbitMQMessaging(Messaging):
             },
         )
 
-        self.connection = await aio_pika.connect_robust(self.url)
-        self.channel = await self.connection.channel()
-        await self.channel.set_qos(prefetch_count=self.prefetch_count)
+        if self.connection is None or self.connection.is_closed:
+            self.connection = await aio_pika.connect_robust(self.url)
 
-        self.event_exchange = await self.channel.declare_exchange(
-            self.event_exchange_name,
-            aio_pika.ExchangeType.TOPIC,
-            durable=True,
-        )
-
-        self.command_queue = await self.channel.declare_queue(
-            self.command_queue_name, durable=True
-        )
-        await self.command_queue.bind(self.event_exchange, routing_key="command.*")
-
-        self.response_queue = await self.channel.declare_queue(
-            self.response_queue_name, durable=True
-        )
+        await self._setup_command_channel()
+        await self._setup_publish_channel()
 
         self.logger.debug(
             "RabbitMQ connection established",
@@ -86,7 +75,7 @@ class RabbitMQMessaging(Messaging):
             handler: Coroutine handling (payload, message)
         """
 
-        async def _on_message(message: aio_pika.IncomingMessage) -> None:
+        async def _on_message(message: Any) -> None:
             async with message.process(ignore_processed=True):
                 payload = self._deserialize_message(message)
                 if payload is None:
@@ -119,7 +108,9 @@ class RabbitMQMessaging(Messaging):
     ) -> None:
         """Publish a direct response to a reply queue."""
         target_queue = reply_to or self.response_queue_name
-        if not self.channel or not target_queue:
+        await self._ensure_publish_channel()
+
+        if not self.publish_channel or not target_queue:
             raise RuntimeError("Channel not initialized for publishing responses")
 
         message = aio_pika.Message(
@@ -127,7 +118,9 @@ class RabbitMQMessaging(Messaging):
             correlation_id=correlation_id,
             content_type="application/json",
         )
-        await self.channel.default_exchange.publish(message, routing_key=target_queue)
+        await self.publish_channel.default_exchange.publish(
+            message, routing_key=target_queue
+        )
         self.logger.debug(
             "Published response",
             {
@@ -145,6 +138,8 @@ class RabbitMQMessaging(Messaging):
         correlation_id: Optional[str] = None,
     ) -> None:
         """Publish an event to the topic exchange."""
+        await self._ensure_publish_channel()
+
         if not self.event_exchange:
             raise RuntimeError("Event exchange not initialized")
 
@@ -169,15 +164,83 @@ class RabbitMQMessaging(Messaging):
     async def close(self) -> None:
         """Close channel and connection."""
         await self.stop_consuming()
-        if self.channel and not self.channel.is_closed:
-            await self.channel.close()
+
+        if self.command_channel and not self.command_channel.is_closed:
+            await self.command_channel.close()
+        if (
+            self.publish_channel
+            and not self.publish_channel.is_closed
+            and self.publish_channel is not self.command_channel
+        ):
+            await self.publish_channel.close()
         if self.connection and not self.connection.is_closed:
             await self.connection.close()
+
+        self.command_channel = None
+        self.publish_channel = None
+        self.command_queue = None
+        self.response_queue = None
+        self.event_exchange = None
+        self.connection = None
+        self._consumer_tag = None
         self.logger.debug("RabbitMQ connection closed", {})
 
-    def _deserialize_message(
-        self, message: aio_pika.IncomingMessage
-    ) -> Optional[Dict[str, Any]]:
+    async def _setup_command_channel(self) -> None:
+        if not self.connection or self.connection.is_closed:
+            raise RuntimeError("RabbitMQ connection is not initialized")
+
+        self.command_channel = await self.connection.channel()
+        await self.command_channel.set_qos(prefetch_count=self.prefetch_count)
+
+        command_exchange = await self.command_channel.declare_exchange(
+            self.event_exchange_name,
+            aio_pika.ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.command_queue = await self.command_channel.declare_queue(
+            self.command_queue_name, durable=True
+        )
+        await self.command_queue.bind(command_exchange, routing_key="command.*")
+
+    async def _setup_publish_channel(self) -> None:
+        if not self.connection or self.connection.is_closed:
+            raise RuntimeError("RabbitMQ connection is not initialized")
+
+        self.publish_channel = await self.connection.channel()
+        self.event_exchange = await self.publish_channel.declare_exchange(
+            self.event_exchange_name,
+            aio_pika.ExchangeType.TOPIC,
+            durable=True,
+        )
+        self.response_queue = await self.publish_channel.declare_queue(
+            self.response_queue_name, durable=True
+        )
+
+    async def _ensure_publish_channel(self) -> None:
+        publish_channel_is_closed = (
+            self.publish_channel is None or self.publish_channel.is_closed
+        )
+        event_exchange_is_closed = self.event_exchange is None
+
+        if not publish_channel_is_closed and not event_exchange_is_closed:
+            return
+
+        if self.connection is None or self.connection.is_closed:
+            self.connection = await aio_pika.connect_robust(self.url)
+
+        try:
+            await self._setup_publish_channel()
+        except ChannelInvalidStateError as exc:
+            self.logger.error(
+                exc,
+                {
+                    "operation": "setup_publish_channel",
+                    "event_exchange": self.event_exchange_name,
+                },
+            )
+            raise
+
+    def _deserialize_message(self, message: Any) -> Optional[Dict[str, Any]]:
         """Parse message JSON payload safely."""
         try:
             return json.loads(message.body.decode("utf-8"))

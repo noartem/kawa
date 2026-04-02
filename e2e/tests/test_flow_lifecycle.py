@@ -28,6 +28,7 @@ def created_flow(ui_client):
     try:
         ui_client.wait_for_container_id(flow.flow_id, timeout=90)
         ui_client.stop_flow(flow.flow_id)
+        ui_client.wait_for_development_run_to_stop(flow.flow_id, timeout=90)
     finally:
         ui_client.delete_flow(flow.flow_id)
 

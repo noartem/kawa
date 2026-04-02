@@ -224,6 +224,36 @@ class UIClient:
 
         return None
 
+    def wait_for_development_run_to_stop(
+        self,
+        flow_id: int,
+        timeout: int = 90,
+    ) -> bool:
+        deadline = time.time() + timeout
+
+        while time.time() < deadline:
+            props = self.flow_show_props(flow_id)
+            development_run = (
+                props.get("lastDevelopmentDeployment")
+                or props.get("last_development_deployment")
+                or props.get("developmentRun")
+                or props.get("development_run")
+            )
+
+            if not isinstance(development_run, dict):
+                return True
+
+            if development_run.get("active") is False:
+                return True
+
+            status = str(development_run.get("status") or "").strip().lower()
+            if status in {"stopped", "exited", "finished", "dead"}:
+                return True
+
+            time.sleep(1)
+
+        return False
+
     def get(self, path: str, **kwargs: Any) -> httpx.Response:
         return self._client.get(path, **kwargs)
 

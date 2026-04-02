@@ -34,6 +34,10 @@ from system_logger import SystemLogger
 
 
 class ContainerManager:
+    STOP_GRACE_PERIOD_SECONDS = 5
+    STOP_OPERATION_TIMEOUT_SECONDS = 15
+    FORCE_KILL_TIMEOUT_SECONDS = 10
+
     def __init__(self, logger: SystemLogger, socket_dir: str = "/tmp/kawaflow/sockets"):
         """
         Initialize ContainerManager.
@@ -44,6 +48,7 @@ class ContainerManager:
         self.docker_client = docker.from_env()
         self.socket_dir = socket_dir
         self.logger = logger
+        self._docker_call_lock = asyncio.Lock()
 
         # Ensure socket directory exists
         os.makedirs(self.socket_dir, exist_ok=True)
@@ -82,11 +87,27 @@ class ContainerManager:
         )
 
     MONITORING_CONCURRENCY = 8
+    DOCKER_LOOKUP_TIMEOUT_SECONDS = 10
+    DOCKER_LIST_TIMEOUT_SECONDS = 10
+    DOCKER_REMOVE_TIMEOUT_SECONDS = 10
 
     async def _run_docker_call(
         self, func: Callable[..., Any], *args: Any, **kwargs: Any
     ) -> Any:
-        return await asyncio.to_thread(func, *args, **kwargs)
+        async with self._docker_call_lock:
+            return await asyncio.to_thread(func, *args, **kwargs)
+
+    async def _run_docker_call_with_timeout(
+        self,
+        timeout_seconds: float,
+        func: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        return await asyncio.wait_for(
+            self._run_docker_call(func, *args, **kwargs),
+            timeout=timeout_seconds,
+        )
 
     async def _run_with_concurrency(
         self,
@@ -316,13 +337,39 @@ class ContainerManager:
         try:
             self.logger.debug("Stopping container", {"container_id": container_id})
 
-            container = await self._run_docker_call(
-                self.docker_client.containers.get, container_id
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
             )
             self._expected_stops.add(container_id)
-            await self._run_docker_call(container.stop)
 
-            self.logger.container_operation("stop", container_id, {"status": "stopped"})
+            forced = False
+
+            try:
+                await asyncio.wait_for(
+                    self._run_docker_call(
+                        container.stop,
+                        timeout=self.STOP_GRACE_PERIOD_SECONDS,
+                    ),
+                    timeout=self.STOP_OPERATION_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                forced = True
+                self.logger.debug(
+                    "Container stop timed out; forcing kill",
+                    {"container_id": container_id},
+                )
+                await asyncio.wait_for(
+                    self._run_docker_call(container.kill),
+                    timeout=self.FORCE_KILL_TIMEOUT_SECONDS,
+                )
+
+            self.logger.container_operation(
+                "stop",
+                container_id,
+                {"status": "stopped", "forced": forced},
+            )
 
         except NotFound as e:
             self._expected_stops.discard(container_id)
@@ -330,6 +377,17 @@ class ContainerManager:
                 e, {"operation": "stop_container", "container_id": container_id}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self._expected_stops.discard(container_id)
+            self.logger.error(
+                e,
+                {
+                    "operation": "stop_container",
+                    "container_id": container_id,
+                    "stage": "force_kill",
+                },
+            )
+            raise APIError(f"Timed out stopping container {container_id}") from e
         except APIError as e:
             self._expected_stops.discard(container_id)
             self.logger.error(
@@ -690,19 +748,32 @@ class ContainerManager:
         try:
             self.logger.debug("Deleting container", {"container_id": container_id})
 
-            container = self.docker_client.containers.get(container_id)
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
+            )
             container_name = container.name
 
             # Stop container if running
             if container.status in ["running", "paused"]:
                 self._expected_stops.add(container_id)
-                container.stop()
+                await asyncio.wait_for(
+                    self._run_docker_call(
+                        container.stop,
+                        timeout=self.STOP_GRACE_PERIOD_SECONDS,
+                    ),
+                    timeout=self.STOP_OPERATION_TIMEOUT_SECONDS,
+                )
 
             # Clean up health check resources
             self._cleanup_health_check_resources(container_id)
 
             # Remove container
-            container.remove()
+            await self._run_docker_call_with_timeout(
+                self.DOCKER_REMOVE_TIMEOUT_SECONDS,
+                container.remove,
+            )
             self._container_states.pop(container_id, None)
             self._reported_crashes.pop(container_id, None)
             self._expected_stops.discard(container_id)
@@ -857,7 +928,8 @@ class ContainerManager:
             List[ContainerInfo]: List of container information
         """
         try:
-            containers = await self._run_docker_call(
+            containers = await self._run_docker_call_with_timeout(
+                self.DOCKER_LIST_TIMEOUT_SECONDS,
                 self.docker_client.containers.list,
                 all=True,
             )
@@ -865,7 +937,19 @@ class ContainerManager:
 
             for container in containers:
                 socket_path = self._get_container_socket_path(container.name)
-                container_info = self._build_container_info(container, socket_path)
+                try:
+                    container_info = self._build_container_info(container, socket_path)
+                except (NotFound, APIError) as exc:
+                    self.logger.debug(
+                        "Skipping container that disappeared during listing",
+                        {
+                            "operation": "list_containers",
+                            "container_id": getattr(container, "id", "unknown"),
+                            "error": str(exc),
+                        },
+                    )
+                    continue
+
                 container_infos.append(container_info)
 
             self.logger.debug("Listed containers", {"count": len(container_infos)})

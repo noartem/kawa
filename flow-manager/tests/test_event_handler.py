@@ -125,6 +125,27 @@ async def test_handle_get_container_graph_success():
 
 
 @pytest.mark.asyncio
+async def test_dispatch_command_propagates_cancellation():
+    handler, messaging, _, _, _ = _make_handler()
+    message = Mock(reply_to="reply-queue", correlation_id="corr-1")
+
+    handler.handlers["list_containers"] = AsyncMock(
+        side_effect=asyncio.CancelledError()
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await handler._dispatch_command(
+            {
+                "action": "list_containers",
+                "data": {},
+            },
+            message=message,
+        )
+
+    assert messaging.published_responses == []
+
+
+@pytest.mark.asyncio
 async def test_fire_and_forget_command_skips_response_queue_publish():
     handler, messaging, container_manager, socket_handler, user_logger = _make_handler()
 
