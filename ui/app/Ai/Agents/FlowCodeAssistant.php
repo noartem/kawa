@@ -6,6 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\Model;
 use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Attributes\Timeout;
+use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasStructuredOutput;
@@ -19,6 +20,9 @@ use Stringable;
 class FlowCodeAssistant implements Agent, Conversational, HasStructuredOutput
 {
     use Promptable;
+    use RemembersConversations {
+        messages as rememberedMessages;
+    }
 
     public const MODEL = 'qwen/qwen3-coder-next';
 

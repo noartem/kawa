@@ -1,5 +1,5 @@
-import { python } from '@codemirror/lang-python';
 import { json } from '@codemirror/lang-json';
+import { python } from '@codemirror/lang-python';
 import type { Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
@@ -9,6 +9,7 @@ interface CreateFlowCodeEditorExtensionsOptions {
     bottomPadding?: string;
     lineWrapping?: boolean;
     isDarkTheme?: boolean;
+    containOverscroll?: boolean;
     extraExtensions?: Extension[];
 }
 
@@ -23,6 +24,7 @@ export const createFlowCodeEditorExtensions = (
         bottomPadding = '0.75rem',
         lineWrapping = true,
         isDarkTheme = false,
+        containOverscroll = false,
         extraExtensions = [],
     } = options;
     const githubTheme = isDarkTheme ? githubDark : githubLight;
@@ -37,6 +39,7 @@ export const createFlowCodeEditorExtensions = (
         },
         '.cm-scroller': {
             overflow: 'auto',
+            ...(containOverscroll ? { overscrollBehavior: 'contain' } : {}),
             fontFamily:
                 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             lineHeight: '1.5',

@@ -539,11 +539,51 @@ const refreshFlowView = (): void => {
     });
 };
 
-const csrfToken = document
-    .querySelector('meta[name="csrf-token"]')
-    ?.getAttribute('content');
+const getMetaCsrfToken = (): string | null => {
+    return document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute('content');
+};
+
+const getCookieValue = (name: string): string | null => {
+    const cookies = document.cookie
+        .split('; ')
+        .filter((cookie) => cookie.length > 0);
+
+    const match = cookies.find((cookie) => cookie.startsWith(`${name}=`));
+
+    if (!match) {
+        return null;
+    }
+
+    return decodeURIComponent(match.slice(name.length + 1));
+};
+
+const getCsrfHeaders = (): Record<string, string> => {
+    const xsrfToken = getCookieValue('XSRF-TOKEN');
+
+    if (xsrfToken) {
+        return {
+            'X-XSRF-TOKEN': xsrfToken,
+        };
+    }
+
+    const csrfToken = getMetaCsrfToken();
+
+    if (!csrfToken) {
+        return {};
+    }
+
+    return {
+        'X-CSRF-TOKEN': csrfToken,
+    };
+};
 
 const extractChatError = async (response: Response): Promise<string> => {
+    if (response.status === 419) {
+        return t('flows.editor.chat.page_expired');
+    }
+
     try {
         const payload = (await response.json()) as {
             code?: string;
@@ -578,6 +618,10 @@ const extractChatError = async (response: Response): Promise<string> => {
             return t('flows.editor.chat.rate_limited');
         }
 
+        if (payload.message === 'CSRF token mismatch.') {
+            return t('flows.editor.chat.page_expired');
+        }
+
         return (
             firstError ||
             payload.message ||
@@ -599,7 +643,7 @@ const postChatJson = async <T,>(
             Accept: 'application/json',
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+            ...getCsrfHeaders(),
         },
         body: JSON.stringify(payload),
     });

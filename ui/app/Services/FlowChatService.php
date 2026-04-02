@@ -10,7 +10,9 @@ use App\Models\Flow;
 use App\Models\User;
 use App\Support\FlowCodeDiff;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Ai\Messages\Message;
@@ -117,9 +119,11 @@ class FlowChatService
         $currentCode = $this->sanitizeUtf8($currentCode);
         $conversation = $this->resolveActiveConversation($flow, $user, $message);
         $shouldGenerateTitle = $conversation->messages->isEmpty();
-        $response = FlowCodeAssistant::make(
+        $existingMessageCount = $conversation->messages->count();
+        $response = $this->makeFlowCodeAssistant(
+            conversation: $conversation,
+            user: $user,
             currentCode: $currentCode,
-            messages: $this->conversationMessagesForAgent($conversation),
             shouldGenerateTitle: $shouldGenerateTitle,
         )->prompt($message);
 
@@ -145,37 +149,18 @@ class FlowChatService
             ? $this->sanitizeUtf8($this->flowCodeDiff->build($currentCode, $assistantCode))
             : null;
 
-        $conversation->messages()->create([
-            'user_id' => $user->id,
-            'agent' => FlowCodeAssistant::class,
-            'role' => 'user',
-            'content' => $message,
-            'attachments' => [],
-            'tool_calls' => [],
-            'tool_results' => [],
-            'usage' => [],
-            'meta' => [
-                'kind' => 'prompt',
-            ],
-        ]);
-
-        $conversation->messages()->create([
-            'user_id' => $user->id,
-            'agent' => FlowCodeAssistant::class,
-            'role' => 'assistant',
-            'content' => $assistantReply,
-            'attachments' => [],
-            'tool_calls' => [],
-            'tool_results' => [],
-            'usage' => [],
-            'meta' => $this->sanitizeForJson([
+        $conversation = $this->storeLatestExchangeMetadata(
+            conversationId: $response->conversationId ?? $conversation->id,
+            existingMessageCount: $existingMessageCount,
+            assistantReply: $assistantReply,
+            assistantMeta: [
                 'kind' => $hasCodeChanges ? 'code_suggestion' : 'assistant_reply',
                 'response_mode' => $normalizedResponseMode,
                 'source_code' => $currentCode,
                 'proposed_code' => $assistantCode,
                 'diff' => $assistantDiff,
-            ]),
-        ]);
+            ],
+        );
 
         if ($shouldGenerateTitle) {
             $conversation->title = $assistantTitle !== ''
@@ -319,6 +304,7 @@ class FlowChatService
                 ? [
                     'id' => $activeConversation->id,
                     'title' => $activeConversation->title,
+                    'memory_strategy' => 'continue',
                 ]
                 : null,
             'history' => $historyPayload,
@@ -362,6 +348,76 @@ class FlowChatService
         $flow->forceFill(['active_chat_conversation_id' => $conversation->id])->save();
 
         return $conversation;
+    }
+
+    private function makeFlowCodeAssistant(
+        AgentConversation $conversation,
+        User $user,
+        string $currentCode,
+        bool $shouldGenerateTitle,
+    ): FlowCodeAssistant {
+        return FlowCodeAssistant::make(
+            currentCode: $currentCode,
+            messages: $this->conversationMessagesForAgent($conversation),
+            shouldGenerateTitle: $shouldGenerateTitle,
+        )->continue($conversation->id, as: $user);
+    }
+
+    /**
+     * @param  array<string, mixed>  $assistantMeta
+     */
+    private function storeLatestExchangeMetadata(
+        string $conversationId,
+        int $existingMessageCount,
+        string $assistantReply,
+        array $assistantMeta,
+    ): AgentConversation {
+        return DB::transaction(function () use (
+            $assistantMeta,
+            $assistantReply,
+            $conversationId,
+            $existingMessageCount,
+        ): AgentConversation {
+            $conversation = AgentConversation::query()
+                ->with('messages')
+                ->findOrFail($conversationId);
+
+            /** @var EloquentCollection<int, AgentConversationMessage> $newMessages */
+            $newMessages = $conversation->messages
+                ->slice($existingMessageCount)
+                ->values();
+
+            /** @var AgentConversationMessage|null $latestUserMessage */
+            $latestUserMessage = $newMessages->firstWhere('role', 'user');
+            /** @var AgentConversationMessage|null $latestAssistantMessage */
+            $latestAssistantMessage = $newMessages
+                ->reverse()
+                ->firstWhere('role', 'assistant');
+
+            if (! $latestUserMessage instanceof AgentConversationMessage
+                || ! $latestAssistantMessage instanceof AgentConversationMessage) {
+                throw ValidationException::withMessages([
+                    'chat' => 'The chat history could not be saved. Please try again.',
+                ]);
+            }
+
+            $latestUserMessage->forceFill([
+                'meta' => $this->sanitizeForJson(array_merge(
+                    is_array($latestUserMessage->meta) ? $latestUserMessage->meta : [],
+                    ['kind' => 'prompt'],
+                )),
+            ])->save();
+
+            $latestAssistantMessage->forceFill([
+                'content' => $assistantReply,
+                'meta' => $this->sanitizeForJson(array_merge(
+                    is_array($latestAssistantMessage->meta) ? $latestAssistantMessage->meta : [],
+                    $assistantMeta,
+                )),
+            ])->save();
+
+            return $conversation->fresh('messages');
+        });
     }
 
     /**

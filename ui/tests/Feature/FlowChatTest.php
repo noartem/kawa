@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\JsonEncodingException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Prompts\AgentPrompt;
 use Mockery\MockInterface;
 
 use function Pest\Laravel\actingAs;
@@ -40,6 +41,7 @@ it('sends a flow chat message and stores the assistant suggestion', function () 
         ->assertJsonPath('activeChat.title', 'Greeting update')
         ->assertJsonPath('activeChat.messages_count', 2)
         ->assertJsonPath('activeChat.messages.0.role', 'user')
+        ->assertJsonPath('activeChat.messages.0.kind', 'prompt')
         ->assertJsonPath('activeChat.messages.1.role', 'assistant')
         ->assertJsonPath('activeChat.messages.1.kind', 'code_suggestion')
         ->assertJsonPath('activeChat.messages.1.response_mode', FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE)
@@ -57,10 +59,18 @@ it('sends a flow chat message and stores the assistant suggestion', function () 
     expect($conversation->messages)->toHaveCount(2)
         ->and($conversation->title)->toBe('Greeting update')
         ->and($conversation->messages[0]->content)->toBe('Update the greeting output')
+        ->and($conversation->messages[0]->meta['kind'])->toBe('prompt')
         ->and($conversation->messages[1]->content)->toBe('Added the requested greeting update.')
         ->and($conversation->messages[1]->meta['proposed_code'])->toBe('print("new")');
 
-    FlowCodeAssistant::assertPrompted('Update the greeting output');
+    FlowCodeAssistant::assertPrompted(function (AgentPrompt $prompt) use ($conversation): bool {
+        if (! $prompt->agent instanceof FlowCodeAssistant) {
+            return false;
+        }
+
+        return $prompt->prompt === 'Update the greeting output'
+            && $prompt->agent->currentConversation() === $conversation->id;
+    });
 });
 
 it('stores a message-only assistant reply without marking code changes', function () {
@@ -265,6 +275,84 @@ it('keeps the existing chat title on subsequent assistant responses', function (
 
     expect($flow->fresh()->activeChatConversation()->firstOrFail()->title)
         ->toBe('Existing title');
+});
+
+it('continues an existing chat with the remembered conversation id', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("old")',
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE,
+            'title' => 'Greeting update',
+            'reply' => 'Added the requested greeting update.',
+            'code' => 'print("first")',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'Update the greeting output',
+            'current_code' => 'print("old")',
+        ])
+        ->assertSuccessful();
+
+    $conversationId = $flow->fresh()->active_chat_conversation_id;
+
+    expect($conversationId)->not->toBeNull();
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY,
+            'title' => null,
+            'reply' => 'The earlier greeting update is still in place.',
+            'code' => 'print("first")',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'What changed in the previous step?',
+            'current_code' => 'print("first")',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.id', $conversationId)
+        ->assertJsonPath('activeChat.messages_count', 4)
+        ->assertJsonPath('activeChat.messages.2.kind', 'prompt')
+        ->assertJsonPath('activeChat.messages.3.kind', 'assistant_reply')
+        ->assertJsonPath('activeChat.messages.3.content', 'The earlier greeting update is still in place.');
+
+    $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
+
+    expect($conversation->id)->toBe($conversationId)
+        ->and($conversation->messages)->toHaveCount(4)
+        ->and($conversation->messages[2]->content)->toBe('What changed in the previous step?')
+        ->and($conversation->messages[2]->meta['kind'])->toBe('prompt')
+        ->and($conversation->messages[3]->content)->toBe('The earlier greeting update is still in place.')
+        ->and($conversation->messages[3]->meta['kind'])->toBe('assistant_reply');
+
+    FlowCodeAssistant::assertPrompted(function (AgentPrompt $prompt) use ($conversationId): bool {
+        if ($prompt->prompt !== 'What changed in the previous step?') {
+            return false;
+        }
+
+        expect($prompt->agent)->toBeInstanceOf(FlowCodeAssistant::class);
+
+        /** @var FlowCodeAssistant $assistant */
+        $assistant = $prompt->agent;
+
+        expect($assistant->currentConversation())->toBe($conversationId)
+            ->and($assistant->messages())->toHaveCount(1)
+            ->and($assistant->messages()[0]->content)->toContain('User: Update the greeting output')
+            ->toContain('Assistant: Added the requested greeting update.')
+            ->toContain('Assistant proposed code:')
+            ->toContain('print("first")');
+
+        return true;
+    });
 });
 
 it('returns a friendly provider unavailable error for upstream ai 503 failures', function () {
@@ -580,6 +668,7 @@ it('renders a local chat debug page with the composed llm payload', function () 
             ->where('preview.schema.title_generation', 'fixed mode for this request: generate_title')
             ->where('preview.schema.response_mode', 'required enum: message_only | message_with_code')
             ->where('preview.active_conversation.id', $conversation->id)
+            ->where('preview.active_conversation.memory_strategy', 'continue')
             ->where('preview.history.0.content', 'Explain this flow')
             ->where('preview.history.1.content', 'It prints a debug marker.')
             ->where('preview.request_preview.history_messages.0.role', 'user')

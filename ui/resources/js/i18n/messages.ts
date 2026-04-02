@@ -475,6 +475,8 @@ export const messages = {
                         'The AI provider is rate limiting requests. Try again shortly.',
                     insufficient_credits:
                         'The AI provider has no available quota right now. Try again later.',
+                    page_expired:
+                        'The page expired. Refresh it and try the chat again.',
                     error_fallback: 'Chat request failed. Try again.',
                 },
                 discovery: {
@@ -1154,6 +1156,8 @@ export const messages = {
                         'AI-провайдер ограничивает запросы. Попробуйте еще раз чуть позже.',
                     insufficient_credits:
                         'У AI-провайдера сейчас нет доступной квоты. Попробуйте позже.',
+                    page_expired:
+                        'Страница устарела. Обновите ее и попробуйте чат еще раз.',
                     error_fallback:
                         'Не удалось выполнить запрос в чат. Попробуйте еще раз.',
                 },

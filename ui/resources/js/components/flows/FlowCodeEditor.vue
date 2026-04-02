@@ -193,6 +193,7 @@ const codeEditorExtensions = computed(() => {
         bottomPadding: props.bottomPadding,
         lineWrapping: props.lineWrapping,
         isDarkTheme: isDarkThemeClass.value,
+        containOverscroll: true,
         extraExtensions: [highlightedLineField, highlightedLineTheme],
     });
 });
