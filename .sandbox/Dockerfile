@@ -139,7 +139,7 @@ ENV UV_DEFAULT_INDEX=${PYPI_INDEX}
 ENV UV_INDEX=''
 ENV UV_NATIVE_TLS=true
 
-RUN npm install -g opencode-ai@1.3.9 nonotify@0.1.15
+RUN npm install -g opencode-ai@1.3.13 nonotify@0.1.15
 
 RUN su -s /bin/zsh ${USER} -c "git config --global --add safe.directory '*'"
 
