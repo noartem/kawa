@@ -317,22 +317,39 @@ it('continues an existing chat with the remembered conversation id', function ()
         ->postJson(route('flows.chat.store', $flow), [
             'message' => 'What changed in the previous step?',
             'current_code' => 'print("first")',
+            'history' => [
+                [
+                    'client_id' => 'apply-history-1',
+                    'kind' => 'apply_proposal',
+                    'content' => 'Applied the suggested code to the editor.',
+                    'source_code' => 'print("old")',
+                    'proposed_code' => 'print("first")',
+                ],
+            ],
         ])
         ->assertSuccessful()
         ->assertJsonPath('activeChat.id', $conversationId)
-        ->assertJsonPath('activeChat.messages_count', 4)
-        ->assertJsonPath('activeChat.messages.2.kind', 'prompt')
-        ->assertJsonPath('activeChat.messages.3.kind', 'assistant_reply')
-        ->assertJsonPath('activeChat.messages.3.content', 'The earlier greeting update is still in place.');
+        ->assertJsonPath('activeChat.messages_count', 5)
+        ->assertJsonPath('activeChat.messages.2.kind', 'apply_proposal')
+        ->assertJsonPath('activeChat.messages.2.content', 'Applied the suggested code to the editor.')
+        ->assertJsonPath('activeChat.messages.2.source_code', 'print("old")')
+        ->assertJsonPath('activeChat.messages.2.proposed_code', 'print("first")')
+        ->assertJsonPath('activeChat.messages.3.kind', 'prompt')
+        ->assertJsonPath('activeChat.messages.4.kind', 'assistant_reply')
+        ->assertJsonPath('activeChat.messages.4.content', 'The earlier greeting update is still in place.');
 
     $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
 
     expect($conversation->id)->toBe($conversationId)
-        ->and($conversation->messages)->toHaveCount(4)
-        ->and($conversation->messages[2]->content)->toBe('What changed in the previous step?')
-        ->and($conversation->messages[2]->meta['kind'])->toBe('prompt')
-        ->and($conversation->messages[3]->content)->toBe('The earlier greeting update is still in place.')
-        ->and($conversation->messages[3]->meta['kind'])->toBe('assistant_reply');
+        ->and($conversation->messages)->toHaveCount(5)
+        ->and($conversation->messages[2]->content)->toBe('Applied the suggested code to the editor.')
+        ->and($conversation->messages[2]->meta['kind'])->toBe('apply_proposal')
+        ->and($conversation->messages[2]->meta['source_code'])->toBe('print("old")')
+        ->and($conversation->messages[2]->meta['proposed_code'])->toBe('print("first")')
+        ->and($conversation->messages[3]->content)->toBe('What changed in the previous step?')
+        ->and($conversation->messages[3]->meta['kind'])->toBe('prompt')
+        ->and($conversation->messages[4]->content)->toBe('The earlier greeting update is still in place.')
+        ->and($conversation->messages[4]->meta['kind'])->toBe('assistant_reply');
 
     FlowCodeAssistant::assertPrompted(function (AgentPrompt $prompt) use ($conversationId): bool {
         if ($prompt->prompt !== 'What changed in the previous step?') {
@@ -348,11 +365,146 @@ it('continues an existing chat with the remembered conversation id', function ()
             ->and($assistant->messages())->toHaveCount(1)
             ->and($assistant->messages()[0]->content)->toContain('User: Update the greeting output')
             ->toContain('Assistant: Added the requested greeting update.')
+            ->toContain('User: Applied the suggested code to the editor.')
             ->toContain('Assistant proposed code:')
             ->toContain('print("first")');
 
         return true;
     });
+});
+
+it('does not duplicate existing apply history entries when retrying a chat request', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne([
+        'code' => 'print("first")',
+    ]);
+
+    $conversation = $flow->conversations()->create([
+        'user_id' => $user->id,
+        'title' => 'Retry thread',
+    ]);
+
+    $conversation->messages()->createMany([
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'user',
+            'content' => 'Update the greeting output',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'prompt'],
+        ],
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'assistant',
+            'content' => 'Added the requested greeting update.',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => [
+                'kind' => 'code_suggestion',
+                'proposed_code' => 'print("first")',
+            ],
+        ],
+        [
+            'user_id' => $user->id,
+            'agent' => FlowCodeAssistant::class,
+            'role' => 'user',
+            'content' => 'Applied the suggested code to the editor.',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => [
+                'client_id' => 'apply-history-1',
+                'kind' => 'apply_proposal',
+                'source_code' => 'print("old")',
+                'proposed_code' => 'print("first")',
+            ],
+        ],
+    ]);
+
+    $flow->update([
+        'active_chat_conversation_id' => $conversation->id,
+    ]);
+
+    FlowCodeAssistant::fake([
+        [
+            'response_mode' => FlowCodeAssistant::RESPONSE_MODE_MESSAGE_ONLY,
+            'reply' => 'The change is still applied.',
+            'code' => 'print("first")',
+        ],
+    ])->preventStrayPrompts();
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'What changed in the previous step?',
+            'current_code' => 'print("first")',
+            'history' => [
+                [
+                    'client_id' => 'apply-history-1',
+                    'kind' => 'apply_proposal',
+                    'content' => 'Applied the suggested code to the editor.',
+                    'source_code' => 'print("old")',
+                    'proposed_code' => 'print("first")',
+                ],
+            ],
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('activeChat.messages_count', 5)
+        ->assertJsonPath('activeChat.messages.2.kind', 'apply_proposal')
+        ->assertJsonPath('activeChat.messages.3.kind', 'prompt')
+        ->assertJsonPath('activeChat.messages.4.kind', 'assistant_reply');
+
+    $conversation = $flow->fresh()->activeChatConversation()->firstOrFail();
+
+    expect($conversation->messages)->toHaveCount(5);
+
+    FlowCodeAssistant::assertPrompted(function (AgentPrompt $prompt) use ($conversation): bool {
+        if (! $prompt->agent instanceof FlowCodeAssistant) {
+            return false;
+        }
+
+        /** @var FlowCodeAssistant $assistant */
+        $assistant = $prompt->agent;
+
+        return $assistant->currentConversation() === $conversation->id
+            && substr_count(
+                $assistant->messages()[0]->content,
+                'User: Applied the suggested code to the editor.',
+            ) === 1;
+    });
+});
+
+it('rejects chat history payloads that exceed the allowed item count', function () {
+    /** @var User $user */
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+
+    $history = array_map(
+        static fn (int $index): array => [
+            'client_id' => "apply-history-{$index}",
+            'kind' => 'apply_proposal',
+            'content' => 'Applied the suggested code to the editor.',
+            'source_code' => 'print("old")',
+            'proposed_code' => 'print("new")',
+        ],
+        range(1, 11),
+    );
+
+    actingAs($user)
+        ->postJson(route('flows.chat.store', $flow), [
+            'message' => 'What changed in the previous step?',
+            'current_code' => 'print("new")',
+            'history' => $history,
+        ])
+        ->assertUnprocessable()
+        ->assertInvalid(['history']);
 });
 
 it('returns a friendly provider unavailable error for upstream ai 503 failures', function () {

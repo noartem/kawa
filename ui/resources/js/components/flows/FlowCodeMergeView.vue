@@ -40,6 +40,7 @@ const codeEditorExtensions = computed(() => {
         language: props.language,
         lineWrapping: props.lineWrapping,
         isDarkTheme: isDarkThemeClass.value,
+        inheritBorderRadius: false,
         extraExtensions: unifiedMergeView({
             original: props.originalValue ?? '',
             gutter: true,

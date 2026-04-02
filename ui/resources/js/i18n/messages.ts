@@ -358,6 +358,8 @@ export const messages = {
                 payload: {
                     title: 'Payload',
                     json_label: 'Payload',
+                    copy: 'Copy JSON',
+                    copied: 'Copied',
                     expand_all: 'Expand all',
                     collapse_all: 'Collapse all',
                     expand_node: 'Expand section',
@@ -456,6 +458,9 @@ export const messages = {
                     compact: 'Compact',
                     retry: 'Retry',
                     applying: 'Applied to editor',
+                    history_applied: 'Applied the suggested code to the editor.',
+                    history_applied_and_saved:
+                        'Applied the suggested code and requested a save.',
                     diff_title: 'Suggested code update',
                     expand_diff: 'Expand changes',
                     collapse_diff: 'Collapse changes',
@@ -1036,6 +1041,8 @@ export const messages = {
                 payload: {
                     title: 'Payload',
                     json_label: 'Данные',
+                    copy: 'Копировать JSON',
+                    copied: 'Скопировано',
                     expand_all: 'Развернуть всё',
                     collapse_all: 'Свернуть всё',
                     expand_node: 'Развернуть секцию',
@@ -1137,6 +1144,10 @@ export const messages = {
                     compact: 'Сжать',
                     retry: 'Повторить',
                     applying: 'Уже применено в редакторе',
+                    history_applied:
+                        'Применил предложенный код в редакторе.',
+                    history_applied_and_saved:
+                        'Применил предложенный код и запросил сохранение потока.',
                     diff_title: 'Предложенное обновление кода',
                     expand_diff: 'Развернуть изменения',
                     collapse_diff: 'Свернуть изменения',

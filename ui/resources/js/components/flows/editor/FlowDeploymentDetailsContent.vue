@@ -177,13 +177,17 @@ const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
                 ref="overviewSection"
                 class="h-[28rem] min-h-0 overflow-hidden lg:h-[32rem]"
             >
-                <FlowDiscoveryPanel
-                    class="h-full"
-                    :graph="deployment.graph"
-                    :webhook-endpoints="deployment.webhooks ?? []"
-                    :selected-target="selectedDiscoveryTarget"
-                    @jump-to-code="jumpToCode"
-                />
+                <div
+                    class="h-full overflow-hidden rounded-xl border border-border bg-muted/15"
+                >
+                    <FlowDiscoveryPanel
+                        class="h-full"
+                        :graph="deployment.graph"
+                        :webhook-endpoints="deployment.webhooks ?? []"
+                        :selected-target="selectedDiscoveryTarget"
+                        @jump-to-code="jumpToCode"
+                    />
+                </div>
             </div>
 
             <FlowGraph

@@ -447,13 +447,17 @@ watch(
                 </div>
 
                 <div v-else-if="activeTab === 'discovery'" class="h-full">
-                    <FlowDiscoveryPanel
-                        :graph="graph"
-                        :webhook-endpoints="webhookEndpoints"
-                        :outdated="graphIsOutdated"
-                        :selected-target="selectedDiscoveryTarget"
-                        @jump-to-code="jumpToCode"
-                    />
+                    <div
+                        class="h-full overflow-hidden rounded-xl border border-border bg-muted/15"
+                    >
+                        <FlowDiscoveryPanel
+                            :graph="graph"
+                            :webhook-endpoints="webhookEndpoints"
+                            :outdated="graphIsOutdated"
+                            :selected-target="selectedDiscoveryTarget"
+                            @jump-to-code="jumpToCode"
+                        />
+                    </div>
                 </div>
 
                 <template v-else>
@@ -462,10 +466,10 @@ watch(
                         v-model:model-value="expandedHistoryValues"
                         type="multiple"
                         :unmount-on-hide="false"
-                        class="flex max-h-full flex-col overflow-y-auto overscroll-contain rounded-lg border border-border bg-muted/15"
+                        class="flex max-h-full flex-col overflow-y-auto overscroll-contain rounded-lg border border-border bg-muted/15 divide-y divide-border"
                     >
                         <AccordionItem
-                            v-for="(historyCard, i) in historyCards"
+                            v-for="historyCard in historyCards"
                             :key="historyCard.item.id"
                             :value="getHistoryAccordionValue(historyCard.item.id)"
                             v-slot="{ open }"
@@ -474,12 +478,10 @@ watch(
                                 <AccordionHeader
                                     :class="
                                         cn(
-                                            'sticky top-0 z-50 border-b bg-background text-xs text-muted-foreground',
-                                            {
-                                                'border-none':
-                                                    i === historyCards.length - 1 &&
-                                                    !open,
-                                            },
+                                            'sticky top-0 z-50 bg-background/95 text-xs text-muted-foreground backdrop-blur-sm transition-[border-color,background-color] duration-200',
+                                            open
+                                                ? 'border-b border-border bg-background'
+                                                : '',
                                         )
                                     "
                                 >
@@ -544,22 +546,23 @@ watch(
                                 </AccordionHeader>
 
                                 <AccordionContent
-                                    :class="
-                                        cn(
-                                            'relative overflow-hidden bg-linear-to-br from-background to-muted/25',
-                                            {
-                                                'border-b':
-                                                    i !== historyCards.length - 1 && open,
-                                            },
-                                        )
-                                    "
+                                    class="relative overflow-hidden bg-linear-to-br from-background to-muted/25"
                                 >
-                                    <FlowCodeMergeView
-                                        :id="`history-details-${historyCard.item.id}`"
-                                        :original-value="historyCard.originalCode"
-                                        :modified-value="historyCard.modifiedCode"
-                                        class="h-52 text-xs"
-                                    />
+                                    <div
+                                        class="transition-[opacity,transform] duration-200 ease-out"
+                                        :class="
+                                            open
+                                                ? 'translate-y-0 opacity-100'
+                                                : 'pointer-events-none -translate-y-1 opacity-0'
+                                        "
+                                    >
+                                        <FlowCodeMergeView
+                                            :id="`history-details-${historyCard.item.id}`"
+                                            :original-value="historyCard.originalCode"
+                                            :modified-value="historyCard.modifiedCode"
+                                            class="h-52 text-xs"
+                                        />
+                                    </div>
                                 </AccordionContent>
                             </article>
                         </AccordionItem>

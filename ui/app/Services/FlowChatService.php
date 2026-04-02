@@ -19,6 +19,11 @@ use Laravel\Ai\Messages\Message;
 
 class FlowChatService
 {
+    private const SUPPORTED_HISTORY_KINDS = [
+        'apply_proposal',
+        'apply_and_save_proposal',
+    ];
+
     public function __construct(
         private readonly FlowCodeDiff $flowCodeDiff,
     ) {}
@@ -114,11 +119,18 @@ class FlowChatService
         User $user,
         string $message,
         string $currentCode,
+        array $history = [],
     ): array {
         $message = $this->sanitizeUtf8($message);
         $currentCode = $this->sanitizeUtf8($currentCode);
+        $history = $this->sanitizeHistory($history);
         $conversation = $this->resolveActiveConversation($flow, $user, $message);
         $shouldGenerateTitle = $conversation->messages->isEmpty();
+
+        if ($history !== []) {
+            $conversation = $this->appendHistoryMessages($conversation, $user, $history);
+        }
+
         $existingMessageCount = $conversation->messages->count();
         $response = $this->makeFlowCodeAssistant(
             conversation: $conversation,
@@ -421,6 +433,55 @@ class FlowChatService
     }
 
     /**
+     * @param  array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>  $history
+     */
+    private function appendHistoryMessages(
+        AgentConversation $conversation,
+        User $user,
+        array $history,
+    ): AgentConversation {
+        $existingClientIds = [];
+
+        foreach ($conversation->messages as $message) {
+            $clientId = $message->meta['client_id'] ?? null;
+
+            if (is_string($clientId) && $clientId !== '') {
+                $existingClientIds[$clientId] = true;
+            }
+        }
+
+        $historyWasAppended = false;
+
+        foreach ($history as $entry) {
+            if (isset($existingClientIds[$entry['client_id']])) {
+                continue;
+            }
+
+            $conversation->messages()->create([
+                'user_id' => $user->id,
+                'agent' => FlowCodeAssistant::class,
+                'role' => 'user',
+                'content' => $entry['content'],
+                'attachments' => [],
+                'tool_calls' => [],
+                'tool_results' => [],
+                'usage' => [],
+                'meta' => [
+                    'client_id' => $entry['client_id'],
+                    'kind' => $entry['kind'],
+                    'source_code' => $entry['source_code'],
+                    'proposed_code' => $entry['proposed_code'],
+                ],
+            ]);
+
+            $existingClientIds[$entry['client_id']] = true;
+            $historyWasAppended = true;
+        }
+
+        return $historyWasAppended ? $conversation->fresh('messages') : $conversation;
+    }
+
+    /**
      * @return array<int, Message>
      */
     private function conversationMessagesForAgent(
@@ -546,6 +607,40 @@ class FlowChatService
         }
 
         return $value;
+    }
+
+    /**
+     * @param  array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>  $history
+     * @return array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>
+     */
+    private function sanitizeHistory(array $history): array
+    {
+        $sanitizedHistory = [];
+
+        foreach ($history as $entry) {
+            $clientId = trim((string) ($entry['client_id'] ?? ''));
+            $kind = (string) ($entry['kind'] ?? '');
+
+            if ($clientId === '' || ! in_array($kind, self::SUPPORTED_HISTORY_KINDS, true)) {
+                continue;
+            }
+
+            $content = trim($this->sanitizeUtf8((string) ($entry['content'] ?? '')));
+
+            if ($content === '') {
+                continue;
+            }
+
+            $sanitizedHistory[] = [
+                'client_id' => $clientId,
+                'kind' => $kind,
+                'content' => $content,
+                'source_code' => $this->sanitizeUtf8((string) ($entry['source_code'] ?? '')),
+                'proposed_code' => $this->sanitizeUtf8((string) ($entry['proposed_code'] ?? '')),
+            ];
+        }
+
+        return $sanitizedHistory;
     }
 
     private function sanitizeUtf8(string $value): string

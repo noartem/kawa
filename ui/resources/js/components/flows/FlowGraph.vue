@@ -512,14 +512,18 @@ defineExpose({
                             {{ t('flows.editor.tabs.discovery') }}
                         </div>
 
-                        <FlowDiscoveryPanel
-                            class="h-full min-h-0"
-                            :graph="props.graph"
-                            :webhook-endpoints="props.webhookEndpoints"
-                            :selected-target="fullscreenSelectedTarget"
-                            :outdated="props.outdated"
-                            @jump-to-code="handleModalJumpToCode"
-                        />
+                        <div
+                            class="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-muted/10"
+                        >
+                            <FlowDiscoveryPanel
+                                class="h-full min-h-0"
+                                :graph="props.graph"
+                                :webhook-endpoints="props.webhookEndpoints"
+                                :selected-target="fullscreenSelectedTarget"
+                                :outdated="props.outdated"
+                                @jump-to-code="handleModalJumpToCode"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

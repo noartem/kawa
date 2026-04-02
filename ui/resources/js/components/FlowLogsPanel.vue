@@ -95,7 +95,7 @@ const payloadPreviewLimit = 6;
 const inlineValueMaxLength = 80;
 const freshLogIds = ref<Set<number>>(new Set());
 
-const FRESH_LOG_HIGHLIGHT_MS = 2600;
+const FRESH_LOG_HIGHLIGHT_MS = 1800;
 const freshLogTimers = new Map<number, ReturnType<typeof setTimeout>>();
 let pendingReplaySuppressionStreamKey: string | number | null | undefined;
 
@@ -1120,13 +1120,13 @@ watch(
 <style scoped>
 @keyframes fresh-log-entry-fade {
     0% {
-        background-color: rgb(34 197 94 / 0.16);
-        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.2);
+        background-color: rgb(34 197 94 / 0.18);
+        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.22);
     }
 
     45% {
-        background-color: rgb(34 197 94 / 0.1);
-        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.14);
+        background-color: rgb(34 197 94 / 0.08);
+        box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.12);
     }
 
     100% {
@@ -1135,7 +1135,22 @@ watch(
     }
 }
 
+@keyframes fresh-log-entry-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.995);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 .fresh-log-entry {
-    animation: fresh-log-entry-fade 2600ms ease-out forwards;
+    transform-origin: top center;
+    animation:
+        fresh-log-entry-appear 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        fresh-log-entry-fade 1800ms ease-out forwards;
 }
 </style>

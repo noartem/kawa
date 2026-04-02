@@ -121,49 +121,51 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="grid gap-1.5 text-[11px]" @click.stop @keydown.stop>
-        <div class="flex flex-wrap items-center gap-2">
-            <span class="text-muted-foreground">
-                {{ label }}
-            </span>
-            <span class="flex-1" />
-            <a
-                target="_blank"
-                rel="noreferrer noopener"
-                :href="endpoint"
-                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-            >
-                <ExternalLink class="size-3" aria-hidden="true" />
-                {{ t('flows.editor.discovery.open_webhook') }}
-            </a>
-            <button
-                type="button"
-                class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                :class="copied ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : ''"
-                @click="copyEndpoint"
-            >
-                <Check v-if="copied" class="size-3" aria-hidden="true" />
-                <Copy v-else class="size-3" aria-hidden="true" />
-                {{
-                    copied
-                        ? t('flows.editor.discovery.webhook_copied')
-                        : t('flows.editor.discovery.copy_webhook')
-                }}
-            </button>
-        </div>
-
-        <code
-            class="block rounded-md bg-background px-2 py-1.5 leading-relaxed break-all"
+    <div class="grid gap-1 text-[11px]" @click.stop @keydown.stop>
+        <div
+            class="grid gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1.5"
         >
-            {{ endpoint }}
-        </code>
+            <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-muted-foreground">
+                    {{ label }}
+                </span>
+                <span class="flex-1" />
+                <a
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    :href="endpoint"
+                    class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                >
+                    <ExternalLink class="size-3" aria-hidden="true" />
+                    {{ t('flows.editor.discovery.open_webhook') }}
+                </a>
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
+                    :class="copied ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : ''"
+                    @click="copyEndpoint"
+                >
+                    <Check v-if="copied" class="size-3" aria-hidden="true" />
+                    <Copy v-else class="size-3" aria-hidden="true" />
+                    {{
+                        copied
+                            ? t('flows.editor.discovery.webhook_copied')
+                            : t('flows.editor.discovery.copy_webhook')
+                    }}
+                </button>
+            </div>
+
+            <code class="block leading-relaxed break-all text-[10px] text-foreground/90">
+                {{ endpoint }}
+            </code>
+        </div>
 
         <Collapsible v-model:open="quickSenderOpen" v-slot="{ open }">
             <div class="overflow-hidden rounded-md border border-border/60 bg-background/80">
                 <CollapsibleTrigger as-child>
                     <button
                         type="button"
-                        class="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-muted-foreground transition hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
+                        class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-muted-foreground transition hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
                         <span class="inline-flex items-center gap-2 font-medium">
                             <Send class="size-3.5" aria-hidden="true" />
@@ -177,18 +179,18 @@ onBeforeUnmount(() => {
                     </button>
                 </CollapsibleTrigger>
 
-                <CollapsibleContent class="grid gap-2 border-t border-border/60 px-2.5 pt-2.5 pb-2.5">
+                <CollapsibleContent class="grid gap-2 border-t border-border/60 px-2 pt-2 pb-2">
                     <p class="text-[10px] text-muted-foreground">
                         {{ t('flows.webhook_page.payload_hint') }}
                     </p>
 
                     <Textarea
                         v-model="payload"
-                        rows="6"
+                        rows="4"
                         spellcheck="false"
                         :disabled="isSubmitting"
                         :aria-label="t('flows.webhook_page.payload_title')"
-                        class="min-h-[7.5rem] font-mono text-xs leading-5"
+                        class="min-h-[6rem] font-mono text-[11px] leading-5"
                         :aria-invalid="validationError ? 'true' : 'false'"
                     />
 
@@ -229,7 +231,7 @@ onBeforeUnmount(() => {
 
                     <pre
                         aria-live="polite"
-                        class="max-h-40 overflow-auto rounded-md border border-border/70 bg-muted/35 p-2 font-mono text-[10px] leading-5 text-foreground"
+                        class="max-h-32 overflow-auto rounded-md border border-border/70 bg-muted/35 p-1.5 font-mono text-[10px] leading-5 text-foreground"
                         v-text="responseState.body"
                     />
                 </CollapsibleContent>

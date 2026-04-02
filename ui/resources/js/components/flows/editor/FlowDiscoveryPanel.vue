@@ -10,7 +10,14 @@ import {
 import cronstrue from 'cronstrue';
 import 'cronstrue/locales/ru';
 import { ArrowUpRight, ScanSearch } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    ref,
+    watch,
+    type ComponentPublicInstance,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 
 type DiscoveryItemType = 'actor' | 'event';
@@ -97,7 +104,7 @@ const resolveGraphId = (value: unknown): string | null => {
 };
 
 const resolveSourceLine = (value: unknown): number | null => {
-    if (!Number.isInteger(value)) {
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
         return null;
     }
 
@@ -220,16 +227,22 @@ const buildItemKey = (type: DiscoveryItemType, id: string): string => {
 const setItemRef = (
     type: DiscoveryItemType,
     id: string,
-    element: Element | null,
+    element: Element | ComponentPublicInstance | null,
 ): void => {
     const key = buildItemKey(type, id);
+    const resolvedElement =
+        element instanceof Element
+            ? element
+            : element?.$el instanceof Element
+              ? element.$el
+              : null;
 
-    if (!(element instanceof HTMLElement)) {
+    if (!(resolvedElement instanceof HTMLElement)) {
         itemRefs.delete(key);
         return;
     }
 
-    itemRefs.set(key, element);
+    itemRefs.set(key, resolvedElement);
 };
 
 const nodeMetadataById = computed(() => {
@@ -451,8 +464,8 @@ const events = computed<DiscoveryEvent[]>(() => {
             const event =
                 typeof rawEvent === 'object' && rawEvent !== null
                     ? (rawEvent as Record<string, unknown>)
-                    : { id: rawEvent };
-            const id = resolveGraphId(event.id ?? event.name);
+                    : null;
+            const id = resolveGraphId(event?.id ?? event?.name ?? rawEvent);
             if (!id) {
                 return [];
             }
@@ -462,7 +475,7 @@ const events = computed<DiscoveryEvent[]>(() => {
             return [
                 {
                     id,
-                    name: resolveGraphId(event.name ?? event.id) ?? id,
+                    name: resolveGraphId(event?.name ?? event?.id ?? rawEvent) ?? id,
                     type: 'event' as const,
                     consumedBy: uniqueNames(
                         edgeLinks.value.eventToActors.get(id) ?? [],
@@ -473,15 +486,15 @@ const events = computed<DiscoveryEvent[]>(() => {
                             .map(([actorId]) => actorId),
                     ),
                     sourceLine:
-                        resolveSourceLine(event.source_line) ??
+                        resolveSourceLine(event?.source_line) ??
                         sourceMetadata?.sourceLine ??
                         null,
                     sourceKind:
-                        resolveSourceKind(event.source_kind) ??
+                        resolveSourceKind(event?.source_kind) ??
                         sourceMetadata?.sourceKind ??
                         null,
                     sourceModule:
-                        resolveSourceModule(event.source_module) ??
+                        resolveSourceModule(event?.source_module) ??
                         sourceMetadata?.sourceModule ??
                         null,
                     cronDescription: describeCronExpression(id),
@@ -659,7 +672,7 @@ onBeforeUnmount(() => {
     <section
         v-if="hasDiscoveryItems"
         ref="containerRef"
-        class="h-full divide-y overflow-y-auto overscroll-contain rounded-xl border border-border"
+        class="h-full divide-y divide-border/80 overflow-y-auto overscroll-contain"
         :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
     >
         <template v-if="actors.length">

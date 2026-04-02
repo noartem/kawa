@@ -101,6 +101,7 @@ class FlowChatController extends Controller
                 $request->user(),
                 $request->message(),
                 $request->currentCode(),
+                $request->history(),
             ),
             action: 'store',
             flow: $flow,

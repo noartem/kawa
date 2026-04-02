@@ -3,11 +3,13 @@ import { Button } from '@/components/ui/button';
 import {
     Braces,
     Brackets,
+    Check,
     ChevronsDownUp,
     ChevronsUpDown,
+    Copy,
     Dot,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import FlowLogPayloadTreeNode from '@/components/FlowLogPayloadTreeNode.vue';
@@ -119,6 +121,10 @@ const shouldShowCollapseAll = computed(() => {
     return canToggleAll.value && hasExpandedNodes.value;
 });
 
+const serializedPayload = computed(() => {
+    return JSON.stringify(props.payload, null, 2) ?? 'null';
+});
+
 const expandAll = (): void => {
     expandSignal.value += 1;
 };
@@ -126,6 +132,73 @@ const expandAll = (): void => {
 const collapseAll = (): void => {
     collapseSignal.value += 1;
 };
+
+const copied = ref(false);
+
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearCopiedTimer = (): void => {
+    if (copiedTimer === null) {
+        return;
+    }
+
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+};
+
+const copyWithFallback = (value: string): boolean => {
+    if (typeof document === 'undefined') {
+        return false;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+        return document.execCommand('copy');
+    } catch {
+        return false;
+    } finally {
+        document.body.removeChild(textarea);
+    }
+};
+
+const copyPayload = async (): Promise<void> => {
+    let didCopy = false;
+
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(serializedPayload.value);
+            didCopy = true;
+        }
+    } catch {
+        didCopy = false;
+    }
+
+    if (!didCopy) {
+        didCopy = copyWithFallback(serializedPayload.value);
+    }
+
+    if (!didCopy) {
+        return;
+    }
+
+    copied.value = true;
+    clearCopiedTimer();
+    copiedTimer = setTimeout(() => {
+        copied.value = false;
+        copiedTimer = null;
+    }, 1800);
+};
+
+onBeforeUnmount(() => {
+    clearCopiedTimer();
+});
 </script>
 
 <template>
@@ -157,8 +230,25 @@ const collapseAll = (): void => {
                 </div>
             </div>
 
-            <div v-if="canToggleAll" class="flex items-center">
+            <div class="flex items-center gap-1">
                 <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 gap-1.5 px-2 text-[11px]"
+                    @click="copyPayload"
+                >
+                    <Check v-if="copied" class="size-3.5" />
+                    <Copy v-else class="size-3.5" />
+                    {{
+                        copied
+                            ? t('flows.logs.payload.copied')
+                            : t('flows.logs.payload.copy')
+                    }}
+                </Button>
+
+                <Button
+                    v-if="canToggleAll"
                     type="button"
                     variant="ghost"
                     size="sm"

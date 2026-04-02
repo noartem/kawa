@@ -163,8 +163,12 @@ const getVisibleDiffSummaryItems = (
     className: string;
 }> => {
     const summary = getDiffSummary(message);
-
-    return [
+    const items: Array<{
+        key: 'added' | 'removed';
+        count: number;
+        label: string;
+        className: string;
+    }> = [
         {
             key: 'added',
             count: summary.added,
@@ -179,7 +183,9 @@ const getVisibleDiffSummaryItems = (
             className:
                 'inline-flex items-center rounded-md bg-rose-500/10 px-2 py-1 font-semibold text-rose-700 dark:text-rose-400',
         },
-    ].filter((item) => item.count > 0);
+    ];
+
+    return items.filter((item) => item.count > 0);
 };
 </script>
 
@@ -293,10 +299,10 @@ const getVisibleDiffSummaryItems = (
             >
                 <div class="rounded-lg border border-border bg-muted/15">
                     <div
-                        class="sticky -top-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-background/95 px-3 py-2 text-xs text-muted-foreground backdrop-blur-sm"
+                        class="sticky -top-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm transition-[border-radius,background-color,box-shadow] duration-200"
                         :class="
                             isDiffExpanded(message.id)
-                                ? 'border-b border-border rounded-b-none'
+                                ? 'rounded-b-none border-b border-border bg-background/98'
                                 : ''
                         "
                     >
@@ -369,11 +375,11 @@ const getVisibleDiffSummaryItems = (
                         "
                     >
                         <div
-                            class="overflow-hidden rounded-b-lg bg-linear-to-br from-background to-muted/25 transition duration-200 ease-out"
+                            class="overflow-hidden rounded-b-lg bg-linear-to-br from-background to-muted/25 transition-[opacity,transform] duration-200 ease-out"
                             :class="
                                 isDiffExpanded(message.id)
-                                    ? 'opacity-100'
-                                    : 'pointer-events-none opacity-0'
+                                    ? 'translate-y-0 opacity-100'
+                                    : 'pointer-events-none -translate-y-1 opacity-0'
                             "
                         >
                             <FlowCodeMergeView

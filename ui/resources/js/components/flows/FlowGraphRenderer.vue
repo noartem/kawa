@@ -95,8 +95,8 @@ const DEFAULT_CAMERA_STATE: CameraStateSnapshot = {
 };
 const LAYOUT_PADDING = 0.22;
 const MAX_MOUNT_RETRIES = 30;
-const PROGRAMMATIC_HIGHLIGHT_FLASH_MS = 180;
-const PROGRAMMATIC_HIGHLIGHT_FADE_MS = 1320;
+const PROGRAMMATIC_HIGHLIGHT_FLASH_MS = 260;
+const PROGRAMMATIC_HIGHLIGHT_FADE_MS = 2100;
 
 const clearMountRetry = (): void => {
     if (mountRetryFrame === null) {

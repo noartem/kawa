@@ -232,13 +232,13 @@ export const resolveEdgeHighlightAttributes = ({
             typeof nextAttributes.size === 'number'
                 ? nextAttributes.size
                 : baseSize,
-            baseSize + 2.4 * programmaticHighlightStrength,
+            baseSize + 3.2 * programmaticHighlightStrength,
         );
         nextAttributes.zIndex = Math.max(
             typeof nextAttributes.zIndex === 'number'
                 ? nextAttributes.zIndex
                 : 0,
-            2,
+            3,
         );
     }
 

@@ -61,6 +61,26 @@ const props = defineProps<{
 
 const { t, locale } = useI18n();
 
+type FlowChatHistoryKind = 'apply_proposal' | 'apply_and_save_proposal';
+
+interface PendingChatHistoryEntry {
+    clientId: string;
+    kind: FlowChatHistoryKind;
+    content: string;
+    createdAt: string;
+    sourceCode: string;
+    proposedCode: string;
+}
+
+interface ChatMessageRequest {
+    message: string;
+    currentCode: string;
+    history: PendingChatHistoryEntry[];
+}
+
+const MAX_CHAT_HISTORY_ENTRIES = 10;
+const MAX_CHAT_HISTORY_CODE_LENGTH = 100000;
+
 const actionInProgress = ref<
     'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
 >(null);
@@ -70,10 +90,8 @@ const chatPending = ref(false);
 const chatDraft = ref('');
 const chatError = ref<string | null>(null);
 const optimisticUserMessage = ref<FlowChatMessage | null>(null);
-const failedChatRequest = ref<{
-    message: string;
-    currentCode: string;
-} | null>(null);
+const pendingChatHistory = ref<PendingChatHistoryEntry[]>([]);
+const failedChatRequest = ref<ChatMessageRequest | null>(null);
 const activeChat = ref<FlowChatConversation | null>(props.activeChat);
 const pastChats = ref<FlowChatConversation[]>(props.pastChats ?? []);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -154,9 +172,27 @@ const displayDevelopmentLogs = computed<FlowLog[]>(() => {
 });
 const displayedChatMessages = computed<FlowChatMessage[]>(() => {
     const baseMessages = activeChat.value?.messages ?? [];
-    const messages = optimisticUserMessage.value
-        ? [...baseMessages, optimisticUserMessage.value]
-        : [...baseMessages];
+    const historyMessages = pendingChatHistory.value.map(
+        (entry): FlowChatMessage => ({
+            id: entry.clientId,
+            role: 'user',
+            content: entry.content,
+            created_at: entry.createdAt,
+            kind: entry.kind,
+            status: null,
+            transient: true,
+            retryable: false,
+            source_code: entry.sourceCode,
+            proposed_code: entry.proposedCode,
+            diff: null,
+            has_code_changes: false,
+        }),
+    );
+    const messages = [...baseMessages, ...historyMessages];
+
+    if (optimisticUserMessage.value) {
+        messages.push(optimisticUserMessage.value);
+    }
 
     if (chatPending.value) {
         return [
@@ -243,7 +279,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     },
     {
         title: t('flows.breadcrumbs.flow', { id: props.flow.id }),
-        href: flowShow({ flow: props.flow.id }).url,
+        href: flowShow({ flow: props.flow.id ?? 0 }).url,
     },
 ]);
 
@@ -530,8 +566,6 @@ const refreshFlowView = (): void => {
     refreshInFlight.value = true;
 
     router.reload({
-        preserveState: true,
-        preserveScroll: true,
         only: [...refreshOnlyProps],
         onFinish: () => {
             refreshInFlight.value = false;
@@ -540,9 +574,11 @@ const refreshFlowView = (): void => {
 };
 
 const getMetaCsrfToken = (): string | null => {
-    return document
-        .querySelector('meta[name="csrf-token"]')
-        ?.getAttribute('content');
+    return (
+        document
+            .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+            ?.getAttribute('content') ?? null
+    );
 };
 
 const getCookieValue = (name: string): string | null => {
@@ -663,6 +699,7 @@ const syncChatState = (payload: {
     pastChats.value = payload.pastChats;
     chatError.value = null;
     optimisticUserMessage.value = null;
+    pendingChatHistory.value = [];
     failedChatRequest.value = null;
 };
 
@@ -683,10 +720,47 @@ const createOptimisticUserMessage = (message: string): FlowChatMessage => {
     };
 };
 
-const submitChatMessageRequest = async (request: {
-    message: string;
-    currentCode: string;
-}): Promise<void> => {
+const createPendingChatHistoryEntry = (
+    kind: FlowChatHistoryKind,
+    sourceCode: string,
+    proposedCode: string,
+): PendingChatHistoryEntry => {
+    return {
+        clientId: `ui-history-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind,
+        content: t(
+            kind === 'apply_and_save_proposal'
+                ? 'flows.editor.chat.history_applied_and_saved'
+                : 'flows.editor.chat.history_applied',
+        ),
+        createdAt: new Date().toISOString(),
+        sourceCode,
+        proposedCode,
+    };
+};
+
+const normalizeChatHistoryCode = (value: string): string => {
+    return value.length > MAX_CHAT_HISTORY_CODE_LENGTH ? '' : value;
+};
+
+const appendPendingChatHistory = (
+    kind: FlowChatHistoryKind,
+    sourceCode: string,
+    proposedCode: string,
+): void => {
+    const nextEntry = createPendingChatHistoryEntry(
+        kind,
+        normalizeChatHistoryCode(sourceCode),
+        normalizeChatHistoryCode(proposedCode),
+    );
+
+    pendingChatHistory.value = [
+        ...pendingChatHistory.value,
+        nextEntry,
+    ].slice(-MAX_CHAT_HISTORY_ENTRIES);
+};
+
+const submitChatMessageRequest = async (request: ChatMessageRequest): Promise<void> => {
     chatError.value = null;
     chatPending.value = true;
     failedChatRequest.value = request;
@@ -698,6 +772,13 @@ const submitChatMessageRequest = async (request: {
         }>(flowChatStore({ flow: props.flow.id ?? 0 }).url, {
             message: request.message,
             current_code: request.currentCode,
+            history: request.history.map((entry) => ({
+                client_id: entry.clientId,
+                kind: entry.kind,
+                content: entry.content,
+                source_code: entry.sourceCode,
+                proposed_code: entry.proposedCode,
+            })),
         });
 
         syncChatState(payload);
@@ -723,6 +804,7 @@ const sendChatMessage = async (): Promise<void> => {
     const request = {
         message: chatDraft.value.trim(),
         currentCode: form.code ?? '',
+        history: [...pendingChatHistory.value],
     };
 
     optimisticUserMessage.value = createOptimisticUserMessage(request.message);
@@ -750,6 +832,7 @@ const startNewChat = async (): Promise<void> => {
 
     chatError.value = null;
     optimisticUserMessage.value = null;
+    pendingChatHistory.value = [];
     failedChatRequest.value = null;
     chatPending.value = true;
 
@@ -782,6 +865,7 @@ const compactChat = async (): Promise<void> => {
 
     chatError.value = null;
     optimisticUserMessage.value = null;
+    pendingChatHistory.value = [];
     failedChatRequest.value = null;
     chatPending.value = true;
 
@@ -804,19 +888,55 @@ const compactChat = async (): Promise<void> => {
     }
 };
 
-const applyProposal = (message: FlowChatMessage): void => {
+const applyProposalToEditor = (
+    message: FlowChatMessage,
+): { sourceCode: string; proposedCode: string } | null => {
     if (!message.proposed_code || message.proposed_code === form.code) {
+        return null;
+    }
+
+    const sourceCode = form.code ?? '';
+    const proposedCode = message.proposed_code;
+
+    form.code = proposedCode;
+    chatError.value = null;
+
+    return {
+        sourceCode,
+        proposedCode,
+    };
+};
+
+const applyProposal = (message: FlowChatMessage): void => {
+    const appliedSnapshot = applyProposalToEditor(message);
+
+    if (appliedSnapshot === null) {
         return;
     }
 
-    form.code = message.proposed_code;
-    chatError.value = null;
+    appendPendingChatHistory(
+        'apply_proposal',
+        appliedSnapshot.sourceCode,
+        appliedSnapshot.proposedCode,
+    );
 };
 
 const applyAndSaveProposal = (message: FlowChatMessage): void => {
-    applyProposal(message);
+    const appliedSnapshot = applyProposalToEditor(message);
 
-    if (message.proposed_code && message.proposed_code !== props.flow.code) {
+    if (appliedSnapshot === null) {
+        return;
+    }
+
+    const shouldSave = appliedSnapshot.proposedCode !== (props.flow.code ?? '');
+
+    appendPendingChatHistory(
+        shouldSave ? 'apply_and_save_proposal' : 'apply_proposal',
+        appliedSnapshot.sourceCode,
+        appliedSnapshot.proposedCode,
+    );
+
+    if (shouldSave) {
         save();
     }
 };

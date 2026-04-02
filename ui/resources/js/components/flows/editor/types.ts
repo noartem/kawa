@@ -55,6 +55,8 @@ export interface FlowChatMessage {
         | 'assistant_reply'
         | 'code_suggestion'
         | 'compact_summary'
+        | 'apply_proposal'
+        | 'apply_and_save_proposal'
         | null;
     response_mode?: 'message_only' | 'message_with_code' | null;
     status?: 'pending' | 'error' | null;

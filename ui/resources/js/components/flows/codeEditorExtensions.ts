@@ -10,6 +10,7 @@ interface CreateFlowCodeEditorExtensionsOptions {
     lineWrapping?: boolean;
     isDarkTheme?: boolean;
     containOverscroll?: boolean;
+    inheritBorderRadius?: boolean;
     extraExtensions?: Extension[];
 }
 
@@ -25,6 +26,7 @@ export const createFlowCodeEditorExtensions = (
         lineWrapping = true,
         isDarkTheme = false,
         containOverscroll = false,
+        inheritBorderRadius = true,
         extraExtensions = [],
     } = options;
     const githubTheme = isDarkTheme ? githubDark : githubLight;
@@ -32,20 +34,28 @@ export const createFlowCodeEditorExtensions = (
     const codeEditorTheme = EditorView.theme({
         '&': {
             height: '100%',
+            ...(containOverscroll ? { overscrollBehavior: 'contain' } : {}),
         },
         '.cm-editor': {
-            borderRadius: 'inherit',
+            borderRadius: inheritBorderRadius ? 'inherit' : '0',
             overflow: 'hidden',
+            ...(containOverscroll ? { overscrollBehavior: 'contain' } : {}),
         },
         '.cm-scroller': {
             overflow: 'auto',
-            ...(containOverscroll ? { overscrollBehavior: 'contain' } : {}),
+            ...(containOverscroll
+                ? {
+                      overscrollBehavior: 'contain',
+                      overscrollBehaviorX: 'contain',
+                      overscrollBehaviorY: 'contain',
+                  }
+                : {}),
             fontFamily:
                 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
             lineHeight: '1.5',
-            borderRadius: 'inherit',
-            borderTopRightRadius: 'inherit',
-            borderBottomRightRadius: 'inherit',
+            borderRadius: inheritBorderRadius ? 'inherit' : '0',
+            borderTopRightRadius: inheritBorderRadius ? 'inherit' : '0',
+            borderBottomRightRadius: inheritBorderRadius ? 'inherit' : '0',
         },
         '.cm-content': {
             minHeight: '100%',
@@ -56,8 +66,8 @@ export const createFlowCodeEditorExtensions = (
             backgroundColor: 'var(--muted)',
             color: 'var(--muted-foreground)',
             borderRight: '1px solid var(--border)',
-            borderTopLeftRadius: 'inherit',
-            borderBottomLeftRadius: 'inherit',
+            borderTopLeftRadius: inheritBorderRadius ? 'inherit' : '0',
+            borderBottomLeftRadius: inheritBorderRadius ? 'inherit' : '0',
         },
         '.cm-lineNumbers .cm-gutterElement': {
             padding: '0 0.6rem 0 0.75rem',
