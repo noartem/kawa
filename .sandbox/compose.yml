@@ -85,6 +85,12 @@ services:
       timeout: 5s
       start_period: 5s
 
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   tmp: {}
   composer-cache: {}

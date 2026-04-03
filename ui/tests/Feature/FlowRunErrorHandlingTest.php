@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Jobs\ProcessFlowManager;
+use App\Mail\FlowRuntimeEmail;
 use App\Models\Flow;
 use App\Models\User;
 use App\Services\FlowManagerClient;
 use App\Services\FlowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use RuntimeException;
 use Tests\TestCase;
 
 class FlowRunErrorHandlingTest extends TestCase
@@ -539,6 +542,297 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertNotEmpty($run->graph_snapshot['nodes'] ?? []);
         $this->assertNotEmpty($run->graph_snapshot['edges'] ?? []);
         $this->assertSame('Cron', $run->graph_snapshot['nodes'][0]['id'] ?? null);
+    }
+
+    public function test_send_email_runtime_event_uses_explicit_recipient(): void
+    {
+        Mail::fake();
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => 'owner@example.com']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'name' => 'Approval Flow',
+            'container_id' => 'container-id-5',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-5',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-5',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => 'Approval requested',
+                'recipient' => 'recipient@example.com',
+                'subject' => 'Manual approval needed',
+            ],
+        ]);
+        $job->handle();
+
+        Mail::assertSent(FlowRuntimeEmail::class, function (FlowRuntimeEmail $mail): bool {
+            $mail->assertTo('recipient@example.com');
+            $mail->assertHasSubject('Manual approval needed');
+            $mail->assertSeeInText('Approval requested');
+
+            return true;
+        });
+
+        $logs = $run->logs()->orderBy('id')->get();
+
+        $this->assertSame([
+            'Event: flow_runtime_event',
+            'Email sent.',
+        ], $logs->pluck('message')->all());
+        $this->assertSame([
+            'message_redacted' => true,
+            'recipient_count' => 1,
+            'subject_present' => true,
+        ], $logs[0]->context['payload'] ?? null);
+    }
+
+    public function test_send_email_runtime_event_uses_recipient_list(): void
+    {
+        Mail::fake();
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => 'owner@example.com']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'name' => 'Broadcast Flow',
+            'container_id' => 'container-id-5b',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-5b',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-5b',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => 'Broadcast update',
+                'recipient' => [
+                    ' first@example.com ',
+                    'second@example.com',
+                    'first@example.com',
+                    '',
+                    123,
+                ],
+                'subject' => 'Broadcast notification',
+            ],
+        ]);
+        $job->handle();
+
+        Mail::assertSent(FlowRuntimeEmail::class, function (FlowRuntimeEmail $mail): bool {
+            $mail->assertHasSubject('Broadcast notification');
+            $mail->assertSeeInText('Broadcast update');
+
+            return $mail->hasTo('first@example.com')
+                && $mail->hasTo('second@example.com');
+        });
+
+        $logs = $run->logs()->orderBy('id')->get();
+
+        $this->assertSame([
+            'message_redacted' => true,
+            'recipient_count' => 2,
+            'subject_present' => true,
+        ], $logs[0]->context['payload'] ?? null);
+    }
+
+    public function test_send_email_runtime_event_falls_back_to_flow_owner(): void
+    {
+        Mail::fake();
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => 'owner@example.com']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'name' => 'Fallback Flow',
+            'container_id' => 'container-id-6',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-6',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-6',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => 'Fallback recipient',
+                'subject' => '   ',
+            ],
+        ]);
+        $job->handle();
+
+        Mail::assertSent(FlowRuntimeEmail::class, function (FlowRuntimeEmail $mail): bool {
+            $mail->assertTo('owner@example.com');
+            $mail->assertHasSubject('Flow "Fallback Flow" notification');
+            $mail->assertSeeInText('Fallback recipient');
+
+            return true;
+        });
+    }
+
+    public function test_send_email_runtime_event_logs_warning_when_recipient_is_missing(): void
+    {
+        Mail::fake();
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => '']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-7',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-7',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-7',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => 'No recipient available',
+            ],
+        ]);
+        $job->handle();
+
+        Mail::assertNothingSent();
+
+        $logs = $run->logs()->orderBy('id')->get(['level', 'message']);
+
+        $this->assertSame('info', $logs[0]->level);
+        $this->assertSame('Event: flow_runtime_event', $logs[0]->message);
+        $this->assertSame('warning', $logs[1]->level);
+        $this->assertSame('SendEmail skipped: recipient not resolved.', $logs[1]->message);
+    }
+
+    public function test_send_email_runtime_event_logs_error_when_mail_send_fails(): void
+    {
+        Mail::shouldReceive('to')
+            ->once()
+            ->with(['recipient@example.com'])
+            ->andReturnSelf();
+
+        Mail::shouldReceive('send')
+            ->once()
+            ->andThrow(new RuntimeException('SMTP unavailable'));
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => 'owner@example.com']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-8',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-8',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-8',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => 'Send failure',
+                'recipient' => 'recipient@example.com',
+            ],
+        ]);
+        $job->handle();
+
+        $logs = $run->logs()->orderBy('id')->get(['level', 'message', 'context']);
+
+        $this->assertSame('error', $logs[1]->level);
+        $this->assertSame('SendEmail failed during delivery.', $logs[1]->message);
+        $this->assertSame('SMTP unavailable', $logs[1]->context['error'] ?? null);
+    }
+
+    public function test_malformed_send_email_runtime_event_still_redacts_log_context(): void
+    {
+        Mail::fake();
+
+        /** @var User $user */
+        $user = User::factory()->createOne(['email' => 'owner@example.com']);
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'container_id' => 'container-id-9',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-9',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_runtime_event', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'container_id' => 'container-id-9',
+            'kind' => 'event_dispatched',
+            'event' => 'SendEmail',
+            'payload' => [
+                'message' => ['secret' => 'Approval requested'],
+                'recipient' => 'recipient@example.com',
+            ],
+        ]);
+        $job->handle();
+
+        Mail::assertNothingSent();
+
+        $logs = $run->logs()->orderBy('id')->get();
+
+        $this->assertCount(1, $logs);
+        $this->assertSame([
+            'message_redacted' => true,
+            'recipient_count' => 1,
+            'subject_present' => false,
+        ], $logs[0]->context['payload'] ?? null);
     }
 
     public function test_container_crashed_event_does_not_override_intentional_stop(): void

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Events\FlowEventBroadcast;
+use App\Mail\FlowRuntimeEmail;
 use App\Models\Flow;
 use App\Models\FlowLog;
 use App\Models\FlowRun;
@@ -12,6 +13,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class ProcessFlowManager implements ShouldQueue
 {
@@ -35,6 +38,7 @@ class ProcessFlowManager implements ShouldQueue
         $this->syncFlowGraphFromPayload($flowRun);
         $this->recordLog($flow, $flowRun);
         broadcast(new FlowEventBroadcast($flow->id, $this->event, $this->payload));
+        $this->handleRuntimeEmailDispatch($flow, $flowRun);
     }
 
     private function resolveFlowRun(): ?FlowRun
@@ -244,13 +248,13 @@ class ProcessFlowManager implements ShouldQueue
             default => 'info',
         };
 
-        FlowLog::create([
-            'flow_id' => $flow->id,
-            'flow_run_id' => $flowRun?->id,
-            'level' => $level,
-            'message' => sprintf('Event: %s', $this->event),
-            'context' => $this->payload,
-        ]);
+        $this->createFlowLog(
+            $flow,
+            $flowRun,
+            $level,
+            sprintf('Event: %s', $this->event),
+            $this->logContext(),
+        );
 
         if ($flowRun && (isset($this->payload['actors']) || isset($this->payload['events']))) {
             $flowRun->update([
@@ -258,6 +262,201 @@ class ProcessFlowManager implements ShouldQueue
                 'events' => $this->payload['events'] ?? $flowRun->events,
             ]);
         }
+    }
+
+    private function handleRuntimeEmailDispatch(Flow $flow, ?FlowRun $flowRun): void
+    {
+        $mailPayload = $this->resolveRuntimeEmailPayload();
+
+        if ($mailPayload === null) {
+            return;
+        }
+
+        $recipients = $this->normalizeRecipients($mailPayload['recipient'] ?? null);
+
+        if ($recipients === []) {
+            $recipients = $this->normalizeRecipients($flow->user?->email);
+        }
+
+        if ($recipients === []) {
+            $this->createFlowLog(
+                $flow,
+                $flowRun,
+                'warning',
+                'SendEmail skipped: recipient not resolved.',
+                ['event' => 'SendEmail'],
+            );
+
+            return;
+        }
+
+        try {
+            Mail::to($recipients)->send(new FlowRuntimeEmail(
+                $this->runtimeEmailSubject($flow, $mailPayload['subject'] ?? null),
+                $mailPayload['message'],
+            ));
+
+            $this->createFlowLog(
+                $flow,
+                $flowRun,
+                'info',
+                'Email sent.',
+                ['event' => 'SendEmail'],
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $this->createFlowLog(
+                $flow,
+                $flowRun,
+                'error',
+                'SendEmail failed during delivery.',
+                [
+                    'event' => 'SendEmail',
+                    'error' => $exception->getMessage(),
+                ],
+            );
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function logContext(): array
+    {
+        if (! $this->isRuntimeSendEmailEvent()) {
+            return $this->payload;
+        }
+
+        $context = $this->payload;
+        $mailPayload = is_array($context['payload'] ?? null) ? $context['payload'] : [];
+        $context['payload'] = [
+            'message_redacted' => true,
+            'recipient_count' => count($this->normalizeRecipients($mailPayload['recipient'] ?? null)),
+            'subject_present' => $this->normalizeSubject($mailPayload['subject'] ?? null) !== null,
+        ];
+
+        return $context;
+    }
+
+    private function isRuntimeSendEmailEvent(): bool
+    {
+        if ($this->event !== 'flow_runtime_event') {
+            return false;
+        }
+
+        if (($this->payload['kind'] ?? null) !== 'event_dispatched') {
+            return false;
+        }
+
+        return ($this->payload['event'] ?? null) === 'SendEmail';
+    }
+
+    /**
+     * @return array{message: string, recipient?: mixed, subject?: mixed}|null
+     */
+    private function resolveRuntimeEmailPayload(): ?array
+    {
+        if (! $this->isRuntimeSendEmailEvent()) {
+            return null;
+        }
+
+        $mailPayload = $this->payload['payload'] ?? null;
+
+        if (! is_array($mailPayload)) {
+            return null;
+        }
+
+        if (! is_string($mailPayload['message'] ?? null)) {
+            return null;
+        }
+
+        return $mailPayload;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeRecipients(mixed $value): array
+    {
+        if (is_string($value)) {
+            $recipient = trim($value);
+
+            return $recipient === '' ? [] : [$recipient];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $recipients = [];
+
+        foreach ($value as $recipient) {
+            if (! is_string($recipient)) {
+                continue;
+            }
+
+            $normalizedRecipient = trim($recipient);
+
+            if ($normalizedRecipient === '') {
+                continue;
+            }
+
+            $recipients[] = $normalizedRecipient;
+        }
+
+        return array_values(array_unique($recipients));
+    }
+
+    private function normalizeSubject(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $subject = trim($value);
+
+        if ($subject === '') {
+            return null;
+        }
+
+        return $subject;
+    }
+
+    private function runtimeEmailSubject(Flow $flow, mixed $value): string
+    {
+        $subject = $this->normalizeSubject($value);
+
+        if ($subject !== null) {
+            return $subject;
+        }
+
+        $flowName = trim((string) $flow->name);
+
+        if ($flowName === '') {
+            return 'Flow notification';
+        }
+
+        return sprintf('Flow "%s" notification', $flowName);
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function createFlowLog(
+        Flow $flow,
+        ?FlowRun $flowRun,
+        string $level,
+        string $message,
+        array $context,
+    ): void {
+        FlowLog::create([
+            'flow_id' => $flow->id,
+            'flow_run_id' => $flowRun?->id,
+            'level' => $level,
+            'message' => $message,
+            'context' => $context,
+        ]);
     }
 
     private function syncFlowGraphFromPayload(?FlowRun $flowRun): void
