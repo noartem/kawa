@@ -284,7 +284,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="font-mono text-[12px] leading-6">
-        <div class="flex items-start gap-1.5">
+        <div class="flex items-center gap-1.5">
             <button
                 v-if="isCollapsible && childCount > 0"
                 type="button"
