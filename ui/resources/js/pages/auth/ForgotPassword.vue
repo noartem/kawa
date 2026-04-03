@@ -22,6 +22,7 @@ const { t } = useI18n();
     <AuthLayout
         :title="t('auth.forgot.title')"
         :description="t('auth.forgot.description')"
+        show-fluid-smoke
     >
         <Head :title="t('auth.forgot.title')" />
 

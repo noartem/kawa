@@ -16,6 +16,7 @@ const { t } = useI18n();
     <AuthLayout
         :title="t('auth.confirm.title')"
         :description="t('auth.confirm.description')"
+        show-fluid-smoke
     >
         <Head :title="t('auth.confirm.short')" />
 

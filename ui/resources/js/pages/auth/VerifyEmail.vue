@@ -19,6 +19,7 @@ const { t } = useI18n();
     <AuthLayout
         :title="t('auth.verify.title')"
         :description="t('auth.verify.description')"
+        show-fluid-smoke
     >
         <Head :title="t('auth.verify.short')" />
 

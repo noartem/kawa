@@ -53,6 +53,7 @@ const codeValue = computed<string>(() => code.value.join(''));
     <AuthLayout
         :title="authConfigContent.title"
         :description="authConfigContent.description"
+        show-fluid-smoke
     >
         <Head :title="t('auth.two_factor.title')" />
 

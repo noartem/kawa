@@ -1,7 +1,7 @@
 export const messages = {
     en: {
         app: {
-            name: 'Kawaflow',
+            name: 'Kawa',
         },
         nav: {
             dashboard: 'Dashboard',

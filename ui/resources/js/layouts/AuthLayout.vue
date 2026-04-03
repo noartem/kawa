@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import AuthLayout from '@/layouts/auth/AuthSimpleLayout.vue';
 
-defineProps<{
-    title?: string;
-    description?: string;
-}>();
+withDefaults(
+    defineProps<{
+        title?: string;
+        description?: string;
+        showFluidSmoke?: boolean;
+    }>(),
+    {
+        showFluidSmoke: false,
+    },
+);
 </script>
 
 <template>
-    <AuthLayout :title="title" :description="description">
+    <AuthLayout
+        :title="title"
+        :description="description"
+        :show-fluid-smoke="showFluidSmoke"
+    >
         <slot />
     </AuthLayout>
 </template>

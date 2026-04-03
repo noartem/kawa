@@ -27,6 +27,7 @@ const { t } = useI18n();
     <AuthBase
         :title="t('auth.login.title')"
         :description="t('auth.login.description')"
+        show-fluid-smoke
     >
         <Head :title="t('auth.login.short')" />
 
