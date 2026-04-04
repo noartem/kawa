@@ -1,77 +1,7 @@
 # TODO
 
-## 1. Webhook discovery implementation target
-- [x] Trace webhook implementation line selection in `ui/resources/js/components/flows/editor/FlowDiscoveryPanel.vue`.
-- [x] Make `implementation` point to the first actual `Webhook.by(...)` usage/call site instead of an imported event line.
-- [x] Preserve the current fallback path when graph data is unavailable.
-- [x] Add or update backend tests covering webhook source-line selection.
+## 1. Основные доработки
 
-## 2. Webhook page navigation and dedicated deployment page
-- [x] Make `flow #N "name"` on `ui/resources/js/pages/webhooks/Show.vue` link to the flow page.
-- [x] Make `run #N` on `ui/resources/js/pages/webhooks/Show.vue` link to a dedicated deployment page.
-- [x] Add a new route/page for a single deployment, shaped like `/flows/{flow}/deployments/{deployment}`.
-- [x] Show top navigation/breadcrumbs from the deployment page back to flows index, the flow page, and all deployments.
-- [x] Reuse existing deployment details UI instead of duplicating it.
-- [x] Add backend/frontend tests for route access and flow-deployment ownership.
-
-## 3. Fullscreen graph modal details
-- [x] Extend the fullscreen graph modal to show Discovery-like actor/event details inside the modal.
-- [x] Reuse the existing interaction model from `ui/resources/js/components/flows/editor/FlowDeploymentDetailsDialog.vue` where possible.
-- [x] Keep the modal open while browsing details.
-- [x] Close the modal and jump to code when `implementation` is clicked.
-
-## 4. Event dispatch graph highlighting
-- [x] Add a programmatic edge-highlight mechanism to `ui/resources/js/components/flows/FlowGraphRenderer.vue`.
-- [x] Highlight dispatch-related path edges in green.
-- [x] Animate the highlight as flash-then-fade without breaking hover highlighting.
-- [x] Verify the behavior in inline and fullscreen graph views.
-
-## 5. Fresh log highlighting
-- [x] Add transient freshness state for newly arrived logs in `ui/resources/js/components/FlowLogsPanel.vue`.
-- [x] Tint new logs slightly green and fade the effect over time.
-- [x] Preserve current autoscroll and stable row rendering behavior.
-
-## 6. Chat markdown via unified
-- [x] Replace the custom renderer in `ui/resources/js/lib/markdown.ts` with a safe `unified` pipeline.
-- [x] Add the required markdown and sanitization dependencies.
-- [x] Preserve expected markdown features used in chat messages.
-- [x] Add focused tests for safe rendering.
-
-## 7. Changes tab accordion migration
-- [x] Replace the manual changes-tab expand/collapse implementation with Reka UI accordion primitives.
-- [x] Keep the existing visual styling unchanged.
-- [x] Add local accordion wrappers under `ui/resources/js/components/ui` if needed.
-- [x] Verify keyboard accessibility and expected open/close behavior.
-
-## 8. Webhook Discovery quick JSON sender
-- [x] Add an inline send-JSON control on the webhook event items inside the Discovery tab.
-- [x] Let the user enter JSON and dispatch it directly from Discovery without opening the separate webhook page.
-- [x] Reuse existing webhook dispatch behavior and validation where possible.
-- [x] Keep the interaction lightweight so it fits naturally into the existing Discovery UI.
-
-## 9. Prevent page scroll chaining from editor-side panels
-- [x] Prevent outer page scrolling when inner scrollable areas reach their scroll bounds.
-- [x] Apply this to the logs container, editor-side changes list, Discovery list, and chat panel.
-- [x] Keep those panels feeling full-height and self-contained inside the editor workspace.
-- [x] Preserve intentional scrolling inside the panel itself.
-
-## 10. Доработки (проверить лично)
-- [x] Затухание новых логов немного быстрее
-- [x] Добавить анимацию на появление логов
-- [x] Добавить анимацию для аккардеона изменений
-- [x] Ненужные скругления у codemirror в списке изменений
-- [x] Если несколько изменений свернуты, то между ними сразу два бордера (1px+1px и выглядит более жирно чем должно быть)
-- [x] В модалке графа в панели дисковери список акторов/событий можно отрисоывать без бордера и лишних отступов. Пусть определяется в компоненте, где используется компонент этого списка, а не в самом списке.
-- [x] Должны подсвечивать с затуханиям ребра при возникновении событий dispatch
-- [x] Сделать quick send json более компактным, убрать лишнее
-- [x] В просмотр payload в логах добавить кнопку "скопировать"
-- [x] LLM чат не работает после первого сообщения - проблема скорее всего в том как отправляется история, в историю надо включать моменты apply отдельным сообщением
-- [x] Штука с превентом скролла сделана точно в Changes, наверно в других очевидных местах тоже, но проблема с редактором кода (Code editor) - там не скролл работает по прежнему и в конце начинает скролить страницу
-
-## 11. E2E
-- [x] Запусти все тесты и проверки, сделай полный отчет по состоянию проекта
-
-## 12. Доработки (проверить лично)
 - [ ] Убрать анимацию на появление логов
 - [ ] В модалке графа в панели дисковери список акторов/событий можно отрисоывать без бордера и лишних отступов. Пусть определяется в компоненте, где используется компонент этого списка, а не в самом списке.
 - [ ] Должны подсвечивать с затуханиям ребра при возникновении событий dispatch
@@ -83,9 +13,125 @@
 - [ ] Страница Flows/
 - [ ] Страница Dashboard/
 - [ ] Добавить логотип и ico
+- [ ] Chat
+    - [ ] При Apply не должна быть перезагрузка
+    - [ ] Не работает второе сообщение в чат, что-то не то с историей
+    - [ ] Посмотреть откуда берется инфа в промпте
+        - [ ] Надо шаблон в .md файл
+        - [ ] Генерировать детали kawa в промпте?
+- [ ] Надо разобраться с синхронизацией
+    Остался один заметный хвост: UI видел container_id, но статус deployment
+    местами еще оставался created, хотя runtime уже работал. Это уже не блокер
+    старта, а отдельная проблема синхронизации статуса в UI.
 
-## 13. Email
-- [ ] Отправка по SMTP, получение по IMAP
-  - [ ] Для отправки: https://laravel.com/docs/13.x/mail
-- [ ] Добавить отправку email черезе SendMail событие из kawa
+## 2. `ctx.storage()`
+
+Нужно добавить в контекст, который передаётся актору, общий `storage` — аналог `localStorage` для flow/акторов.
+
+`storage` представляет собой объект с методами `get`, `set`, `delete`,
+работающий по принципу `ключ → значение` и поддерживающий вложенные ключи
+(например: `users.0.name`, `settings.profile.language`).
+
+Основные требования:
+- общий для всех акторов в рамках одного запуска;
+- сохраняется между перезапусками;
+- существует отдельно для каждого окружения (dev/prod), при этом одновременно активен только один запуск;
+- при старте Flow Manager получает текущее состояние storage от UI;
+- после обработки событий Flow Manager отправляет обновления storage в UI;
+- UI сохраняет данные в своей базе.
+
+Также storage должен отображаться в интерфейсе как отдельная вкладка (рядом с чатами и changes):
+- всегда доступен для просмотра в виде JSON;
+- доступен для редактирования, если flow не запущен.
+
+## 3. Добавить новые шаблоны
+
+### 3.1. Шаблон RSS фида
+
+Из списка RSS подписок создавать краткую сводку о всем новом и отправлять по
+почте. Список подписок может быть как сразу в коде, так и доступен по ссылке,
+например на github gists. Нужно сохранять в storage какие элементы уже были в
+прошлых сводках, чтобы не повторяться. Если новых элементов нет, то ничего не
+отправляем.
+
+### 3.2. IMAP получение писем
+
+Получение писем через IMAP, создание из этого события и обработка. Для базового
+примера можем сделать обзор всех писем за день в 7 утра.
+
+```python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "imap-tools",
+# ]
+# ///
+
+from imap_tools import MailBox, AND
+
+EMAIL = "your@email.com"
+PASSWORD = "your_password"
+
+with MailBox("imap.gmail.com").login(EMAIL, PASSWORD) as mailbox:
+    for msg in mailbox.fetch(AND(seen=False)):
+        print("New:", msg.subject, msg.from_)
+```
+
+### 3.3. Алерт на почту при плохом воздухе
+
+Несколько мест в коде, раз в час проверка через openweathermap.org
+(через pypi.org/project/pyowm) - если есть
+проблемы, то письмо на почту.
+
+```python
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "pyowm",
+# ]
+# ///
+
+from pyowm import OWM
+
+
+DANGEROUS_AQI_MIN = 4 # 4 - плохой воздух, 5 - очень плохой
+API_KEY = "YOUR_OPENWEATHER_API_KEY"
+PLACES = [
+    "Helsinki,FI",
+    "Chelyabinsk,RU",
+    "Moscow,RU",
+]
+
+
+owm = OWM(API_KEY)
+geo = owm.geocoding_manager()
+air = owm.airpollution_manager()
+
+dangerous_rows: list[str] = []
+
+for place in PLACES:
+    place = place.strip()
+    if not place:
+        continue
+
+    locations = geo.geocode(place, limit=1)
+    if not locations:
+        continue
+
+    loc = locations[0]
+    status = air.air_quality_at_coords(loc.lat, loc.lon)
+    aqi = status.aqi
+
+    if aqi >= DANGEROUS_AQI_MIN:
+        dangerous_rows.append(
+            f"{place}: AQI={aqi}, "
+            f"pm2_5={status.pm2_5}, pm10={status.pm10}, "
+            f"o3={status.o3}, no2={status.no2}, so2={status.so2}, co={status.co}"
+        )
+
+if dangerous_rows:
+    print("⚠️ Обнаружено опасное качество воздуха :\n\n" + "\n".join(dangerous_rows) + "\n")
+```
 
