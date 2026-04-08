@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class Flow extends Model
@@ -70,6 +71,11 @@ class Flow extends Model
         return $this->hasMany(FlowLog::class);
     }
 
+    public function storages(): HasMany
+    {
+        return $this->hasMany(FlowStorage::class);
+    }
+
     public function histories(): HasMany
     {
         return $this->hasMany(FlowHistory::class);
@@ -106,6 +112,22 @@ class Flow extends Model
     public function hadProductionDeploy(): bool
     {
         return $this->runs()->where('type', 'production')->exists();
+    }
+
+    public function storageForEnvironment(string $environment): ?FlowStorage
+    {
+        if ($this->relationLoaded('storages')) {
+            /** @var Collection<int, FlowStorage> $storages */
+            $storages = $this->getRelation('storages');
+
+            $storage = $storages->firstWhere('environment', $environment);
+
+            return $storage instanceof FlowStorage ? $storage : null;
+        }
+
+        return $this->storages()
+            ->where('environment', $environment)
+            ->first();
     }
 
     public function scopeForUser(Builder $query, User $user): void

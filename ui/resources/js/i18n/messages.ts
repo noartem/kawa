@@ -439,6 +439,7 @@ export const messages = {
                 tabs: {
                     code: 'Code editor',
                     chat: 'Chat with code',
+                    storage: 'Storage',
                     discovery: 'Discovery',
                     changes: 'Changes',
                     hint: 'Write code or chat to update it.',
@@ -513,6 +514,20 @@ export const messages = {
                     empty_title: 'No changes yet',
                     empty_description:
                         'Save code updates to build a change history for this flow.',
+                },
+                storage: {
+                    title: 'Shared storage',
+                    description:
+                        'Inspect and edit the persisted JSON state for each environment.',
+                    help: 'Use dotted keys in actors via ctx.storage.get/set/delete.',
+                    save: 'Save storage',
+                    invalid_json: 'Storage must contain valid JSON.',
+                    invalid_root:
+                        'Storage JSON must be an object or array at the root.',
+                    readonly_active:
+                        'Stop the active deployment of this environment to edit storage.',
+                    readonly_permissions:
+                        'You need edit permissions to update storage.',
                 },
                 readonly: {
                     title: 'Editor unavailable',
@@ -1127,6 +1142,7 @@ export const messages = {
                 tabs: {
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',
+                    storage: 'Хранилище',
                     discovery: 'Обзор',
                     changes: 'Изменения',
                     hint: 'Пишите код или общайтесь с чатом, который его изменит.',
@@ -1200,6 +1216,20 @@ export const messages = {
                     empty_title: 'Пока нет изменений',
                     empty_description:
                         'Сохраняйте изменения кода, чтобы здесь появилась история этого потока.',
+                },
+                storage: {
+                    title: 'Общее хранилище',
+                    description:
+                        'Просматривайте и редактируйте сохраненное JSON-состояние для каждого окружения.',
+                    help: 'В акторах используйте ctx.storage.get/set/delete с dotted keys.',
+                    save: 'Сохранить хранилище',
+                    invalid_json: 'Хранилище должно содержать корректный JSON.',
+                    invalid_root:
+                        'В корне JSON хранилища должен быть объект или массив.',
+                    readonly_active:
+                        'Остановите активный деплой этого окружения, чтобы редактировать хранилище.',
+                    readonly_permissions:
+                        'Для изменения хранилища нужны права на редактирование.',
                 },
                 readonly: {
                     title: 'Редактор недоступен',

@@ -1,7 +1,9 @@
 import asyncio
-import pytest
-from unittest.mock import AsyncMock, Mock
+import json
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from container_manager import ContainerManager
 from messaging import InMemoryMessaging
@@ -70,6 +72,8 @@ async def test_handle_create_container_success():
     await asyncio.sleep(0)
 
     container_manager.create_container.assert_awaited()
+    config = container_manager.create_container.await_args.args[0]
+    assert config.environment["FLOW_STORAGE"] == json.dumps({})
     socket_handler.setup_socket.assert_awaited_with(
         sample_container.id, sample_container.name
     )
@@ -79,6 +83,40 @@ async def test_handle_create_container_success():
     response = messaging.published_responses[0]["payload"]
     assert response["ok"] is True
     assert response["data"]["container_id"] == sample_container.id
+
+
+@pytest.mark.asyncio
+async def test_handle_create_container_passes_storage_snapshot_to_runtime():
+    handler, _, container_manager, socket_handler, user_logger = _make_handler()
+
+    sample_container = ContainerInfo(
+        id="test-container-123",
+        name="test-container",
+        status="created",
+        image="test-image:latest",
+        created=datetime.now(),
+        socket_path="/tmp/test-container-123.sock",
+        ports={},
+        environment={},
+    )
+    container_manager.create_container = AsyncMock(return_value=sample_container)
+    socket_handler.setup_socket = AsyncMock()
+    user_logger.container_created = AsyncMock()
+
+    await handler.handle_create_container(
+        {
+            "image": "test-image:latest",
+            "name": "test-container",
+            "environment": {"FLOW_ENVIRONMENT": "development"},
+            "storage": {"settings": {"profile": {"language": "en"}}},
+        }
+    )
+
+    config = container_manager.create_container.await_args.args[0]
+    assert config.environment["FLOW_ENVIRONMENT"] == "development"
+    assert json.loads(config.environment["FLOW_STORAGE"]) == {
+        "settings": {"profile": {"language": "en"}}
+    }
 
 
 @pytest.mark.asyncio

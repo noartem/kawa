@@ -17,6 +17,7 @@ from .utils import (
     get_event_uuid,
     untab_string,
 )
+from .storage import ContextStorage
 
 
 @final
@@ -27,6 +28,9 @@ class NotSupported:
 
 @final
 class Context:
+    def __init__(self, storage: object = None):
+        self.storage = ContextStorage(storage if storage is not None else {})
+
     def dispatch(self, event: object) -> None:
         from .message import Message
 

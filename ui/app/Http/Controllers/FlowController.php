@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Flows\FlowDeploymentsIndexRequest;
+use App\Http\Requests\Flows\FlowStorageUpdateRequest;
 use App\Models\Flow;
 use App\Models\FlowHistory;
 use App\Models\FlowRun;
+use App\Models\FlowStorage;
 use App\Services\FlowChatService;
 use App\Services\FlowService;
 use App\Services\FlowWebhookService;
@@ -100,7 +102,7 @@ class FlowController extends Controller
         Flow $flow,
         FlowChatService $flowChatService,
     ): Response {
-        $flow->load(['user', 'activeChatConversation.messages'])->loadCount('runs');
+        $flow->load(['user', 'activeChatConversation.messages', 'storages'])->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
         $activeDevelopmentRun = $flow->activeRun('development');
@@ -124,6 +126,7 @@ class FlowController extends Controller
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
+            'storage' => $this->buildStoragePayload($flow),
             'activeChat' => $flowChatService->activeChatPayload($flow),
             'pastChats' => $flowChatService->pastChatsPayload($flow),
             'timezoneOptions' => $this->timezoneOptions(),
@@ -215,6 +218,26 @@ class FlowController extends Controller
         $flow->update($data);
 
         return redirect()->route('flows.show', $flow)->with('success', __('flows.updated'));
+    }
+
+    public function updateStorage(FlowStorageUpdateRequest $request, Flow $flow): RedirectResponse
+    {
+        $environment = $request->environment();
+
+        if ($flow->activeRun($environment) !== null) {
+            return redirect()
+                ->route('flows.show', $flow)
+                ->with('error', __('flows.storage.error_active'));
+        }
+
+        $flow->storages()->updateOrCreate(
+            ['environment' => $environment],
+            ['content' => $request->content()],
+        );
+
+        return redirect()
+            ->route('flows.show', $flow)
+            ->with('success', __('flows.storage.updated'));
     }
 
     public function destroy(Request $request, Flow $flow, FlowService $flows): RedirectResponse
@@ -379,6 +402,25 @@ class FlowController extends Controller
                     ->all(),
             ];
         })->values()->all();
+    }
+
+    /**
+     * @return array{development: array<mixed>, production: array<mixed>}
+     */
+    private function buildStoragePayload(Flow $flow): array
+    {
+        return [
+            'development' => $this->resolveStorageContent($flow->storageForEnvironment('development')),
+            'production' => $this->resolveStorageContent($flow->storageForEnvironment('production')),
+        ];
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function resolveStorageContent(?FlowStorage $storage): array
+    {
+        return is_array($storage?->content) ? $storage->content : [];
     }
 
     private function resolveRunCodeSnapshot(FlowRun $run, Flow $flow, Collection $historyTimeline): string

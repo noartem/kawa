@@ -208,6 +208,7 @@ class CreateContainer(BaseModel):
     actors: List[Dict[str, Any]] = Field(default_factory=list)
     events: List[Dict[str, Any]] = Field(default_factory=list)
     labels: Dict[str, str] = Field(default_factory=dict)
+    storage: Union[Dict[str, Any], List[Any]] = Field(default_factory=dict)
     environment: Dict[str, str] = Field(default_factory=dict)
     volumes: Dict[str, str] = Field(default_factory=dict)
     ports: Dict[str, int] = Field(default_factory=dict)

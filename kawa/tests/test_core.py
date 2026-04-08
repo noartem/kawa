@@ -77,6 +77,33 @@ def test_context_dispatch_message_event_ignores_socket_errors():
         ctx.dispatch(message)
 
 
+def test_context_storage_supports_nested_dotted_keys():
+    ctx = Context()
+
+    ctx.storage.set("users.0.name", "Ada")
+    ctx.storage.set("settings.profile.language", "en")
+
+    assert ctx.storage.get("users.0.name") == "Ada"
+    assert ctx.storage.get("settings.profile.language") == "en"
+    assert ctx.storage.get("settings.missing", "fallback") == "fallback"
+
+
+def test_context_storage_delete_removes_nested_values():
+    ctx = Context(
+        {
+            "users": [{"name": "Ada", "role": "admin"}],
+            "settings": {"profile": {"language": "en"}},
+        }
+    )
+
+    ctx.storage.delete("users.0.role")
+    ctx.storage.delete("settings.profile.language")
+
+    assert ctx.storage.get("users.0.role") is None
+    assert ctx.storage.get("settings.profile.language") is None
+    assert ctx.storage.get("users.0.name") == "Ada"
+
+
 def test_event_filter():
     event = My()
     filter_func = MagicMock(return_value=True)

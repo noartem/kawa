@@ -9,9 +9,18 @@ export interface FlowLog {
     created_at: string;
 }
 
+export type FlowEnvironment = 'development' | 'production';
+
+export type FlowStorageContent = Record<string, unknown> | unknown[];
+
+export interface FlowStorageByEnvironment {
+    development: FlowStorageContent;
+    production: FlowStorageContent;
+}
+
 export interface FlowRun {
     id: number;
-    type: 'development' | 'production';
+    type: FlowEnvironment;
     active: boolean;
     status?: string | null;
     lock?: string | null;

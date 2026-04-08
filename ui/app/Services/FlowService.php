@@ -394,6 +394,7 @@ final readonly class FlowService
             'flow_id' => $flow->id,
             'flow_run_id' => $run->id,
             'flow_name' => $flow->name,
+            'storage' => $this->storagePayload($flow, $run->type),
             'graph_hash' => $this->graphHash($flow),
             'events' => is_array($graphSnapshot['events'] ?? null)
                 ? $graphSnapshot['events']
@@ -413,6 +414,7 @@ final readonly class FlowService
             'environment' => [
                 'FLOW_ID' => (string) $flow->id,
                 'FLOW_RUN_ID' => (string) $run->id,
+                'FLOW_ENVIRONMENT' => $run->type,
                 'FLOW_TIMEZONE' => $timezone,
                 'FLOW_PATH' => '/flow/flow.py',
             ],
@@ -432,6 +434,16 @@ final readonly class FlowService
         }
 
         return $payload;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    private function storagePayload(Flow $flow, string $environment): array
+    {
+        $storage = $flow->storageForEnvironment($environment);
+
+        return is_array($storage?->content) ? $storage->content : [];
     }
 
     private function resolveRuntimeContainerId(Flow $flow, FlowRun $run): ?string
@@ -500,6 +512,7 @@ final readonly class FlowService
     {
         return <<<'PY'
 import ast
+import copy
 import importlib.util
 import inspect
 import json
@@ -509,11 +522,15 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from pydash import get as pydash_get
+from pydash import set_ as pydash_set
+from pydash import unset as pydash_unset
 from zoneinfo import ZoneInfo
 
 
 SOCKET_PATH = '/run/kawaflow.sock'
 FLOW_PATH = Path(os.getenv('FLOW_PATH', '/flow/flow.py'))
+STORAGE_MISSING = object()
 
 
 def runtime_metadata() -> dict:
@@ -527,7 +544,54 @@ def runtime_metadata() -> dict:
     if flow_run_id:
         metadata['flow_run_id'] = flow_run_id
 
+    environment = os.getenv('FLOW_ENVIRONMENT')
+    if environment:
+        metadata['environment'] = environment
+
     return metadata
+
+
+def load_runtime_storage():
+    raw_storage = str(os.getenv('FLOW_STORAGE') or '').strip()
+    if raw_storage == '':
+        return {}
+
+    try:
+        decoded_storage = json.loads(raw_storage)
+    except json.JSONDecodeError:
+        return {}
+
+    if isinstance(decoded_storage, (dict, list)):
+        return decoded_storage
+
+    return {}
+
+
+def mark_runtime_storage_dirty() -> None:
+    global RUNTIME_STORAGE_DIRTY
+
+    RUNTIME_STORAGE_DIRTY = True
+
+
+class RuntimeStorage:
+    def __init__(self, data, on_change):
+        self._data = data
+        self._on_change = on_change
+
+    def get(self, key: str, default=None):
+        value = pydash_get(self._data, key, STORAGE_MISSING)
+        if value is STORAGE_MISSING:
+            return default
+
+        return copy.deepcopy(value)
+
+    def set(self, key: str, value) -> None:
+        pydash_set(self._data, key, copy.deepcopy(value))
+        self._on_change()
+
+    def delete(self, key: str) -> None:
+        pydash_unset(self._data, key)
+        self._on_change()
 
 
 def recv_exact(sock: socket.socket, size: int) -> bytes:
@@ -918,6 +982,7 @@ class RuntimeContext:
         self._pending_events = pending_events
         self._actor_name = actor_name
         self._trigger_event = trigger_event
+        self.storage = RUNTIME_SHARED_STORAGE
 
     def dispatch(self, event):
         event_name = event.__class__.__name__
@@ -935,6 +1000,9 @@ class RuntimeContext:
 
 RUNTIME_EVENTS = []
 RUNTIME_EVENT_SEQUENCE = 0
+RUNTIME_STORAGE = load_runtime_storage()
+RUNTIME_STORAGE_DIRTY = False
+RUNTIME_SHARED_STORAGE = RuntimeStorage(RUNTIME_STORAGE, mark_runtime_storage_dirty)
 
 
 def now_iso() -> str:
@@ -986,6 +1054,16 @@ def pull_runtime_events() -> list:
     events = list(RUNTIME_EVENTS)
     RUNTIME_EVENTS.clear()
     return events
+
+
+def pull_runtime_storage():
+    global RUNTIME_STORAGE_DIRTY
+
+    if not RUNTIME_STORAGE_DIRTY:
+        return None
+
+    RUNTIME_STORAGE_DIRTY = False
+    return copy.deepcopy(RUNTIME_STORAGE)
 
 
 def receive_definition_matches_event(receive_definition, incoming_event) -> bool:
@@ -1268,12 +1346,28 @@ def flush_runtime_events(conn: socket.socket) -> None:
     )
 
 
+def flush_runtime_storage(conn: socket.socket) -> None:
+    storage = pull_runtime_storage()
+    if storage is None:
+        return
+
+    send_message(
+        conn,
+        {
+            'type': 'runtime_storage',
+            'storage': storage,
+            **runtime_metadata(),
+        }
+    )
+
+
 def serve_connection(conn: socket.socket) -> None:
     while True:
         message = recv_message(conn)
         response = handle_command(message)
         send_message(conn, response)
         flush_runtime_events(conn)
+        flush_runtime_storage(conn)
 
 
 def serve() -> None:
@@ -1281,6 +1375,7 @@ def serve() -> None:
         conn = connect_to_manager()
         try:
             flush_runtime_events(conn)
+            flush_runtime_storage(conn)
             serve_connection(conn)
         except (
             ConnectionError,

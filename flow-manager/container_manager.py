@@ -715,7 +715,7 @@ class ContainerManager:
                     path=temp_dir, tag=tag, rm=True, forcerm=True
                 )
                 output = self.docker_client.containers.run(
-                    image_obj.id, command=["cat", "/app/uv.lock"], remove=True
+                    image_obj.id, command=["cat", "/app/main.py.lock"], remove=True
                 )
                 lock_content = (
                     output.decode("utf-8")

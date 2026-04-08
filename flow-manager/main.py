@@ -406,7 +406,7 @@ class FlowManagerApp:
     def _runtime_message_metadata(message: dict[str, Any]) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
 
-        for key in ("flow_id", "flow_run_id"):
+        for key in ("flow_id", "flow_run_id", "environment"):
             value = message.get(key)
             if value in (None, ""):
                 continue
@@ -483,6 +483,21 @@ class FlowManagerApp:
                 return
 
             await self.messaging.publish_event("runtime_graph_updated", payload)
+            return
+
+        if message_type == "runtime_storage":
+            runtime_storage = message.get("storage")
+            if not isinstance(runtime_storage, (dict, list)):
+                return
+
+            await self.messaging.publish_event(
+                "flow_storage_updated",
+                {
+                    "container_id": container_id,
+                    **metadata,
+                    "storage": runtime_storage,
+                },
+            )
             return
 
         if message_type != "runtime_events":

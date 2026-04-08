@@ -7,6 +7,7 @@ import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue
 import FlowEditorChatPanel from '@/components/flows/editor/FlowEditorChatPanel.vue';
 import type {
     FlowChatConversation,
+    FlowEnvironment,
     FlowChatMessage,
     FlowWebhookEndpoint,
     GraphMeta,
@@ -65,6 +66,10 @@ interface FlowGraphExpose {
 
 const code = defineModel<string>('code', { required: true });
 const chatDraft = defineModel<string>('chatDraft', { required: true });
+const storageEnvironment = defineModel<FlowEnvironment>('storageEnvironment', {
+    required: true,
+});
+const storageContent = defineModel<string>('storageContent', { required: true });
 
 const props = defineProps<{
     canUpdate: boolean;
@@ -80,6 +85,11 @@ const props = defineProps<{
     historyCards: HistoryCard[];
     activeChat: FlowChatConversation | null;
     chatMessages: FlowChatMessage[];
+    storageReadonly: boolean;
+    storageReadonlyReason?: string | null;
+    storageSaving: boolean;
+    storageDirty: boolean;
+    storageErrorMessage?: string | null;
     graph: Record<string, unknown> | null;
     webhookEndpoints: FlowWebhookEndpoint[];
     graphMeta: GraphMeta;
@@ -106,6 +116,7 @@ defineEmits<{
     'compact-chat': [];
     'apply-proposal': [message: FlowChatMessage];
     'apply-and-save-proposal': [message: FlowChatMessage];
+    'save-storage': [];
 }>();
 
 const { t } = useI18n();
@@ -172,7 +183,9 @@ const statusChipIcon = computed(() => {
     }
 });
 
-const activeTab = ref<'editor' | 'chat' | 'discovery' | 'changes'>('editor');
+const activeTab = ref<'editor' | 'chat' | 'storage' | 'discovery' | 'changes'>(
+    'editor',
+);
 const expandedHistoryValues = ref<string[]>([]);
 const workspaceSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
@@ -299,6 +312,18 @@ watch(
                         @click="activeTab = 'chat'"
                     >
                         {{ t('flows.editor.tabs.chat') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
+                        :class="
+                            activeTab === 'storage'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        @click="activeTab = 'storage'"
+                    >
+                        {{ t('flows.editor.tabs.storage') }}
                     </button>
                     <button
                         type="button"
@@ -457,6 +482,94 @@ watch(
                             :selected-target="selectedDiscoveryTarget"
                             @jump-to-code="jumpToCode"
                         />
+                    </div>
+                </div>
+
+                <div v-else-if="activeTab === 'storage'" class="flex h-full flex-col">
+                    <div
+                        class="flex items-center justify-between gap-3 rounded-t-xl border border-border border-b-0 bg-muted/20 px-4 py-3"
+                    >
+                        <div>
+                            <p class="text-sm font-semibold text-foreground">
+                                {{ t('flows.editor.storage.title') }}
+                            </p>
+                            <p class="text-xs text-muted-foreground">
+                                {{ t('flows.editor.storage.description') }}
+                            </p>
+                        </div>
+
+                        <div class="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 p-1">
+                            <button
+                                type="button"
+                                class="rounded-md px-3 py-1.5 text-sm transition"
+                                :class="
+                                    storageEnvironment === 'development'
+                                        ? 'bg-background text-foreground shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                "
+                                @click="storageEnvironment = 'development'"
+                            >
+                                {{ t('environments.development') }}
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-md px-3 py-1.5 text-sm transition"
+                                :class="
+                                    storageEnvironment === 'production'
+                                        ? 'bg-background text-foreground shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                "
+                                @click="storageEnvironment = 'production'"
+                            >
+                                {{ t('environments.production') }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="min-h-0 flex-1 overflow-hidden rounded-b-xl border border-border bg-linear-to-br from-background to-muted/25">
+                        <FlowCodeEditor
+                            id="flow-storage"
+                            v-model="storageContent"
+                            language="json"
+                            :disabled="storageReadonly"
+                            class="h-full"
+                            bottom-padding="4rem"
+                        />
+                    </div>
+
+                    <div
+                        class="mt-3 flex flex-col gap-3 rounded-xl border border-border bg-muted/15 px-4 py-3 text-sm md:flex-row md:items-center md:justify-between"
+                    >
+                        <div class="space-y-1">
+                            <p class="font-medium text-foreground">
+                                {{ t('flows.editor.storage.help') }}
+                            </p>
+                            <p
+                                v-if="storageErrorMessage"
+                                class="text-destructive"
+                            >
+                                {{ storageErrorMessage }}
+                            </p>
+                            <p
+                                v-else-if="storageReadonlyReason"
+                                class="text-muted-foreground"
+                            >
+                                {{ storageReadonlyReason }}
+                            </p>
+                        </div>
+
+                        <Button
+                            :disabled="
+                                storageReadonly ||
+                                storageSaving ||
+                                !storageDirty ||
+                                Boolean(storageErrorMessage)
+                            "
+                            @click="$emit('save-storage')"
+                        >
+                            <Spinner v-if="storageSaving" class="size-4" />
+                            {{ t('flows.editor.storage.save') }}
+                        </Button>
                     </div>
                 </div>
 

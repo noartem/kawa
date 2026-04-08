@@ -36,6 +36,7 @@ class ProcessFlowManager implements ShouldQueue
 
         $this->updateFlowStatus($flow, $flowRun);
         $this->syncFlowGraphFromPayload($flowRun);
+        $this->syncFlowStorageFromPayload($flow);
         $this->recordLog($flow, $flowRun);
         broadcast(new FlowEventBroadcast($flow->id, $this->event, $this->payload));
         $this->handleRuntimeEmailDispatch($flow, $flowRun);
@@ -473,6 +474,21 @@ class ProcessFlowManager implements ShouldQueue
         $graphActors = is_array($actors) ? $actors : ($existingGraph['actors'] ?? []);
 
         $this->updateFlowGraph($flowRun, $graphEvents, $graphActors);
+    }
+
+    private function syncFlowStorageFromPayload(Flow $flow): void
+    {
+        $environment = $this->payload['environment'] ?? null;
+        $storage = $this->payload['storage'] ?? null;
+
+        if (! in_array($environment, ['development', 'production'], true) || ! is_array($storage)) {
+            return;
+        }
+
+        $flow->storages()->updateOrCreate(
+            ['environment' => $environment],
+            ['content' => $storage],
+        );
     }
 
     /**

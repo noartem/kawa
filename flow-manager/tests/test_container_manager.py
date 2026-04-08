@@ -87,6 +87,27 @@ class TestContainerManager:
     """Test cases for ContainerManager class."""
 
     @pytest.mark.asyncio
+    async def test_generate_uv_lock_reads_script_lockfile(self, container_manager):
+        """Test script lock generation reads the adjacent .lock file."""
+
+        image_obj = MagicMock()
+        image_obj.id = "built-image-id"
+        container_manager.docker_client.images.build.return_value = (image_obj, [])
+        container_manager.docker_client.containers.run.return_value = b"lock-content"
+
+        result = await container_manager.generate_uv_lock(
+            "flow:dev",
+            "from kawa import Context\n",
+        )
+
+        assert result == "lock-content"
+        container_manager.docker_client.containers.run.assert_called_once_with(
+            "built-image-id",
+            command=["cat", "/app/main.py.lock"],
+            remove=True,
+        )
+
+    @pytest.mark.asyncio
     async def test_create_container_success(
         self, container_manager, sample_container_config, mock_container
     ):

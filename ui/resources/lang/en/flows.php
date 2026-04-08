@@ -31,4 +31,8 @@ return [
         'error_active' => 'Cannot delete a flow with active deployments.',
         'error_password' => 'Incorrect password.',
     ],
+    'storage' => [
+        'updated' => 'Storage updated.',
+        'error_active' => 'Cannot edit storage while this deployment is running.',
+    ],
 ];

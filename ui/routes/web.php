@@ -39,6 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::post('flows', [FlowController::class, 'store'])->name('flows.store')->can('create', Flow::class);
     Route::get('flows/{flow}', [FlowController::class, 'show'])->name('flows.show')->can('update', [Flow::class, 'flow']);
     Route::put('flows/{flow}', [FlowController::class, 'update'])->name('flows.update')->can('view-any', [Flow::class, 'flow']);
+    Route::put('flows/{flow}/storage', [FlowController::class, 'updateStorage'])->name('flows.storage.update')->can('update', [Flow::class, 'flow']);
     Route::delete('flows/{flow}', [FlowController::class, 'destroy'])->name('flows.destroy')->can('view-any', [Flow::class, 'flow']);
     Route::post('flows/{flow}/run', [FlowActionController::class, 'run'])->name('flows.run')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/stop', [FlowActionController::class, 'stop'])->name('flows.stop')->can('run', [Flow::class, 'flow']);

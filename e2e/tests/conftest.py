@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -34,8 +35,11 @@ def _purge_flow_manager_queues() -> None:
             headers={"Authorization": f"Basic {auth_header}"},
             method="DELETE",
         )
-        with urllib.request.urlopen(request, timeout=10):
-            pass
+        try:
+            with urllib.request.urlopen(request, timeout=10):
+                pass
+        except urllib.error.URLError:
+            return
 
 
 def _cleanup_runtime_state(test_run_id: str) -> None:

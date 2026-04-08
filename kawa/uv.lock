@@ -25,6 +25,7 @@ name = "kawa"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "pydash" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
@@ -32,6 +33,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pydash", specifier = ">=8.0.5" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "ruff", specifier = ">=0.14.6" },
     { name = "ty", specifier = ">=0.0.1a28" },
@@ -53,6 +55,18 @@ source = { registry = "http://host.docker.internal:801/repository/pypi/simple" }
 sdist = { url = "http://host.docker.internal:801/repository/pypi/packages/pluggy/1.6.0/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3" }
 wheels = [
     { url = "http://host.docker.internal:801/repository/pypi/packages/pluggy/1.6.0/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746" },
+]
+
+[[package]]
+name = "pydash"
+version = "8.0.6"
+source = { registry = "http://host.docker.internal:801/repository/pypi/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "http://host.docker.internal:801/repository/pypi/packages/pydash/8.0.6/pydash-8.0.6.tar.gz", hash = "sha256:b2821547e9723f69cf3a986be4db64de41730be149b2641947ecd12e1e11025a" }
+wheels = [
+    { url = "http://host.docker.internal:801/repository/pypi/packages/pydash/8.0.6/pydash-8.0.6-py3-none-any.whl", hash = "sha256:ee70a81a5b292c007f28f03a4ee8e75c1f5d7576df5457b836ec7ab2839cc5d0" },
 ]
 
 [[package]]
@@ -129,4 +143,13 @@ wheels = [
     { url = "http://host.docker.internal:801/repository/pypi/packages/ty/0.0.1a28/ty-0.0.1a28-py3-none-win32.whl", hash = "sha256:ae10abd8575d28744d905979632040222581ba364281abf75baf8f269a10ffc3" },
     { url = "http://host.docker.internal:801/repository/pypi/packages/ty/0.0.1a28/ty-0.0.1a28-py3-none-win_amd64.whl", hash = "sha256:44ef82c1169c050ad9e91b2d76251be097ddd163719735cf7e5a978065f6b87c" },
     { url = "http://host.docker.internal:801/repository/pypi/packages/ty/0.0.1a28/ty-0.0.1a28-py3-none-win_arm64.whl", hash = "sha256:051c1d43df50366fb8e795ae52af8f2015b79d176dbb82cdd45668074847ddf3" },
+]
+
+[[package]]
+name = "typing-extensions"
+version = "4.15.0"
+source = { registry = "http://host.docker.internal:801/repository/pypi/simple" }
+sdist = { url = "http://host.docker.internal:801/repository/pypi/packages/typing-extensions/4.15.0/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466" }
+wheels = [
+    { url = "http://host.docker.internal:801/repository/pypi/packages/typing-extensions/4.15.0/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548" },
 ]

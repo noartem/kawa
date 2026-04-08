@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any, Awaitable, Dict, Optional
 
 from docker.errors import APIError, ImageNotFound, NotFound
@@ -110,6 +111,8 @@ class EventHandler:
         event_data = CreateContainer(**data)
 
         labels = dict(event_data.labels)
+        environment = dict(event_data.environment)
+        environment.setdefault("FLOW_STORAGE", json.dumps(event_data.storage))
         if event_data.flow_id is not None:
             labels.setdefault("kawaflow.flow_id", str(event_data.flow_id))
         if event_data.flow_run_id is not None:
@@ -124,7 +127,7 @@ class EventHandler:
             image=event_data.image,
             name=event_data.name,
             labels=labels,
-            environment=event_data.environment,
+            environment=environment,
             volumes=event_data.volumes,
             ports=event_data.ports,
             command=event_data.command,

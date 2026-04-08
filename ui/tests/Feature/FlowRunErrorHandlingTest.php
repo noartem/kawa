@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\ProcessFlowManager;
 use App\Mail\FlowRuntimeEmail;
 use App\Models\Flow;
+use App\Models\FlowStorage;
 use App\Models\User;
 use App\Services\FlowManagerClient;
 use App\Services\FlowService;
@@ -438,6 +439,123 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertTrue($result['ok']);
     }
 
+    public function test_flow_service_passes_storage_to_flow_manager_payload(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => null,
+            'image' => 'flow:dev',
+        ]);
+
+        FlowStorage::factory()->forFlow($flow)->createOne([
+            'environment' => 'development',
+            'content' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'en',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('createContainer')
+            ->once()
+            ->withArgs(function (array $payload): bool {
+                return ($payload['storage']['settings']['profile']['language'] ?? null) === 'en';
+            })
+            ->andReturn([
+                'ok' => true,
+            ]);
+
+        $result = app(FlowService::class)->start($flow);
+
+        $this->assertTrue($result['ok']);
+    }
+
+    public function test_storage_update_persists_json_when_same_type_run_is_inactive(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        $flow->runs()->create([
+            'type' => 'production',
+            'active' => true,
+            'status' => 'running',
+            'container_id' => 'prod-container',
+            'started_at' => now()->subMinute(),
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->put(route('flows.storage.update', $flow), [
+                'environment' => 'development',
+                'content' => json_encode([
+                    'users' => [
+                        ['name' => 'Ada'],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ]);
+
+        $response
+            ->assertRedirect(route('flows.show', $flow))
+            ->assertSessionHas('success', __('flows.storage.updated'));
+
+        $storage = FlowStorage::query()
+            ->where('flow_id', $flow->id)
+            ->where('environment', 'development')
+            ->first();
+
+        $this->assertNotNull($storage);
+        $this->assertSame('Ada', $storage->content['users'][0]['name'] ?? null);
+    }
+
+    public function test_storage_update_rejects_active_run_of_same_type(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'container_id' => 'dev-container',
+            'started_at' => now()->subMinute(),
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->put(route('flows.storage.update', $flow), [
+                'environment' => 'development',
+                'content' => json_encode([
+                    'settings' => [
+                        'profile' => [
+                            'language' => 'ru',
+                        ],
+                    ],
+                ], JSON_THROW_ON_ERROR),
+            ]);
+
+        $response
+            ->assertRedirect(route('flows.show', $flow))
+            ->assertSessionHas('error', __('flows.storage.error_active'));
+
+        $this->assertNull(
+            FlowStorage::query()
+                ->where('flow_id', $flow->id)
+                ->where('environment', 'development')
+                ->first(),
+        );
+    }
+
     public function test_container_created_event_uses_graph_from_event_payload(): void
     {
         /** @var User $user */
@@ -495,6 +613,45 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertSame('app.events', $cronEventNode['source_module'] ?? null);
         $this->assertSame(16, $run->graph_snapshot['nodes'][1]['source_line'] ?? null);
         $this->assertSame('main', $run->graph_snapshot['nodes'][1]['source_kind'] ?? null);
+    }
+
+    public function test_flow_storage_updated_event_persists_storage_for_environment(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now(),
+            'container_id' => 'container-id-9',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('flow_storage_updated', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'environment' => 'development',
+            'storage' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'ru',
+                    ],
+                ],
+            ],
+        ]);
+        $job->handle();
+
+        $storage = FlowStorage::query()
+            ->where('flow_id', $flow->id)
+            ->where('environment', 'development')
+            ->first();
+
+        $this->assertNotNull($storage);
+        $this->assertSame('ru', $storage->content['settings']['profile']['language'] ?? null);
     }
 
     public function test_runtime_graph_updated_event_refreshes_graph_for_current_run(): void

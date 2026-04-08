@@ -6,6 +6,7 @@ use App\Models\Flow;
 use App\Models\FlowHistory;
 use App\Models\FlowLog;
 use App\Models\FlowRun;
+use App\Models\FlowStorage;
 use App\Models\User;
 use App\Services\FlowWebhookService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -520,6 +521,43 @@ PY,
                 'lastDevelopmentDeployment.logs.1.message',
                 'Actor invoked by webhook',
             )
+        );
+    }
+
+    public function test_editor_payload_includes_storage_by_environment(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        FlowStorage::factory()->forFlow($flow)->createOne([
+            'environment' => 'development',
+            'content' => [
+                'users' => [
+                    ['name' => 'Ada'],
+                ],
+            ],
+        ]);
+
+        FlowStorage::factory()->forFlow($flow)->createOne([
+            'environment' => 'production',
+            'content' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'ru',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('flows.show', $flow));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('storage.development.users.0.name', 'Ada')
+            ->where('storage.production.settings.profile.language', 'ru')
         );
     }
 

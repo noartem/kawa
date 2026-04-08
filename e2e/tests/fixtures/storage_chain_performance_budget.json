@@ -1,0 +1,20 @@
+{
+  "storage_chain": {
+    "observed_baseline_seconds": {
+      "run_request_seconds": 0.246395,
+      "request_to_container_id_seconds": 3.0,
+      "request_to_webhook_ready_seconds": 2.892448,
+      "webhook_request_seconds": 0.45639,
+      "webhook_to_final_runtime_event_seconds": 0.529267,
+      "webhook_to_storage_persisted_seconds": 0.700471
+    },
+    "budgets": {
+      "run_request_seconds": 1.0,
+      "request_to_container_id_seconds": 10.0,
+      "request_to_webhook_ready_seconds": 12.0,
+      "webhook_request_seconds": 3.0,
+      "webhook_to_final_runtime_event_seconds": 20.0,
+      "webhook_to_storage_persisted_seconds": 20.0
+    }
+  }
+}

@@ -152,21 +152,21 @@ def test_socket_io_event_models():
     create_event = CreateContainer(
         image="nginx:latest",
         name="test-container",
+        storage={"settings": {"profile": {"language": "en"}}},
         environment={"ENV": "test"},
         volumes={"/host": "/container"},
         ports={"80": 8080},
     )
     assert create_event.image == "nginx:latest"
     assert create_event.name == "test-container"
+    assert create_event.storage == {"settings": {"profile": {"language": "en"}}}
 
     # ContainerOperation
     op_event = ContainerOperation(container_id="abc123")
     assert op_event.container_id == "abc123"
 
     # UpdateContainer
-    update_event = UpdateContainer(
-        container_id="abc123", code_path="/path/to/code"
-    )
+    update_event = UpdateContainer(container_id="abc123", code_path="/path/to/code")
     assert update_event.container_id == "abc123"
     assert update_event.code_path == "/path/to/code"
 

@@ -150,6 +150,20 @@ class UIClient:
         )
         self._assert_redirect_response(response)
 
+    def update_storage(self, flow_id: int, environment: str, content: Any) -> None:
+        token = self._get_csrf(f"/flows/{flow_id}")
+        payload = {
+            "environment": environment,
+            "content": content if isinstance(content, str) else json.dumps(content),
+        }
+        response = self._client.put(
+            f"/flows/{flow_id}/storage",
+            data=payload,
+            headers=self._csrf_headers(token),
+            follow_redirects=False,
+        )
+        self._assert_redirect_response(response)
+
     def update_flow_raw(self, flow_id: int, payload: Dict[str, Any]) -> httpx.Response:
         token = self._get_csrf(f"/flows/{flow_id}")
         response = self._client.put(
@@ -256,6 +270,18 @@ class UIClient:
 
     def get(self, path: str, **kwargs: Any) -> httpx.Response:
         return self._client.get(path, **kwargs)
+
+    def dispatch_webhook_raw(self, url: str, payload: Any) -> httpx.Response:
+        return self._client.post(
+            url,
+            json=payload,
+            headers={"Accept": "application/json"},
+        )
+
+    def dispatch_webhook(self, url: str, payload: Any) -> httpx.Response:
+        response = self.dispatch_webhook_raw(url, payload)
+        response.raise_for_status()
+        return response
 
     @staticmethod
     def _extract_flow_id(url: str) -> int:

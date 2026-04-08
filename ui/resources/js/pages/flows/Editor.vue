@@ -8,12 +8,14 @@ import FlowPastChatsPanel from '@/components/flows/editor/FlowPastChatsPanel.vue
 import type {
     DeploymentCard,
     FlowChatConversation,
+    FlowEnvironment,
     FlowChatMessage,
     FlowDeployment,
     FlowDetail,
     FlowHistory,
     FlowLog,
     FlowRun,
+    FlowStorageByEnvironment,
     FlowWebhookEndpoint,
     Permissions,
     RunStat,
@@ -38,6 +40,7 @@ import {
     newMethod as flowChatNew,
     store as flowChatStore,
 } from '@/routes/flows/chat';
+import { update as flowStorageUpdate } from '@/routes/flows/storage';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
@@ -55,6 +58,7 @@ const props = defineProps<{
     history: FlowHistory[];
     activeChat: FlowChatConversation | null;
     pastChats: FlowChatConversation[];
+    storage: FlowStorageByEnvironment;
     timezoneOptions: string[];
     permissions: Permissions;
 }>();
@@ -103,6 +107,27 @@ const form = useForm({
     timezone: props.flow.timezone || 'UTC',
 });
 
+const stringifyStorageContent = (
+    value: FlowStorageByEnvironment[FlowEnvironment],
+): string => {
+    return JSON.stringify(value ?? {}, null, 4);
+};
+
+const storageDrafts = ref<Record<FlowEnvironment, string>>({
+    development: stringifyStorageContent(props.storage.development),
+    production: stringifyStorageContent(props.storage.production),
+});
+const syncedStorageDrafts = ref<Record<FlowEnvironment, string>>({
+    development: storageDrafts.value.development,
+    production: storageDrafts.value.production,
+});
+const activeStorageEnvironment = ref<FlowEnvironment>('development');
+const storageSaveInFlight = ref(false);
+const storageForm = useForm({
+    environment: 'development' as FlowEnvironment,
+    content: storageDrafts.value.development,
+});
+
 const buildHistorySnapshotSignature = (history: FlowHistory[]): string => {
     return history
         .map((historyItem) => `${historyItem.id}:${historyItem.created_at}`)
@@ -121,6 +146,7 @@ const refreshOnlyProps = [
     'lastDevelopmentDeployment',
     'webhookEndpoints',
     'deployments',
+    'storage',
     'runStats',
     'history',
     'recentFlows',
@@ -244,6 +270,14 @@ const allChatsUrl = computed(() => {
     return flowChatIndex({ flow: props.flow.id ?? 0 }).url;
 });
 const canSave = computed(() => props.permissions.canUpdate);
+const activeStorageContent = computed({
+    get: () => {
+        return storageDrafts.value[activeStorageEnvironment.value];
+    },
+    set: (value: string) => {
+        storageDrafts.value[activeStorageEnvironment.value] = value;
+    },
+});
 const pageTitle = computed(() => form.name || t('flows.untitled'));
 const isArchived = computed(() => Boolean(props.flow.archived_at));
 const hasActiveDeploys = computed(() =>
@@ -258,6 +292,53 @@ const hasUnsavedFlowChanges = computed(() => {
         form.description !== (props.flow.description || '') ||
         form.code !== (props.flow.code || '') ||
         form.timezone !== (props.flow.timezone || 'UTC')
+    );
+});
+
+const activeStorageIsDirty = computed(() => {
+    return (
+        storageDrafts.value[activeStorageEnvironment.value] !==
+        syncedStorageDrafts.value[activeStorageEnvironment.value]
+    );
+});
+
+const activeStorageHasRunningDeployment = computed(() => {
+    return activeStorageEnvironment.value === 'development'
+        ? Boolean(currentDevelopment.value?.active)
+        : Boolean(currentProduction.value?.active);
+});
+
+const activeStorageValidationError = computed(() => {
+    try {
+        const parsed = JSON.parse(activeStorageContent.value);
+        if (parsed === null || typeof parsed !== 'object') {
+            return t('flows.editor.storage.invalid_root');
+        }
+
+        return null;
+    } catch {
+        return t('flows.editor.storage.invalid_json');
+    }
+});
+
+const activeStorageReadonlyReason = computed(() => {
+    if (!props.permissions.canUpdate) {
+        return t('flows.editor.storage.readonly_permissions');
+    }
+
+    if (activeStorageHasRunningDeployment.value) {
+        return t('flows.editor.storage.readonly_active');
+    }
+
+    return null;
+});
+
+const activeStorageErrorMessage = computed(() => {
+    return (
+        activeStorageValidationError.value ??
+        storageForm.errors.content ??
+        storageForm.errors.environment ??
+        null
     );
 });
 
@@ -557,6 +638,45 @@ watch(
     },
     { deep: true },
 );
+
+watch(
+    () => props.storage,
+    (nextStorage) => {
+        for (const environment of ['development', 'production'] as const) {
+            const nextContent = stringifyStorageContent(nextStorage[environment]);
+
+            if (
+                storageDrafts.value[environment] ===
+                syncedStorageDrafts.value[environment]
+            ) {
+                storageDrafts.value[environment] = nextContent;
+            }
+
+            syncedStorageDrafts.value[environment] = nextContent;
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    storageDrafts,
+    () => {
+        storageForm.clearErrors();
+    },
+    { deep: true },
+);
+
+watch(activeStorageEnvironment, () => {
+    storageForm.clearErrors();
+});
+
+const setActiveStorageEnvironment = (environment: FlowEnvironment): void => {
+    activeStorageEnvironment.value = environment;
+};
+
+const setActiveStorageContent = (value: string): void => {
+    activeStorageContent.value = value;
+};
 
 const refreshFlowView = (): void => {
     if (refreshInFlight.value) {
@@ -980,6 +1100,34 @@ const save = (): void => {
     });
 };
 
+const saveStorage = (): void => {
+    const environment = activeStorageEnvironment.value;
+
+    if (
+        activeStorageReadonlyReason.value !== null ||
+        activeStorageErrorMessage.value !== null ||
+        storageSaveInFlight.value
+    ) {
+        return;
+    }
+
+    storageSaveInFlight.value = true;
+    storageForm.environment = environment;
+    storageForm.content = storageDrafts.value[environment];
+
+    storageForm.put(flowStorageUpdate({ flow: props.flow.id ?? 0 }).url, {
+        preserveScroll: true,
+        only: [...refreshOnlyProps],
+        onSuccess: () => {
+            syncedStorageDrafts.value[environment] =
+                storageDrafts.value[environment];
+        },
+        onFinish: () => {
+            storageSaveInFlight.value = false;
+        },
+    });
+};
+
 const saveBeforeAction = (onSuccess: () => void): void => {
     if (!hasUnsavedFlowChanges.value) {
         onSuccess();
@@ -1160,6 +1308,13 @@ onBeforeUnmount(() => {
                 :history-cards="historyCards"
                 :active-chat="activeChat"
                 :chat-messages="displayedChatMessages"
+                :storage-environment="activeStorageEnvironment"
+                :storage-content="activeStorageContent"
+                :storage-readonly="activeStorageReadonlyReason !== null"
+                :storage-readonly-reason="activeStorageReadonlyReason"
+                :storage-saving="storageSaveInFlight"
+                :storage-dirty="activeStorageIsDirty"
+                :storage-error-message="activeStorageErrorMessage"
                 :graph="displayGraph"
                 :webhook-endpoints="discoveryWebhookEndpoints"
                 :graph-meta="graphMeta"
@@ -1176,6 +1331,9 @@ onBeforeUnmount(() => {
                 @compact-chat="compactChat"
                 @apply-proposal="applyProposal"
                 @apply-and-save-proposal="applyAndSaveProposal"
+                @update:storage-environment="setActiveStorageEnvironment"
+                @update:storage-content="setActiveStorageContent"
+                @save-storage="saveStorage"
             />
 
             <FlowEditorDeployments

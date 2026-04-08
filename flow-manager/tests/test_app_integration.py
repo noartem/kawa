@@ -277,6 +277,38 @@ async def test_handle_runtime_socket_message_publishes_runtime_graph(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_handle_runtime_socket_message_publishes_runtime_storage(monkeypatch):
+    monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
+    with patch("docker.from_env") as mock_docker:
+        mock_docker.return_value = Mock()
+        app = FlowManagerApp(socket_dir="/tmp/test_sockets")
+
+    app.messaging.publish_event = AsyncMock()
+
+    await app._handle_runtime_socket_message(
+        "container-1",
+        {
+            "type": "runtime_storage",
+            "flow_id": "7",
+            "flow_run_id": "11",
+            "environment": "development",
+            "storage": {"settings": {"profile": {"language": "ru"}}},
+        },
+    )
+
+    app.messaging.publish_event.assert_awaited_once_with(
+        "flow_storage_updated",
+        {
+            "container_id": "container-1",
+            "flow_id": "7",
+            "flow_run_id": "11",
+            "environment": "development",
+            "storage": {"settings": {"profile": {"language": "ru"}}},
+        },
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_runtime_disconnect_clears_runtime_ready(monkeypatch):
     monkeypatch.setenv("MESSAGING_BACKEND", "inmemory")
     with patch("docker.from_env") as mock_docker:
