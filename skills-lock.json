@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "repo-task-proof-loop": {
+      "source": "noartem/repo-task-proof-loop",
+      "sourceType": "github",
+      "computedHash": "9ef22bfdf23be3530fa1dc46554fb844e4f41417dbf5adc4c01cb714832bf5b6"
+    }
+  }
+}
