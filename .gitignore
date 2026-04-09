@@ -7,11 +7,6 @@
 
 node_modules/
 
-**/.opencode
-**/opencode.json
-**/.run/
-
 .env
 
 e2e/reports/
-.opencode/
