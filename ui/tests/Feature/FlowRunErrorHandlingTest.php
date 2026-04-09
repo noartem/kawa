@@ -231,6 +231,7 @@ class FlowRunErrorHandlingTest extends TestCase
                     && ($payload['environment']['FLOW_PATH'] ?? null) === '/flow/flow.py'
                     && ($payload['environment']['FLOW_TIMEZONE'] ?? null) === 'Europe/Berlin'
                     && ($payload['labels']['kawaflow.deployment_type'] ?? null) === 'production'
+                    && ($payload['command'] ?? null) === ['uv', 'run', '/flow/main.py']
                     && ($payload['volumes'] ?? []) !== [];
             })
             ->andReturn([
@@ -256,7 +257,48 @@ class FlowRunErrorHandlingTest extends TestCase
         $this->assertFileExists($deploymentRoot.'/main.py');
         $this->assertFileExists($deploymentRoot.'/uv.lock');
         $this->assertSame('print("snapshot")', file_get_contents($deploymentRoot.'/flow.py'));
-        $this->assertStringContainsString("command == 'webhook'", (string) file_get_contents($deploymentRoot.'/main.py'));
+        $mainScript = (string) file_get_contents($deploymentRoot.'/main.py');
+        $this->assertStringContainsString('from kawa.runtime.app import main', $mainScript);
+        $this->assertStringContainsString("if __name__ == '__main__':", $mainScript);
+    }
+
+    public function test_deploy_production_generates_lock_from_runtime_entrypoint_script(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'image' => 'flow:dev',
+            'code' => <<<'PY'
+# /// script
+# dependencies = [
+#   "httpx>=0.27",
+# ]
+# ///
+
+print("latest")
+PY,
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('generateLock')
+            ->once()
+            ->withArgs(function (array $payload): bool {
+                $code = (string) ($payload['code'] ?? '');
+
+                return str_contains($code, '# /// script')
+                    && str_contains($code, '#   "httpx>=0.27",')
+                    && str_contains($code, 'from kawa.runtime.app import main')
+                    && ! str_contains($code, 'print("latest")');
+            })
+            ->andReturn([
+                'ok' => false,
+                'message' => 'lock failed',
+            ]);
+
+        $result = app(FlowService::class)->deployProduction($flow);
+
+        $this->assertFalse($result['ok']);
     }
 
     public function test_deploy_production_returns_failure_when_runtime_container_creation_fails(): void
