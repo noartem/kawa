@@ -1,0 +1,87 @@
+
+> build
+> vite build
+
+vite v7.3.1 building client environment for production...
+[plugin @laravel/vite-plugin-wayfinder] Types generated for actions, routes, form variants
+transforming...
+✓ 3759 modules transformed.
+rendering chunks...
+computing gzip size...
+public/build/manifest.json                                                                         39.88 kB │ gzip:   3.37 kB
+public/build/assets/FlowDeploymentDetailsContent-HGYRv0Uj.css                                       0.58 kB │ gzip:   0.28 kB
+public/build/assets/FluidSmokeBackground-B5c7DbE8.css                                               1.77 kB │ gzip:   0.55 kB
+public/build/assets/app-CmSdBg4d.css                                                              131.24 kB │ gzip:  20.72 kB
+public/build/assets/check-CYqbZkfi.js                                                               0.13 kB │ gzip:   0.14 kB
+public/build/assets/chevron-down-E0JNMwox.js                                                        0.14 kB │ gzip:   0.15 kB
+public/build/assets/arrow-up-DK5l6eea.js                                                            0.17 kB │ gzip:   0.17 kB
+public/build/assets/arrow-up-right-D13MksHz.js                                                      0.18 kB │ gzip:   0.17 kB
+public/build/assets/search-B-kx58zs.js                                                              0.18 kB │ gzip:   0.17 kB
+public/build/assets/isValueEqualOrExist-BXII6J7F.js                                                 0.19 kB │ gzip:   0.17 kB
+public/build/assets/copy-6hpNL3xj.js                                                                0.24 kB │ gzip:   0.21 kB
+public/build/assets/InputError.vue_vue_type_script_setup_true_lang-BmWSvZao.js                      0.29 kB │ gzip:   0.24 kB
+public/build/assets/CardDescription.vue_vue_type_script_setup_true_lang-DMwOAH4R.js                 0.34 kB │ gzip:   0.26 kB
+public/build/assets/DialogHeader.vue_vue_type_script_setup_true_lang-DAm8ahp3.js                    0.35 kB │ gzip:   0.27 kB
+public/build/assets/index-yPn5Uq53.js                                                               0.37 kB │ gzip:   0.22 kB
+public/build/assets/index-FXr3cDat.js                                                               0.37 kB │ gzip:   0.22 kB
+public/build/assets/Spinner.vue_vue_type_script_setup_true_lang-CFx7e7HB.js                         0.49 kB │ gzip:   0.36 kB
+public/build/assets/TextLink.vue_vue_type_script_setup_true_lang-BQ0-u76w.js                        0.52 kB │ gzip:   0.35 kB
+public/build/assets/DialogDescription.vue_vue_type_script_setup_true_lang-BOsIQ_-r.js               0.61 kB │ gzip:   0.41 kB
+public/build/assets/Textarea.vue_vue_type_script_setup_true_lang-DDWYRGLb.js                        0.85 kB │ gzip:   0.52 kB
+public/build/assets/AppLogoIcon.vue_vue_type_script_setup_true_lang-CsYiP9pk.js                     0.90 kB │ gzip:   0.57 kB
+public/build/assets/useArrowNavigation-C6Y-ieo6.js                                                  0.98 kB │ gzip:   0.59 kB
+public/build/assets/Label.vue_vue_type_script_setup_true_lang-D9Vijvjx.js                           1.03 kB │ gzip:   0.56 kB
+public/build/assets/CardTitle.vue_vue_type_script_setup_true_lang-CvkI7lFI.js                       1.09 kB │ gzip:   0.46 kB
+public/build/assets/Input.vue_vue_type_script_setup_true_lang-DNo37dpi.js                           1.17 kB │ gzip:   0.65 kB
+public/build/assets/createLucideIcon-CbJ9EMAE.js                                                    1.25 kB │ gzip:   0.72 kB
+public/build/assets/index-DzWILH8c.js                                                               1.38 kB │ gzip:   0.68 kB
+public/build/assets/index-BtVLW78m.js                                                               1.50 kB │ gzip:   0.51 kB
+public/build/assets/VerifyEmail-BOEM9fs_.js                                                         1.53 kB │ gzip:   0.77 kB
+public/build/assets/FlowDeploymentDetailsDialog.vue_vue_type_script_setup_true_lang-Ctoyx2eC.js     1.54 kB │ gzip:   0.68 kB
+public/build/assets/Separator.vue_vue_type_script_setup_true_lang-AeGAHGxn.js                       1.61 kB │ gzip:   0.64 kB
+public/build/assets/Welcome--VKEUR-k.js                                                             1.70 kB │ gzip:   0.89 kB
+public/build/assets/ConfirmPassword-BbiGZojX.js                                                     1.86 kB │ gzip:   0.88 kB
+public/build/assets/index-Bc1j1VOT.js                                                               2.05 kB │ gzip:   0.47 kB
+public/build/assets/VisuallyHiddenInput-D8sMSEfj.js                                                 2.19 kB │ gzip:   0.88 kB
+public/build/assets/AuthLayout.vue_vue_type_script_setup_true_lang-CaSC8Dla.js                      2.22 kB │ gzip:   1.04 kB
+public/build/assets/Deployment-CpZ8bEH7.js                                                          2.32 kB │ gzip:   1.04 kB
+public/build/assets/ForgotPassword-D0arGPmE.js                                                      2.33 kB │ gzip:   1.06 kB
+public/build/assets/VisuallyHidden-BObomxKe.js                                                      2.37 kB │ gzip:   1.25 kB
+public/build/assets/index-BzHgVpyG.js                                                               2.76 kB │ gzip:   0.71 kB
+public/build/assets/DialogTitle.vue_vue_type_script_setup_true_lang-CFpgVDc6.js                     2.77 kB │ gzip:   1.15 kB
+public/build/assets/useFormControl-DBBo0qDl.js                                                      2.78 kB │ gzip:   1.20 kB
+public/build/assets/ResetPassword-CRwdxNlj.js                                                       2.82 kB │ gzip:   1.08 kB
+public/build/assets/index-jPd8t-NB.js                                                               3.43 kB │ gzip:   1.64 kB
+public/build/assets/Register-6aHConY2.js                                                            3.56 kB │ gzip:   1.26 kB
+public/build/assets/TwoFactorChallenge-BTPNt_wl.js                                                  3.78 kB │ gzip:   1.40 kB
+public/build/assets/Appearance-C6q2gqqU.js                                                          4.10 kB │ gzip:   1.69 kB
+public/build/assets/useWebhookDispatch-w5ZcQZvw.js                                                  4.21 kB │ gzip:   2.17 kB
+public/build/assets/Password-B_Eg8Kcy.js                                                            4.27 kB │ gzip:   1.42 kB
+public/build/assets/ChatDebug-DLRyaqT7.js                                                           5.08 kB │ gzip:   1.79 kB
+public/build/assets/Index-CTG3YmET.js                                                               5.21 kB │ gzip:   2.01 kB
+public/build/assets/Create-lXdL0qPv.js                                                              5.25 kB │ gzip:   1.96 kB
+public/build/assets/useForwardExpose-nck4nlu9.js                                                    5.42 kB │ gzip:   2.49 kB
+public/build/assets/TableRow.vue_vue_type_script_setup_true_lang-BYDJvA1s.js                        5.67 kB │ gzip:   1.88 kB
+public/build/assets/FluidSmokeBackground.vue_vue_type_style_index_0_lang-B32_2vIE.js                5.74 kB │ gzip:   2.82 kB
+public/build/assets/Show-CslumCFL.js                                                                5.88 kB │ gzip:   2.33 kB
+public/build/assets/PinInputSlot.vue_vue_type_script_setup_true_lang-CyEOa5CR.js                    6.61 kB │ gzip:   2.55 kB
+public/build/assets/RovingFocusGroup-D42teLgD.js                                                    7.16 kB │ gzip:   3.06 kB
+public/build/assets/Layout.vue_vue_type_script_setup_true_lang-BxHCrV7e.js                          7.32 kB │ gzip:   1.92 kB
+public/build/assets/Profile-CFfrFGvP.js                                                             8.73 kB │ gzip:   2.82 kB
+public/build/assets/Chats-DEJgS2U1.js                                                               8.87 kB │ gzip:   3.04 kB
+public/build/assets/Login-Cm_pZ4IM.js                                                               9.50 kB │ gzip:   3.51 kB
+public/build/assets/Dashboard-C166VEHc.js                                                          10.09 kB │ gzip:   2.79 kB
+public/build/assets/PopoverContent.vue_vue_type_script_setup_true_lang-DIJd6glu.js                 10.17 kB │ gzip:   2.32 kB
+public/build/assets/TwoFactor-C77Qtdhs.js                                                          14.77 kB │ gzip:   5.02 kB
+public/build/assets/index-bY3TpGv4.js                                                              15.32 kB │ gzip:   2.40 kB
+public/build/assets/Deployments-CIoWmsqm.js                                                        17.31 kB │ gzip:   5.02 kB
+public/build/assets/TimezoneCombobox.vue_vue_type_script_setup_true_lang-TLn30hVs.js               18.78 kB │ gzip:   6.64 kB
+public/build/assets/index-BBs_PicT.js                                                              29.73 kB │ gzip:   9.98 kB
+public/build/assets/layout-e1uUgQ2X.js                                                             30.56 kB │ gzip:   9.50 kB
+public/build/assets/Editor-D-Cbv7fH.js                                                             58.38 kB │ gzip:  16.44 kB
+public/build/assets/AppLayout.vue_vue_type_script_setup_true_lang-CzYl6C59.js                     115.87 kB │ gzip:  31.74 kB
+public/build/assets/FlowPastChatDetailsDialog.vue_vue_type_script_setup_true_lang-CYF56nHR.js     196.04 kB │ gzip:  61.67 kB
+public/build/assets/FlowDeploymentDetailsContent.vue_vue_type_script_setup_true_lang-D3ksEWpX.js  271.41 kB │ gzip:  71.43 kB
+public/build/assets/app-CIBLfe1J.js                                                               370.42 kB │ gzip: 126.31 kB
+public/build/assets/vue-codemirror.esm-iI5VoCu4.js                                                469.02 kB │ gzip: 158.47 kB
+✓ built in 35.35s

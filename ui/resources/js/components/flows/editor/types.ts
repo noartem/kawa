@@ -11,6 +11,15 @@ export interface FlowLog {
 
 export type FlowEnvironment = 'development' | 'production';
 
+export type FlowEditorWorkspaceTab =
+    | 'editor'
+    | 'chat'
+    | 'storage'
+    | 'discovery'
+    | 'changes';
+
+export type FlowEditorTab = 'overview' | FlowEditorWorkspaceTab;
+
 export type FlowStorageContent = Record<string, unknown> | unknown[];
 
 export interface FlowStorageByEnvironment {

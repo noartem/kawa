@@ -1,0 +1,85 @@
+{
+  "task_id": "flow-editor-dev-prod-modes",
+  "overall_verdict": "PASS",
+  "criteria": [
+    {
+      "id": "AC1",
+      "status": "PASS",
+      "reason": "Current code normalizes deployment/tab query params in FlowController, the editor reads and syncs them from the URL in Editor.vue, the Dev/Prod switch is present in FlowEditorHeader.vue, and php artisan test --compact tests/Feature/FlowDeploymentsPayloadTest.php passed."
+    },
+    {
+      "id": "AC2",
+      "status": "PASS",
+      "reason": "Current editor state keeps code/chat/history shared while selected deployment drives start-stop actions, graph, logs, discovery, summary, and storage environment; payload separation is covered by FlowDeploymentsPayloadTest and fresh checks passed."
+    },
+    {
+      "id": "AC3",
+      "status": "PASS",
+      "reason": "The current tab model includes overview plus all workspace tabs, Editor.vue restores and updates tab state from the URL including browser navigation, and FlowDeploymentsPayloadTest passed for query-driven tab selection."
+    },
+    {
+      "id": "AC4",
+      "status": "PASS",
+      "reason": "Current FlowController and FlowActionController redirects preserve normalized deployment/tab query state, Editor.vue appends that state to outgoing actions, and the targeted FlowRunErrorHandlingTest and FlowGraphDefaultsTest both passed."
+    },
+    {
+      "id": "AC5",
+      "status": "PASS",
+      "reason": "Fresh verifier reruns succeeded for Pint, npm lint, npm build, FlowDeploymentsPayloadTest, FlowRunErrorHandlingTest, and FlowGraphDefaultsTest, and those tests cover both payload shape and redirect preservation for the new query-driven editor state."
+    }
+  ],
+  "commands_run": [
+    {
+      "command": "vendor/bin/pint --dirty --format agent",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "Passed."
+    },
+    {
+      "command": "npm run lint",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "Passed."
+    },
+    {
+      "command": "npm run build",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "Passed; Vite production build completed successfully."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowDeploymentsPayloadTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "11 passed (275 assertions)."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowRunErrorHandlingTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "27 passed (132 assertions)."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowGraphDefaultsTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "summary": "7 passed (52 assertions)."
+    }
+  ],
+  "artifacts_used": [
+    ".agent/tasks/flow-editor-dev-prod-modes/spec.md",
+    ".agent/tasks/flow-editor-dev-prod-modes/evidence.md",
+    ".agent/tasks/flow-editor-dev-prod-modes/evidence.json",
+    "ui/app/Http/Controllers/FlowController.php",
+    "ui/app/Http/Controllers/FlowActionController.php",
+    "ui/resources/js/pages/flows/Editor.vue",
+    "ui/resources/js/components/flows/editor/FlowEditorHeader.vue",
+    "ui/resources/js/components/flows/editor/FlowEditorSummary.vue",
+    "ui/resources/js/components/flows/editor/FlowEditorWorkspace.vue",
+    "ui/resources/js/components/flows/editor/types.ts",
+    "ui/resources/js/i18n/messages.ts",
+    "ui/tests/Feature/FlowDeploymentsPayloadTest.php",
+    "ui/tests/Feature/FlowRunErrorHandlingTest.php",
+    "ui/tests/Feature/FlowGraphDefaultsTest.php"
+  ]
+}

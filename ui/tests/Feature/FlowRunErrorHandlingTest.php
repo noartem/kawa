@@ -40,10 +40,18 @@ class FlowRunErrorHandlingTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->post(route('flows.run', $flow));
+            ->post(route('flows.run', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]));
 
         $response
-            ->assertRedirect(route('flows.show', $flow))
+            ->assertRedirect(route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]))
             ->assertSessionHas(
                 'error',
                 __('flows.run.image_not_found', ['image' => 'flow:dev']),
@@ -535,7 +543,11 @@ PY,
 
         $response = $this
             ->actingAs($user)
-            ->put(route('flows.storage.update', $flow), [
+            ->put(route('flows.storage.update', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'storage',
+            ]), [
                 'environment' => 'development',
                 'content' => json_encode([
                     'users' => [
@@ -545,7 +557,11 @@ PY,
             ]);
 
         $response
-            ->assertRedirect(route('flows.show', $flow))
+            ->assertRedirect(route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'storage',
+            ]))
             ->assertSessionHas('success', __('flows.storage.updated'));
 
         $storage = FlowStorage::query()
@@ -575,7 +591,11 @@ PY,
 
         $response = $this
             ->actingAs($user)
-            ->put(route('flows.storage.update', $flow), [
+            ->put(route('flows.storage.update', [
+                'flow' => $flow,
+                'deployment' => 'development',
+                'tab' => 'storage',
+            ]), [
                 'environment' => 'development',
                 'content' => json_encode([
                     'settings' => [
@@ -587,7 +607,11 @@ PY,
             ]);
 
         $response
-            ->assertRedirect(route('flows.show', $flow))
+            ->assertRedirect(route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'development',
+                'tab' => 'storage',
+            ]))
             ->assertSessionHas('error', __('flows.storage.error_active'));
 
         $this->assertNull(

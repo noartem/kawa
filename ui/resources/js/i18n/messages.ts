@@ -353,6 +353,8 @@ export const messages = {
             },
             logs: {
                 empty_dev: 'Logs will appear after the test deployment starts.',
+                empty_prod:
+                    'Logs will appear after the production deployment starts.',
                 empty: 'No logs for the deployment.',
                 node: 'Node: {node}',
                 payload: {
@@ -437,6 +439,7 @@ export const messages = {
                 title: 'Flow editor',
                 description: 'Test run, code, graph, and chat',
                 tabs: {
+                    overview: 'Overview',
                     code: 'Code editor',
                     chat: 'Chat with code',
                     storage: 'Storage',
@@ -1052,6 +1055,7 @@ export const messages = {
             },
             logs: {
                 empty_dev: 'Логи появятся после старта тестового деплоя.',
+                empty_prod: 'Логи появятся после старта продового деплоя.',
                 empty: 'У деплоя нет логов.',
                 node: 'Узел: {node}',
                 payload: {
@@ -1140,6 +1144,7 @@ export const messages = {
                 title: 'Редактор Потока',
                 description: 'Тестовый запуск, код, граф и чат',
                 tabs: {
+                    overview: 'Обзор',
                     code: 'Редактор кода',
                     chat: 'Чат с кодом',
                     storage: 'Хранилище',

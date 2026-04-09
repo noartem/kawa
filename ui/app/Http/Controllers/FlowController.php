@@ -25,6 +25,24 @@ use RuntimeException;
 
 class FlowController extends Controller
 {
+    private const DEFAULT_EDITOR_DEPLOYMENT = 'development';
+
+    private const DEFAULT_EDITOR_TAB = 'overview';
+
+    private const EDITOR_DEPLOYMENTS = [
+        'development',
+        'production',
+    ];
+
+    private const EDITOR_TABS = [
+        'overview',
+        'editor',
+        'chat',
+        'storage',
+        'discovery',
+        'changes',
+    ];
+
     public function __construct(
         private readonly FlowWebhookService $webhooks,
     ) {}
@@ -106,8 +124,9 @@ class FlowController extends Controller
 
         $productionRun = $flow->activeRun('production');
         $activeDevelopmentRun = $flow->activeRun('development');
+        $lastProductionDeployment = $this->resolveLatestDeploymentOfType($flow, 'production');
         $lastDevelopmentDeployment = $this->resolveLatestDeploymentOfType($flow, 'development');
-        $productionLogsCount = $productionRun?->logs()->count() ?? 0;
+        $productionLogsCount = count($lastProductionDeployment['logs'] ?? []);
         $history = $flow->histories()->latest()->limit(10)->get();
         $deployments = $this->buildDeployments($flow, self::EDITOR_DEPLOYMENTS_LIMIT);
 
@@ -116,6 +135,7 @@ class FlowController extends Controller
             'flow' => $flow,
             'deployments' => $deployments,
             'productionRun' => $productionRun,
+            'lastProductionDeployment' => $lastProductionDeployment,
             'lastDevelopmentDeployment' => $lastDevelopmentDeployment,
             'webhookEndpoints' => $this->webhooks->editorEndpoints(
                 $flow,
@@ -123,6 +143,8 @@ class FlowController extends Controller
                 $activeDevelopmentRun,
             ),
             'productionLogsCount' => $productionLogsCount,
+            'activeDeploymentType' => $this->resolveEditorDeploymentType($request),
+            'activeEditorTab' => $this->resolveEditorTab($request),
             'status' => $flow->status,
             'runStats' => $this->runStats($flow),
             'history' => $history,
@@ -217,7 +239,9 @@ class FlowController extends Controller
 
         $flow->update($data);
 
-        return redirect()->route('flows.show', $flow)->with('success', __('flows.updated'));
+        return redirect()
+            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->with('success', __('flows.updated'));
     }
 
     public function updateStorage(FlowStorageUpdateRequest $request, Flow $flow): RedirectResponse
@@ -226,7 +250,7 @@ class FlowController extends Controller
 
         if ($flow->activeRun($environment) !== null) {
             return redirect()
-                ->route('flows.show', $flow)
+                ->route('flows.show', $this->editorRouteParameters($request, $flow))
                 ->with('error', __('flows.storage.error_active'));
         }
 
@@ -236,7 +260,7 @@ class FlowController extends Controller
         );
 
         return redirect()
-            ->route('flows.show', $flow)
+            ->route('flows.show', $this->editorRouteParameters($request, $flow))
             ->with('success', __('flows.storage.updated'));
     }
 
@@ -649,6 +673,36 @@ class FlowController extends Controller
     private function timezoneOptions(): array
     {
         return \DateTimeZone::listIdentifiers();
+    }
+
+    /**
+     * @return array{flow: Flow, deployment: string, tab: string}
+     */
+    private function editorRouteParameters(Request $request, Flow $flow): array
+    {
+        return [
+            'flow' => $flow,
+            'deployment' => $this->resolveEditorDeploymentType($request),
+            'tab' => $this->resolveEditorTab($request),
+        ];
+    }
+
+    private function resolveEditorDeploymentType(Request $request): string
+    {
+        $deployment = $request->query('deployment');
+
+        return is_string($deployment) && in_array($deployment, self::EDITOR_DEPLOYMENTS, true)
+            ? $deployment
+            : self::DEFAULT_EDITOR_DEPLOYMENT;
+    }
+
+    private function resolveEditorTab(Request $request): string
+    {
+        $tab = $request->query('tab');
+
+        return is_string($tab) && in_array($tab, self::EDITOR_TABS, true)
+            ? $tab
+            : self::DEFAULT_EDITOR_TAB;
     }
 
     /**

@@ -1,0 +1,137 @@
+{
+  "task_id": "flow-editor-dev-prod-modes",
+  "overall_status": "PASS",
+  "last_updated": "2026-04-09T11:02:56+00:00",
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "text": "The Flow editor supports a query-driven deployment mode switch between development and production. The selected mode is taken from the URL on first load, can be changed in the editor UI, and is preserved when navigating within the editor page.",
+      "status": "PASS",
+      "proof": [
+        "ui/app/Http/Controllers/FlowController.php:133-147 exposes normalized activeDeploymentType and activeEditorTab props together with both deployment payloads.",
+        "ui/app/Http/Controllers/FlowController.php:681-706 normalizes deployment/tab query values with development/overview defaults.",
+        "ui/resources/js/pages/flows/Editor.vue:470-556 keeps deployment and tab in URL-backed page state.",
+        "ui/resources/js/components/flows/editor/FlowEditorHeader.vue:7-17,36-66 renders the Dev/Prod switch and emits deployment changes.",
+        "ui/tests/Feature/FlowDeploymentsPayloadTest.php:98-174 proves default and query-driven deployment/tab selection."
+      ],
+      "gaps": []
+    },
+    {
+      "id": "AC2",
+      "text": "Code editing, chat, and code-change history remain shared for both modes, while the deployment-scoped surfaces switch with the selected mode. At minimum this includes the primary start/stop action plus the graph, logs, discovery data, and storage environment shown for the selected mode.",
+      "status": "PASS",
+      "proof": [
+        "ui/resources/js/pages/flows/Editor.vue:182-200,383-393 derives deployment-scoped display state from selectedDeployment while leaving form/chat/history page state shared.",
+        "ui/resources/js/pages/flows/Editor.vue:1330-1354 routes start/stop to development or production actions based on activeDeploymentType.",
+        "ui/resources/js/pages/flows/Editor.vue:1480-1547 passes deployment-specific graph/log/discovery/storage state into the summary and workspace surfaces.",
+        "ui/resources/js/components/flows/editor/FlowEditorWorkspace.vue:80-114,147-168,649-654 uses deployment-generic props and environment-specific empty-log copy.",
+        "ui/tests/Feature/FlowDeploymentsPayloadTest.php:101-145 proves separate production and development deployment data is exposed in the payload."
+      ],
+      "gaps": []
+    },
+    {
+      "id": "AC3",
+      "text": "The editor tracks the active view in the URL and uses it on first load. Supported view values must cover the current editor surfaces users navigate between in this page, including overview plus the existing workspace tabs.",
+      "status": "PASS",
+      "proof": [
+        "ui/resources/js/components/flows/editor/types.ts:12-21 defines overview plus the workspace tabs in FlowEditorTab.",
+        "ui/resources/js/i18n/messages.ts:442,1147 adds the overview tab label in both locales.",
+        "ui/resources/js/pages/flows/Editor.vue:511-556,838-843,1433-1477 restores tab state from the URL, syncs history, and handles browser navigation.",
+        "ui/tests/Feature/FlowDeploymentsPayloadTest.php:147-174 proves tab=chat is accepted and returned in the page payload."
+      ],
+      "gaps": []
+    },
+    {
+      "id": "AC4",
+      "text": "Flow page actions that return to flows.show preserve the current editor query state so mode/view do not reset after save, run, stop, deploy, undeploy, archive, restore, or storage updates.",
+      "status": "PASS",
+      "proof": [
+        "ui/app/Http/Controllers/FlowController.php:242-254,263-264,681-706 preserves normalized deployment/tab on save and storage-update redirects.",
+        "ui/app/Http/Controllers/FlowActionController.php:30-142 preserves deployment/tab for run, stop, deploy, undeploy, archive, and restore redirects.",
+        "ui/resources/js/pages/flows/Editor.vue:1261-1376 appends deployment/tab query state to outgoing editor actions.",
+        "ui/tests/Feature/FlowRunErrorHandlingTest.php:41-58,544-565,592-615 proves redirect preservation for run and storage updates.",
+        "ui/tests/Feature/FlowGraphDefaultsTest.php:171-193 proves update redirects preserve deployment=production&tab=editor."
+      ],
+      "gaps": []
+    },
+    {
+      "id": "AC5",
+      "text": "Automated coverage proves the editor payload and flow action redirects preserve the new query-driven state and expose the deployment data needed for both modes.",
+      "status": "PASS",
+      "proof": [
+        "ui/tests/Feature/FlowDeploymentsPayloadTest.php ran successfully: 11 passed (275 assertions). Raw artifact: .agent/tasks/flow-editor-dev-prod-modes/raw/flow-deployments-payload-test.txt",
+        "ui/tests/Feature/FlowRunErrorHandlingTest.php ran successfully: 27 passed (132 assertions). Raw artifact: .agent/tasks/flow-editor-dev-prod-modes/raw/flow-run-error-handling-test.txt",
+        "ui/tests/Feature/FlowGraphDefaultsTest.php ran successfully: 7 passed (52 assertions). Raw artifact: .agent/tasks/flow-editor-dev-prod-modes/raw/flow-graph-defaults-test.txt",
+        "ui/vendor/bin/pint and npm lint passed. Raw artifact: .agent/tasks/flow-editor-dev-prod-modes/raw/lint.txt",
+        "ui/npm run build passed. Raw artifact: .agent/tasks/flow-editor-dev-prod-modes/raw/build.txt"
+      ],
+      "gaps": []
+    }
+  ],
+  "changed_files": [
+    "ui/app/Http/Controllers/FlowActionController.php",
+    "ui/app/Http/Controllers/FlowController.php",
+    "ui/resources/js/components/flows/editor/FlowEditorHeader.vue",
+    "ui/resources/js/components/flows/editor/FlowEditorSummary.vue",
+    "ui/resources/js/components/flows/editor/FlowEditorWorkspace.vue",
+    "ui/resources/js/components/flows/editor/types.ts",
+    "ui/resources/js/i18n/messages.ts",
+    "ui/resources/js/pages/flows/Editor.vue",
+    "ui/tests/Feature/FlowDeploymentsPayloadTest.php",
+    "ui/tests/Feature/FlowGraphDefaultsTest.php",
+    "ui/tests/Feature/FlowRunErrorHandlingTest.php"
+  ],
+  "commands_run": [
+    {
+      "command": "vendor/bin/pint --dirty --format agent",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/lint.txt",
+      "summary": "Pint passed."
+    },
+    {
+      "command": "npm run lint",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/lint.txt",
+      "summary": "ESLint passed."
+    },
+    {
+      "command": "npm run build",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/build.txt",
+      "summary": "Vite production build passed."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowDeploymentsPayloadTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/flow-deployments-payload-test.txt",
+      "summary": "11 tests passed with 275 assertions."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowRunErrorHandlingTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/flow-run-error-handling-test.txt",
+      "summary": "27 tests passed with 132 assertions."
+    },
+    {
+      "command": "php artisan test --compact tests/Feature/FlowGraphDefaultsTest.php",
+      "workdir": "ui",
+      "exit_code": 0,
+      "raw_artifact": ".agent/tasks/flow-editor-dev-prod-modes/raw/flow-graph-defaults-test.txt",
+      "summary": "7 tests passed with 52 assertions."
+    }
+  ],
+  "commands_for_fresh_verifier": [
+    "vendor/bin/pint --dirty --format agent",
+    "npm run lint",
+    "npm run build",
+    "php artisan test --compact tests/Feature/FlowDeploymentsPayloadTest.php",
+    "php artisan test --compact tests/Feature/FlowRunErrorHandlingTest.php",
+    "php artisan test --compact tests/Feature/FlowGraphDefaultsTest.php"
+  ],
+  "known_gaps": []
+}

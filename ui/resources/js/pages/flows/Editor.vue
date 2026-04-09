@@ -8,10 +8,12 @@ import FlowPastChatsPanel from '@/components/flows/editor/FlowPastChatsPanel.vue
 import type {
     DeploymentCard,
     FlowChatConversation,
-    FlowEnvironment,
     FlowChatMessage,
     FlowDeployment,
     FlowDetail,
+    FlowEditorTab,
+    FlowEditorWorkspaceTab,
+    FlowEnvironment,
     FlowHistory,
     FlowLog,
     FlowRun,
@@ -43,12 +45,20 @@ import {
 import { update as flowStorageUpdate } from '@/routes/flows/storage';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import {
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    shallowRef,
+    watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     flow: FlowDetail;
     productionRun: FlowRun | null;
+    lastProductionDeployment: FlowDeployment | null;
     lastDevelopmentDeployment: FlowDeployment | null;
     webhookEndpoints: FlowWebhookEndpoint[];
     productionLogsCount: number;
@@ -61,6 +71,8 @@ const props = defineProps<{
     storage: FlowStorageByEnvironment;
     timezoneOptions: string[];
     permissions: Permissions;
+    activeDeploymentType: FlowEnvironment;
+    activeEditorTab: FlowEditorTab;
 }>();
 
 const { t, locale } = useI18n();
@@ -84,6 +96,13 @@ interface ChatMessageRequest {
 
 const MAX_CHAT_HISTORY_ENTRIES = 10;
 const MAX_CHAT_HISTORY_CODE_LENGTH = 100000;
+const WORKSPACE_TABS: FlowEditorWorkspaceTab[] = [
+    'editor',
+    'chat',
+    'storage',
+    'discovery',
+    'changes',
+];
 
 const actionInProgress = ref<
     'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
@@ -121,7 +140,11 @@ const syncedStorageDrafts = ref<Record<FlowEnvironment, string>>({
     development: storageDrafts.value.development,
     production: storageDrafts.value.production,
 });
-const activeStorageEnvironment = ref<FlowEnvironment>('development');
+const activeDeploymentType = ref<FlowEnvironment>(props.activeDeploymentType);
+const activeEditorTab = ref<FlowEditorTab>(props.activeEditorTab);
+const activeStorageEnvironment = ref<FlowEnvironment>(
+    props.activeDeploymentType,
+);
 const storageSaveInFlight = ref(false);
 const storageForm = useForm({
     environment: 'development' as FlowEnvironment,
@@ -142,6 +165,7 @@ const stableHistorySignature = ref(
 const refreshOnlyProps = [
     'flow',
     'productionRun',
+    'lastProductionDeployment',
     'productionLogsCount',
     'lastDevelopmentDeployment',
     'webhookEndpoints',
@@ -151,50 +175,29 @@ const refreshOnlyProps = [
     'history',
     'recentFlows',
     'flash',
+    'activeDeploymentType',
+    'activeEditorTab',
 ] as const;
 
-const currentProduction = computed(() => props.productionRun);
+const currentProduction = computed(() => props.lastProductionDeployment);
 const currentDevelopment = computed(() => props.lastDevelopmentDeployment);
+const selectedDeployment = computed<FlowDeployment | null>(() => {
+    return activeDeploymentType.value === 'production'
+        ? currentProduction.value
+        : currentDevelopment.value;
+});
 const deployments = computed(() => props.deployments ?? []);
 const discoveryWebhookEndpoints = computed<FlowWebhookEndpoint[]>(() => {
-    const endpointsBySlug = new Map<string, FlowWebhookEndpoint>();
-
-    const mergeEndpoint = (endpoint: FlowWebhookEndpoint): void => {
-        const existing = endpointsBySlug.get(endpoint.slug);
-
-        if (!existing) {
-            endpointsBySlug.set(endpoint.slug, { ...endpoint });
-            return;
-        }
-
-        endpointsBySlug.set(endpoint.slug, {
-            slug: endpoint.slug,
-            source_line: existing.source_line ?? endpoint.source_line ?? null,
-            production_url:
-                existing.production_url ?? endpoint.production_url ?? null,
-            development_url:
-                existing.development_url ?? endpoint.development_url ?? null,
-        });
-    };
-
-    for (const endpoint of currentDevelopment.value?.webhooks ?? []) {
-        mergeEndpoint(endpoint);
-    }
-
-    for (const endpoint of props.webhookEndpoints) {
-        mergeEndpoint(endpoint);
-    }
-
-    return [...endpointsBySlug.values()];
+    return selectedDeployment.value?.webhooks ?? [];
 });
 const displayGraph = computed<Record<string, unknown> | null>(() => {
-    return currentDevelopment.value?.graph ?? null;
+    return selectedDeployment.value?.graph ?? null;
 });
-const displayDevelopmentStatus = computed(() => {
-    return currentDevelopment.value?.status ?? null;
+const displayDeploymentStatus = computed(() => {
+    return selectedDeployment.value?.status ?? null;
 });
-const displayDevelopmentLogs = computed<FlowLog[]>(() => {
-    return currentDevelopment.value?.logs ?? [];
+const displayDeploymentLogs = computed<FlowLog[]>(() => {
+    return selectedDeployment.value?.logs ?? [];
 });
 const displayedChatMessages = computed<FlowChatMessage[]>(() => {
     const baseMessages = activeChat.value?.messages ?? [];
@@ -360,9 +363,51 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     },
     {
         title: t('flows.breadcrumbs.flow', { id: props.flow.id }),
-        href: flowShow({ flow: props.flow.id ?? 0 }).url,
+        href: buildEditorUrl(),
     },
 ]);
+
+const editorTabs = computed<Array<{ value: FlowEditorTab; label: string }>>(
+    () => {
+        return [
+            { value: 'overview', label: t('flows.editor.tabs.overview') },
+            { value: 'editor', label: t('flows.editor.tabs.code') },
+            { value: 'chat', label: t('flows.editor.tabs.chat') },
+            { value: 'storage', label: t('flows.editor.tabs.storage') },
+            { value: 'discovery', label: t('flows.editor.tabs.discovery') },
+            { value: 'changes', label: t('flows.editor.tabs.changes') },
+        ];
+    },
+);
+
+const currentDeploymentLabel = computed(() => {
+    return activeDeploymentType.value === 'production'
+        ? t('environments.production')
+        : t('environments.development');
+});
+
+const currentDeploymentLogsCount = computed(() => {
+    return activeDeploymentType.value === 'production'
+        ? props.productionLogsCount
+        : displayDeploymentLogs.value.length;
+});
+
+const isWorkspaceTab = (
+    value: FlowEditorTab,
+): value is FlowEditorWorkspaceTab => {
+    return WORKSPACE_TABS.includes(value as FlowEditorWorkspaceTab);
+};
+
+const activeWorkspaceTab = computed<FlowEditorWorkspaceTab>({
+    get: () => {
+        return isWorkspaceTab(activeEditorTab.value)
+            ? activeEditorTab.value
+            : 'editor';
+    },
+    set: (value) => {
+        setActiveEditorTab(value);
+    },
+});
 
 const statusLabel = (status?: string | null): string => {
     return t(`statuses.${status ?? 'unknown'}`);
@@ -420,6 +465,95 @@ const formatDate = (value?: string | null): string => {
     }
 
     return new Date(parsed).toLocaleString();
+};
+
+const appendEditorQuery = (
+    url: string,
+    deployment: FlowEnvironment = activeDeploymentType.value,
+    tab: FlowEditorTab = activeEditorTab.value,
+): string => {
+    const separator = url.includes('?') ? '&' : '?';
+    const query = new URLSearchParams({
+        deployment,
+        tab,
+    });
+
+    return `${url}${separator}${query.toString()}`;
+};
+
+const buildEditorUrl = (
+    deployment: FlowEnvironment = activeDeploymentType.value,
+    tab: FlowEditorTab = activeEditorTab.value,
+): string => {
+    return appendEditorQuery(
+        flowShow({ flow: props.flow.id ?? 0 }).url,
+        deployment,
+        tab,
+    );
+};
+
+const syncBrowserUrl = (replace = false): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const nextUrl = buildEditorUrl();
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (nextUrl === currentUrl) {
+        return;
+    }
+
+    const stateMethod = replace ? 'replaceState' : 'pushState';
+    window.history[stateMethod](window.history.state, '', nextUrl);
+};
+
+const readEditorStateFromLocation = (): {
+    deployment: FlowEnvironment;
+    tab: FlowEditorTab;
+} => {
+    if (typeof window === 'undefined') {
+        return {
+            deployment: props.activeDeploymentType,
+            tab: props.activeEditorTab,
+        };
+    }
+
+    const query = new URLSearchParams(window.location.search);
+    const deployment = query.get('deployment');
+    const tab = query.get('tab');
+
+    return {
+        deployment:
+            deployment === 'production' || deployment === 'development'
+                ? deployment
+                : 'development',
+        tab:
+            tab === 'overview' || isWorkspaceTab(tab as FlowEditorTab)
+                ? (tab as FlowEditorTab)
+                : 'overview',
+    };
+};
+
+const setActiveDeployment = (
+    deployment: FlowEnvironment,
+    replace = false,
+): void => {
+    if (activeDeploymentType.value === deployment) {
+        return;
+    }
+
+    activeDeploymentType.value = deployment;
+    syncBrowserUrl(replace);
+};
+
+const setActiveEditorTab = (tab: FlowEditorTab, replace = false): void => {
+    if (activeEditorTab.value === tab) {
+        return;
+    }
+
+    activeEditorTab.value = tab;
+    syncBrowserUrl(replace);
 };
 
 const relativeTimeFormatter = computed(() => {
@@ -509,19 +643,19 @@ const countGraphNodesByType = (
     return count;
 };
 
-const latestDevelopmentSnapshotAt = computed(() => {
+const latestDeploymentSnapshotAt = computed(() => {
     return (
-        currentDevelopment.value?.updated_at ??
-        currentDevelopment.value?.finished_at ??
-        currentDevelopment.value?.started_at ??
-        currentDevelopment.value?.created_at ??
+        selectedDeployment.value?.updated_at ??
+        selectedDeployment.value?.finished_at ??
+        selectedDeployment.value?.started_at ??
+        selectedDeployment.value?.created_at ??
         null
     );
 });
 
 const graphIsOutdated = computed(() => {
     const codeUpdated = parseDateMs(props.flow.code_updated_at);
-    const graphGenerated = parseDateMs(latestDevelopmentSnapshotAt.value);
+    const graphGenerated = parseDateMs(latestDeploymentSnapshotAt.value);
 
     return (
         codeUpdated !== null &&
@@ -534,11 +668,11 @@ const graphMeta = computed(() => {
     return {
         actors: countGraphNodesByType(displayGraph.value, 'actor'),
         events: countGraphNodesByType(displayGraph.value, 'event'),
-        status: statusLabel(displayDevelopmentStatus.value),
+        status: statusLabel(displayDeploymentStatus.value),
         freshnessLabel: graphIsOutdated.value
             ? t('common.outdated')
             : t('common.updated_at'),
-        updatedAt: formatRecentDate(latestDevelopmentSnapshotAt.value),
+        updatedAt: formatRecentDate(latestDeploymentSnapshotAt.value),
     };
 });
 
@@ -640,10 +774,33 @@ watch(
 );
 
 watch(
+    () => props.activeDeploymentType,
+    (nextDeployment) => {
+        activeDeploymentType.value = nextDeployment;
+        activeStorageEnvironment.value = nextDeployment;
+        syncBrowserUrl(true);
+    },
+);
+
+watch(
+    () => props.activeEditorTab,
+    (nextTab) => {
+        activeEditorTab.value = nextTab;
+        syncBrowserUrl(true);
+    },
+);
+
+watch(activeDeploymentType, (nextDeployment) => {
+    activeStorageEnvironment.value = nextDeployment;
+});
+
+watch(
     () => props.storage,
     (nextStorage) => {
         for (const environment of ['development', 'production'] as const) {
-            const nextContent = stringifyStorageContent(nextStorage[environment]);
+            const nextContent = stringifyStorageContent(
+                nextStorage[environment],
+            );
 
             if (
                 storageDrafts.value[environment] ===
@@ -678,6 +835,13 @@ const setActiveStorageContent = (value: string): void => {
     activeStorageContent.value = value;
 };
 
+const handlePopstate = (): void => {
+    const nextState = readEditorStateFromLocation();
+    activeDeploymentType.value = nextState.deployment;
+    activeEditorTab.value = nextState.tab;
+    activeStorageEnvironment.value = nextState.deployment;
+};
+
 const refreshFlowView = (): void => {
     if (refreshInFlight.value) {
         return;
@@ -686,6 +850,7 @@ const refreshFlowView = (): void => {
     refreshInFlight.value = true;
 
     router.reload({
+        preserveScroll: true,
         only: [...refreshOnlyProps],
         onFinish: () => {
             refreshInFlight.value = false;
@@ -874,13 +1039,14 @@ const appendPendingChatHistory = (
         normalizeChatHistoryCode(proposedCode),
     );
 
-    pendingChatHistory.value = [
-        ...pendingChatHistory.value,
-        nextEntry,
-    ].slice(-MAX_CHAT_HISTORY_ENTRIES);
+    pendingChatHistory.value = [...pendingChatHistory.value, nextEntry].slice(
+        -MAX_CHAT_HISTORY_ENTRIES,
+    );
 };
 
-const submitChatMessageRequest = async (request: ChatMessageRequest): Promise<void> => {
+const submitChatMessageRequest = async (
+    request: ChatMessageRequest,
+): Promise<void> => {
     chatError.value = null;
     chatPending.value = true;
     failedChatRequest.value = request;
@@ -1092,7 +1258,7 @@ const save = (): void => {
 
     saving.value = true;
 
-    form.put(flowUpdate({ flow: props.flow.id ?? 0 }).url, {
+    form.put(appendEditorQuery(flowUpdate({ flow: props.flow.id ?? 0 }).url), {
         preserveScroll: true,
         onFinish: () => {
             saving.value = false;
@@ -1115,17 +1281,20 @@ const saveStorage = (): void => {
     storageForm.environment = environment;
     storageForm.content = storageDrafts.value[environment];
 
-    storageForm.put(flowStorageUpdate({ flow: props.flow.id ?? 0 }).url, {
-        preserveScroll: true,
-        only: [...refreshOnlyProps],
-        onSuccess: () => {
-            syncedStorageDrafts.value[environment] =
-                storageDrafts.value[environment];
+    storageForm.put(
+        appendEditorQuery(flowStorageUpdate({ flow: props.flow.id ?? 0 }).url),
+        {
+            preserveScroll: true,
+            only: [...refreshOnlyProps],
+            onSuccess: () => {
+                syncedStorageDrafts.value[environment] =
+                    storageDrafts.value[environment];
+            },
+            onFinish: () => {
+                storageSaveInFlight.value = false;
+            },
         },
-        onFinish: () => {
-            storageSaveInFlight.value = false;
-        },
-    });
+    );
 };
 
 const saveBeforeAction = (onSuccess: () => void): void => {
@@ -1141,7 +1310,7 @@ const saveBeforeAction = (onSuccess: () => void): void => {
 
     saving.value = true;
 
-    form.put(flowUpdate({ flow: props.flow.id ?? 0 }).url, {
+    form.put(appendEditorQuery(flowUpdate({ flow: props.flow.id ?? 0 }).url), {
         preserveScroll: true,
         only: [...refreshOnlyProps],
         onSuccess: () => {
@@ -1159,7 +1328,14 @@ const runFlow = (): void => {
     }
 
     saveBeforeAction(() => {
-        submitAction('run', flowRun({ flow: props.flow.id ?? 0 }).url);
+        submitAction(
+            'run',
+            appendEditorQuery(
+                activeDeploymentType.value === 'production'
+                    ? flowDeploy({ flow: props.flow.id ?? 0 }).url
+                    : flowRun({ flow: props.flow.id ?? 0 }).url,
+            ),
+        );
     });
 };
 
@@ -1168,25 +1344,14 @@ const stopFlow = (): void => {
         return;
     }
 
-    submitAction('stop', flowStop({ flow: props.flow.id ?? 0 }).url);
-};
-
-const deployProd = (): void => {
-    if (!props.permissions.canRun || form.processing || saving.value) {
-        return;
-    }
-
-    saveBeforeAction(() => {
-        submitAction('deploy', flowDeploy({ flow: props.flow.id ?? 0 }).url);
-    });
-};
-
-const undeployProd = (): void => {
-    if (!props.permissions.canRun) {
-        return;
-    }
-
-    submitAction('undeploy', flowUndeploy({ flow: props.flow.id ?? 0 }).url);
+    submitAction(
+        'stop',
+        appendEditorQuery(
+            activeDeploymentType.value === 'production'
+                ? flowUndeploy({ flow: props.flow.id ?? 0 }).url
+                : flowStop({ flow: props.flow.id ?? 0 }).url,
+        ),
+    );
 };
 
 const archiveFlow = (): void => {
@@ -1194,7 +1359,10 @@ const archiveFlow = (): void => {
         return;
     }
 
-    submitAction('archive', flowArchive({ flow: props.flow.id ?? 0 }).url);
+    submitAction(
+        'archive',
+        appendEditorQuery(flowArchive({ flow: props.flow.id ?? 0 }).url),
+    );
 };
 
 const restoreFlow = (): void => {
@@ -1202,7 +1370,10 @@ const restoreFlow = (): void => {
         return;
     }
 
-    submitAction('restore', flowRestore({ flow: props.flow.id ?? 0 }).url);
+    submitAction(
+        'restore',
+        appendEditorQuery(flowRestore({ flow: props.flow.id ?? 0 }).url),
+    );
 };
 
 const deleteFlow = (): void => {
@@ -1253,6 +1424,23 @@ onBeforeUnmount(() => {
         clearInterval(refreshTimer);
         refreshTimer = null;
     }
+
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handlePopstate);
+    }
+});
+
+onMounted(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const nextState = readEditorStateFromLocation();
+    activeDeploymentType.value = nextState.deployment;
+    activeEditorTab.value = nextState.tab;
+    activeStorageEnvironment.value = nextState.deployment;
+    syncBrowserUrl(true);
+    window.addEventListener('popstate', handlePopstate);
 });
 </script>
 
@@ -1264,25 +1452,47 @@ onBeforeUnmount(() => {
             <FlowEditorHeader
                 :name="form.name"
                 :description="form.description"
-                :current-production-active="Boolean(currentProduction?.active)"
+                :active-deployment-type="activeDeploymentType"
                 :can-run="props.permissions.canRun"
                 :action-in-progress="actionInProgress"
-                @deploy-prod="deployProd"
-                @undeploy-prod="undeployProd"
+                @update:deployment-type="setActiveDeployment"
             />
 
+            <section class="px-4 py-5">
+                <nav class="flex flex-wrap gap-2" aria-label="Editor tabs">
+                    <a
+                        v-for="tab in editorTabs"
+                        :key="tab.value"
+                        :href="buildEditorUrl(activeDeploymentType, tab.value)"
+                        class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition"
+                        :class="
+                            activeEditorTab === tab.value
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                        "
+                        @click.prevent="setActiveEditorTab(tab.value)"
+                    >
+                        {{ tab.label }}
+                    </a>
+                </nav>
+            </section>
+
             <FlowEditorSummary
+                v-if="activeEditorTab === 'overview'"
                 :flow-runs-count="props.flow.runs_count"
                 :last-started-at="props.flow.last_started_at"
                 :last-finished-at="props.flow.last_finished_at"
-                :has-current-production="Boolean(currentProduction)"
-                :current-production-status="currentProduction?.status"
-                :current-production-started-at="currentProduction?.started_at"
-                :current-production-finished-at="currentProduction?.finished_at"
-                :current-production-events-count="
-                    currentProduction?.events?.length ?? 0
+                :has-current-deployment="Boolean(selectedDeployment)"
+                :current-deployment-label="currentDeploymentLabel"
+                :current-deployment-status="displayDeploymentStatus"
+                :current-deployment-started-at="selectedDeployment?.started_at"
+                :current-deployment-finished-at="
+                    selectedDeployment?.finished_at
                 "
-                :production-logs-count="props.productionLogsCount"
+                :current-deployment-events-count="
+                    selectedDeployment?.events?.length ?? 0
+                "
+                :current-deployment-logs-count="currentDeploymentLogsCount"
                 :run-stats="props.runStats"
                 :status-tone="statusTone"
                 :status-label="statusLabel"
@@ -1291,16 +1501,18 @@ onBeforeUnmount(() => {
             />
 
             <FlowEditorWorkspace
+                v-else
                 v-model:code="form.code"
                 v-model:chat-draft="chatDraft"
+                v-model:active-tab="activeWorkspaceTab"
+                v-model:storage-environment="activeStorageEnvironment"
+                v-model:storage-content="activeStorageContent"
                 :can-update="props.permissions.canUpdate"
                 :can-run="props.permissions.canRun"
                 :action-in-progress="actionInProgress"
                 :chat-pending="chatPending"
-                :current-development-active="
-                    Boolean(currentDevelopment?.active)
-                "
-                :current-development-status="displayDevelopmentStatus"
+                :current-deployment-active="Boolean(selectedDeployment?.active)"
+                :current-deployment-status="displayDeploymentStatus"
                 :status-tone="statusTone"
                 :status-label="statusLabel"
                 :code-updated-at="props.flow.code_updated_at"
@@ -1308,8 +1520,6 @@ onBeforeUnmount(() => {
                 :history-cards="historyCards"
                 :active-chat="activeChat"
                 :chat-messages="displayedChatMessages"
-                :storage-environment="activeStorageEnvironment"
-                :storage-content="activeStorageContent"
                 :storage-readonly="activeStorageReadonlyReason !== null"
                 :storage-readonly-reason="activeStorageReadonlyReason"
                 :storage-saving="storageSaveInFlight"
@@ -1319,8 +1529,8 @@ onBeforeUnmount(() => {
                 :webhook-endpoints="discoveryWebhookEndpoints"
                 :graph-meta="graphMeta"
                 :graph-is-outdated="graphIsOutdated"
-                :log-stream-key="currentDevelopment?.id ?? null"
-                :development-logs="displayDevelopmentLogs"
+                :log-stream-key="selectedDeployment?.id ?? null"
+                :deployment-logs="displayDeploymentLogs"
                 :format-recent-date="formatRecentDate"
                 :format-date="formatDate"
                 @run-flow="runFlow"

@@ -1,19 +1,19 @@
 <script setup lang="ts">
+import type { FlowEnvironment } from '@/components/flows/editor/types';
 import { Button } from '@/components/ui/button';
-import { Share2, Square, UploadCloud } from 'lucide-vue-next';
+import { Share2 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 defineProps<{
     name: string;
     description: string;
-    currentProductionActive: boolean;
+    activeDeploymentType: FlowEnvironment;
     canRun: boolean;
     actionInProgress: string | null;
 }>();
 
 defineEmits<{
-    'deploy-prod': [];
-    'undeploy-prod': [];
+    'update:deploymentType': [value: FlowEnvironment];
 }>();
 
 const { t } = useI18n();
@@ -34,23 +34,36 @@ const { t } = useI18n();
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <Button
-                    v-if="currentProductionActive"
-                    variant="outline"
-                    :disabled="!canRun || actionInProgress !== null"
-                    @click="$emit('undeploy-prod')"
+                <div
+                    class="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1"
                 >
-                    <Square class="size-4" />
-                    {{ t('actions.stop') }}
-                </Button>
-                <Button
-                    v-else
-                    :disabled="!canRun || actionInProgress !== null"
-                    @click="$emit('deploy-prod')"
-                >
-                    <UploadCloud class="size-4" />
-                    {{ t('actions.deploy') }}
-                </Button>
+                    <button
+                        type="button"
+                        class="rounded-md px-3 py-1.5 text-sm transition"
+                        :class="
+                            activeDeploymentType === 'development'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        :disabled="actionInProgress !== null"
+                        @click="$emit('update:deploymentType', 'development')"
+                    >
+                        {{ t('environments.development') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-md px-3 py-1.5 text-sm transition"
+                        :class="
+                            activeDeploymentType === 'production'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        :disabled="actionInProgress !== null"
+                        @click="$emit('update:deploymentType', 'production')"
+                    >
+                        {{ t('environments.production') }}
+                    </button>
+                </div>
                 <Button variant="outline" :disabled="!canRun">
                     <Share2 class="size-4" />
                     {{ t('actions.share') }}

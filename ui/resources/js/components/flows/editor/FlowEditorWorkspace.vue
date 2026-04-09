@@ -5,18 +5,19 @@ import FlowCodeMergeView from '@/components/flows/FlowCodeMergeView.vue';
 import FlowGraph from '@/components/flows/FlowGraph.vue';
 import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue';
 import FlowEditorChatPanel from '@/components/flows/editor/FlowEditorChatPanel.vue';
-import type {
-    FlowChatConversation,
-    FlowEnvironment,
-    FlowChatMessage,
-    FlowWebhookEndpoint,
-    GraphMeta,
-    HistoryCard,
-} from '@/components/flows/editor/types';
 import {
     getHistoryAccordionValue,
     retainExpandedHistoryValues,
 } from '@/components/flows/editor/historyAccordion';
+import type {
+    FlowChatConversation,
+    FlowChatMessage,
+    FlowEditorWorkspaceTab,
+    FlowEnvironment,
+    FlowWebhookEndpoint,
+    GraphMeta,
+    HistoryCard,
+} from '@/components/flows/editor/types';
 import {
     Accordion,
     AccordionContent,
@@ -66,18 +67,23 @@ interface FlowGraphExpose {
 
 const code = defineModel<string>('code', { required: true });
 const chatDraft = defineModel<string>('chatDraft', { required: true });
+const activeTab = defineModel<FlowEditorWorkspaceTab>('activeTab', {
+    required: true,
+});
 const storageEnvironment = defineModel<FlowEnvironment>('storageEnvironment', {
     required: true,
 });
-const storageContent = defineModel<string>('storageContent', { required: true });
+const storageContent = defineModel<string>('storageContent', {
+    required: true,
+});
 
 const props = defineProps<{
     canUpdate: boolean;
     canRun: boolean;
     actionInProgress: string | null;
     chatPending: boolean;
-    currentDevelopmentActive: boolean;
-    currentDevelopmentStatus?: string | null;
+    currentDeploymentActive: boolean;
+    currentDeploymentStatus?: string | null;
     statusTone: (status?: string | null) => string;
     statusLabel: (status?: string | null) => string;
     codeUpdatedAt?: string | null;
@@ -95,7 +101,7 @@ const props = defineProps<{
     graphMeta: GraphMeta;
     graphIsOutdated: boolean;
     logStreamKey?: string | number | null;
-    developmentLogs: Array<{
+    deploymentLogs: Array<{
         id: number;
         level?: string | null;
         message?: string | null;
@@ -139,9 +145,9 @@ const showStatusChip = computed(() => {
     ]);
 
     return (
-        props.currentDevelopmentActive ||
+        props.currentDeploymentActive ||
         isStatusTransitioning.value ||
-        visibleStatuses.has(props.currentDevelopmentStatus ?? '')
+        visibleStatuses.has(props.currentDeploymentStatus ?? '')
     );
 });
 
@@ -154,11 +160,11 @@ const statusChipStatus = computed<string>(() => {
         return 'stopping';
     }
 
-    if (props.currentDevelopmentStatus) {
-        return props.currentDevelopmentStatus;
+    if (props.currentDeploymentStatus) {
+        return props.currentDeploymentStatus;
     }
 
-    return props.currentDevelopmentActive ? 'running' : 'unknown';
+    return props.currentDeploymentActive ? 'running' : 'unknown';
 });
 
 const statusChipLabel = computed(() => {
@@ -183,9 +189,6 @@ const statusChipIcon = computed(() => {
     }
 });
 
-const activeTab = ref<'editor' | 'chat' | 'storage' | 'discovery' | 'changes'>(
-    'editor',
-);
 const expandedHistoryValues = ref<string[]>([]);
 const workspaceSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
@@ -284,73 +287,8 @@ watch(
             class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_minmax(16rem,2fr)_minmax(24rem,3fr)]"
         >
             <div
-                class="col-span-2 row-1 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+                class="col-span-2 row-1 flex flex-wrap items-center justify-end gap-2"
             >
-                <div
-                    class="inline-flex w-full items-center gap-1 rounded-lg border border-border bg-muted/30 p-1 lg:w-auto"
-                >
-                    <button
-                        type="button"
-                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
-                        :class="
-                            activeTab === 'editor'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        "
-                        @click="activeTab = 'editor'"
-                    >
-                        {{ t('flows.editor.tabs.code') }}
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
-                        :class="
-                            activeTab === 'chat'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        "
-                        @click="activeTab = 'chat'"
-                    >
-                        {{ t('flows.editor.tabs.chat') }}
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
-                        :class="
-                            activeTab === 'storage'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        "
-                        @click="activeTab = 'storage'"
-                    >
-                        {{ t('flows.editor.tabs.storage') }}
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
-                        :class="
-                            activeTab === 'discovery'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        "
-                        @click="activeTab = 'discovery'"
-                    >
-                        {{ t('flows.editor.tabs.discovery') }}
-                    </button>
-                    <button
-                        type="button"
-                        class="flex-1 rounded-md px-3 py-1.5 text-sm transition lg:flex-none"
-                        :class="
-                            activeTab === 'changes'
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        "
-                        @click="activeTab = 'changes'"
-                    >
-                        {{ t('flows.editor.tabs.changes') }}
-                    </button>
-                </div>
-
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge
                         v-if="showStatusChip"
@@ -373,7 +311,7 @@ watch(
                     </Badge>
 
                     <Button
-                        v-if="currentDevelopmentActive"
+                        v-if="currentDeploymentActive"
                         variant="outline"
                         :disabled="
                             !canRun || actionInProgress !== null || chatPending
@@ -485,9 +423,12 @@ watch(
                     </div>
                 </div>
 
-                <div v-else-if="activeTab === 'storage'" class="flex h-full flex-col">
+                <div
+                    v-else-if="activeTab === 'storage'"
+                    class="flex h-full flex-col"
+                >
                     <div
-                        class="flex items-center justify-between gap-3 rounded-t-xl border border-border border-b-0 bg-muted/20 px-4 py-3"
+                        class="flex items-center justify-between gap-3 rounded-t-xl border border-b-0 border-border bg-muted/20 px-4 py-3"
                     >
                         <div>
                             <p class="text-sm font-semibold text-foreground">
@@ -498,35 +439,18 @@ watch(
                             </p>
                         </div>
 
-                        <div class="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 p-1">
-                            <button
-                                type="button"
-                                class="rounded-md px-3 py-1.5 text-sm transition"
-                                :class="
-                                    storageEnvironment === 'development'
-                                        ? 'bg-background text-foreground shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                "
-                                @click="storageEnvironment = 'development'"
-                            >
-                                {{ t('environments.development') }}
-                            </button>
-                            <button
-                                type="button"
-                                class="rounded-md px-3 py-1.5 text-sm transition"
-                                :class="
-                                    storageEnvironment === 'production'
-                                        ? 'bg-background text-foreground shadow-sm'
-                                        : 'text-muted-foreground hover:text-foreground'
-                                "
-                                @click="storageEnvironment = 'production'"
-                            >
-                                {{ t('environments.production') }}
-                            </button>
-                        </div>
+                        <Badge variant="outline">
+                            {{
+                                storageEnvironment === 'production'
+                                    ? t('environments.production')
+                                    : t('environments.development')
+                            }}
+                        </Badge>
                     </div>
 
-                    <div class="min-h-0 flex-1 overflow-hidden rounded-b-xl border border-border bg-linear-to-br from-background to-muted/25">
+                    <div
+                        class="min-h-0 flex-1 overflow-hidden rounded-b-xl border border-border bg-linear-to-br from-background to-muted/25"
+                    >
                         <FlowCodeEditor
                             id="flow-storage"
                             v-model="storageContent"
@@ -579,12 +503,14 @@ watch(
                         v-model:model-value="expandedHistoryValues"
                         type="multiple"
                         :unmount-on-hide="false"
-                        class="flex max-h-full flex-col overflow-y-auto overscroll-contain rounded-lg border border-border bg-muted/15 divide-y divide-border"
+                        class="flex max-h-full flex-col divide-y divide-border overflow-y-auto overscroll-contain rounded-lg border border-border bg-muted/15"
                     >
                         <AccordionItem
                             v-for="historyCard in historyCards"
                             :key="historyCard.item.id"
-                            :value="getHistoryAccordionValue(historyCard.item.id)"
+                            :value="
+                                getHistoryAccordionValue(historyCard.item.id)
+                            "
                             v-slot="{ open }"
                         >
                             <article>
@@ -601,7 +527,7 @@ watch(
                                     <AccordionTrigger as-child>
                                         <button
                                             type="button"
-                                            class="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-2 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"
+                                            class="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-2 text-left transition outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"
                                         >
                                             <span
                                                 class="inline-flex items-center gap-2"
@@ -614,10 +540,13 @@ watch(
                                                 }}
                                             </span>
 
-                                            <span class="flex items-center gap-3">
+                                            <span
+                                                class="flex items-center gap-3"
+                                            >
                                                 <span>{{
                                                     formatDate(
-                                                        historyCard.item.created_at,
+                                                        historyCard.item
+                                                            .created_at,
                                                     )
                                                 }}</span>
 
@@ -651,7 +580,8 @@ watch(
                                                     />
                                                 </span>
                                                 <span class="sr-only"
-                                                    >Toggle history details</span
+                                                    >Toggle history
+                                                    details</span
                                                 >
                                             </span>
                                         </button>
@@ -671,8 +601,12 @@ watch(
                                     >
                                         <FlowCodeMergeView
                                             :id="`history-details-${historyCard.item.id}`"
-                                            :original-value="historyCard.originalCode"
-                                            :modified-value="historyCard.modifiedCode"
+                                            :original-value="
+                                                historyCard.originalCode
+                                            "
+                                            :modified-value="
+                                                historyCard.modifiedCode
+                                            "
                                             class="h-52 text-xs"
                                         />
                                     </div>
@@ -712,9 +646,13 @@ watch(
 
             <FlowLogsPanel
                 class="col-start-2 row-start-3 h-full min-h-0"
-                :logs="developmentLogs"
+                :logs="deploymentLogs"
                 :stream-key="logStreamKey"
-                :empty-message="t('flows.logs.empty_dev')"
+                :empty-message="
+                    storageEnvironment === 'production'
+                        ? t('flows.logs.empty_prod')
+                        : t('flows.logs.empty_dev')
+                "
                 compact
                 @dispatch-edge-highlight="highlightDispatchPath"
                 @select-node="openDiscoveryNode"

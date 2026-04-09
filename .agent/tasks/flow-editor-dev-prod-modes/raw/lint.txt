@@ -1,0 +1,4 @@
+{"result":"pass"}
+> lint
+> eslint . --fix
+

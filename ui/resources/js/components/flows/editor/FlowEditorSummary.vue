@@ -7,12 +7,13 @@ defineProps<{
     flowRunsCount?: number | null;
     lastStartedAt?: string | null;
     lastFinishedAt?: string | null;
-    hasCurrentProduction: boolean;
-    currentProductionStatus?: string | null;
-    currentProductionStartedAt?: string | null;
-    currentProductionFinishedAt?: string | null;
-    currentProductionEventsCount: number;
-    productionLogsCount: number;
+    currentDeploymentLabel: string;
+    hasCurrentDeployment: boolean;
+    currentDeploymentStatus?: string | null;
+    currentDeploymentStartedAt?: string | null;
+    currentDeploymentFinishedAt?: string | null;
+    currentDeploymentEventsCount: number;
+    currentDeploymentLogsCount: number;
     runStats: RunStat[];
     statusTone: (status?: string | null) => string;
     statusLabel: (status?: string | null) => string;
@@ -69,23 +70,28 @@ const { t } = useI18n();
                     >
                         {{ t('flows.current_deploy.title') }}
                     </p>
-                    <Badge
-                        variant="outline"
-                        :class="statusTone(currentProductionStatus)"
-                    >
-                        {{
-                            hasCurrentProduction
-                                ? statusLabel(currentProductionStatus)
-                                : t('common.empty')
-                        }}
-                    </Badge>
+                    <div class="flex items-center gap-2">
+                        <Badge variant="outline">
+                            {{ currentDeploymentLabel }}
+                        </Badge>
+                        <Badge
+                            variant="outline"
+                            :class="statusTone(currentDeploymentStatus)"
+                        >
+                            {{
+                                hasCurrentDeployment
+                                    ? statusLabel(currentDeploymentStatus)
+                                    : t('common.empty')
+                            }}
+                        </Badge>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <p class="text-muted-foreground">
                         {{ t('common.started') }}
                     </p>
                     <p class="text-right font-medium">
-                        {{ formatRecentDate(currentProductionStartedAt) }}
+                        {{ formatRecentDate(currentDeploymentStartedAt) }}
                     </p>
                     <p class="text-muted-foreground">
                         {{ t('flows.metrics.duration') }}
@@ -93,8 +99,8 @@ const { t } = useI18n();
                     <p class="text-right font-medium">
                         {{
                             formatDuration(
-                                currentProductionStartedAt,
-                                currentProductionFinishedAt,
+                                currentDeploymentStartedAt,
+                                currentDeploymentFinishedAt,
                             )
                         }}
                     </p>
@@ -102,13 +108,13 @@ const { t } = useI18n();
                         {{ t('flows.metrics.events') }}
                     </p>
                     <p class="text-right font-medium">
-                        {{ currentProductionEventsCount }}
+                        {{ currentDeploymentEventsCount }}
                     </p>
                     <p class="text-muted-foreground">
                         {{ t('common.logs') }}
                     </p>
                     <p class="text-right font-medium">
-                        {{ productionLogsCount }}
+                        {{ currentDeploymentLogsCount }}
                     </p>
                 </div>
             </div>

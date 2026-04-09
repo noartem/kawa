@@ -100,6 +100,10 @@ PY,
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('flows/Editor')
+            ->where('activeDeploymentType', 'development')
+            ->where('activeEditorTab', 'overview')
+            ->where('lastProductionDeployment.id', $oldRun->id)
+            ->where('lastProductionDeployment.logs.0.message', 'Old deployment log')
             ->where('lastDevelopmentDeployment.id', $newRun->id)
             ->where('lastDevelopmentDeployment.code', $flow->code)
             ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'node.snapshot')
@@ -108,7 +112,7 @@ PY,
             ->where('webhookEndpoints.0.development_url', $developmentEndpoint)
             ->has('lastDevelopmentDeployment.logs', 50)
             ->has('deployments', 2)
-            ->where('productionLogsCount', 0)
+            ->where('productionLogsCount', 1)
             ->where('deployments.0.id', $newRun->id)
             ->where('deployments.0.code', $flow->code)
             ->where('deployments.0.graph.nodes.0.id', 'node.snapshot')
@@ -137,6 +141,35 @@ PY,
             ->missing('developmentRuns')
             ->missing('viewMode')
             ->missing('requiresDeletePassword')
+        );
+    }
+
+    public function test_editor_payload_uses_query_params_for_active_deployment_and_tab(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'production',
+            'status' => 'ready',
+            'active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->get(
+            route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]),
+        );
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Editor')
+            ->where('activeDeploymentType', 'production')
+            ->where('activeEditorTab', 'chat')
         );
     }
 
