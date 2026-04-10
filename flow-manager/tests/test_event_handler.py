@@ -138,6 +138,28 @@ async def test_handle_send_message_error():
 
 
 @pytest.mark.asyncio
+async def test_emit_error_uses_fallback_message_for_empty_exception_text():
+    handler, messaging, _, _, user_logger = _make_handler()
+
+    await handler._emit_error(
+        "list_containers",
+        {"container_id": "cid"},
+        asyncio.TimeoutError(),
+        "reply-queue",
+        "corr-1",
+    )
+
+    assert messaging.published_responses
+    payload = messaging.published_responses[0]["payload"]
+    assert payload["message"] == "TimeoutError"
+    user_logger.container_error.assert_awaited_once_with(
+        "cid",
+        "TimeoutError",
+        operation="list_containers",
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_get_container_graph_success():
     handler, messaging, container_manager, _, _ = _make_handler()
     message = Mock(reply_to="reply-queue", correlation_id="corr-1")

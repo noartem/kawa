@@ -306,6 +306,7 @@ class EventHandler:
     ) -> None:
         """Publish standardized error response."""
         error_type = self._map_error_type(error)
+        error_message = str(error).strip() or error.__class__.__name__
         self.logger.error(
             error,
             {
@@ -319,7 +320,7 @@ class EventHandler:
         error_response = ErrorResponse(
             error=True,
             error_type=error_type,
-            message=str(error),
+            message=error_message,
             details={"operation": action, "data": data},
         )
 
@@ -333,7 +334,7 @@ class EventHandler:
 
         container_id = data.get("container_id", "unknown")
         await self.user_logger.container_error(
-            container_id, str(error), operation=action
+            container_id, error_message, operation=action
         )
 
     def _emit_activity_log_background(

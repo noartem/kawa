@@ -148,6 +148,43 @@ class TestContainerManager:
             await container_manager.create_container(sample_container_config)
 
     @pytest.mark.asyncio
+    async def test_create_container_times_out_when_create_hangs(
+        self, container_manager, sample_container_config
+    ):
+        """Test container creation fails fast when Docker create hangs."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.create:
+                await asyncio.sleep(60)
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        with pytest.raises(APIError, match="Timed out creating container"):
+            await container_manager.create_container(sample_container_config)
+
+    @pytest.mark.asyncio
+    async def test_create_container_times_out_when_start_hangs(
+        self, container_manager, sample_container_config, mock_container
+    ):
+        """Test container creation fails fast when Docker start hangs."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.create:
+                return mock_container
+
+            if func is mock_container.start:
+                await asyncio.sleep(60)
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        with pytest.raises(APIError, match="Timed out creating container"):
+            await container_manager.create_container(sample_container_config)
+
+    @pytest.mark.asyncio
     async def test_get_container_graph_success(self, container_manager, mock_container):
         """Test extracting graph payload from container exec output."""
         container_manager.docker_client.containers.get.return_value = mock_container
@@ -203,6 +240,26 @@ class TestContainerManager:
         mock_container.exec_run.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_get_container_graph_times_out_when_exec_hangs(
+        self, container_manager, mock_container
+    ):
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                return mock_container
+
+            if func is mock_container.exec_run:
+                await asyncio.sleep(1)
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+        container_manager.EXEC_OPERATION_TIMEOUT_SECONDS = 0.01
+
+        with pytest.raises(APIError, match="Timed out extracting graph"):
+            await container_manager.get_container_graph("test-container-id")
+
+    @pytest.mark.asyncio
     async def test_start_container_success(self, container_manager, mock_container):
         """Test successful container start."""
         # Setup
@@ -225,6 +282,26 @@ class TestContainerManager:
         # Execute & Assert
         with pytest.raises(NotFound):
             await container_manager.start_container("non-existent-id")
+
+    @pytest.mark.asyncio
+    async def test_start_container_times_out_when_start_hangs(
+        self, container_manager, mock_container
+    ):
+        """Test starting container fails fast when Docker start hangs."""
+
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                return mock_container
+
+            if func is mock_container.start:
+                await asyncio.sleep(60)
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+
+        with pytest.raises(APIError, match="Timed out starting container"):
+            await container_manager.start_container("test-container-id")
 
     @pytest.mark.asyncio
     async def test_stop_container_success(self, container_manager, mock_container):
@@ -345,10 +422,100 @@ class TestContainerManager:
             assert result.socket_connected is True
 
     @pytest.mark.asyncio
+    async def test_get_container_status_returns_empty_resource_usage_when_stats_hang(
+        self, container_manager, mock_container
+    ):
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                return mock_container
+
+            if func is mock_container.reload:
+                return None
+
+            if func is mock_container.stats:
+                await asyncio.sleep(1)
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+        container_manager.STATS_OPERATION_TIMEOUT_SECONDS = 0.01
+
+        with patch("os.path.exists", return_value=True):
+            result = await container_manager.get_container_status("test-container-id")
+
+        assert isinstance(result, ContainerStatus)
+        assert result.resource_usage == {}
+
+    @pytest.mark.asyncio
+    async def test_get_container_status_times_out_when_reload_hangs(
+        self, container_manager, mock_container
+    ):
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                return mock_container
+
+            if func is mock_container.reload:
+                await asyncio.sleep(1)
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+        container_manager.RELOAD_OPERATION_TIMEOUT_SECONDS = 0.01
+
+        with pytest.raises(APIError, match="Timed out reading container status"):
+            await container_manager.get_container_status("test-container-id")
+
+    @pytest.mark.asyncio
+    async def test_check_container_status_times_out_when_reload_hangs(
+        self, container_manager, mock_container
+    ):
+        async def fake_run(func, *args, **kwargs):
+            if func is mock_container.reload:
+                await asyncio.sleep(1)
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+        container_manager.RELOAD_OPERATION_TIMEOUT_SECONDS = 0.01
+
+        await container_manager._check_container_status(mock_container)
+
+        container_manager.logger.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_monitoring_loop_times_out_when_listing_hangs(
+        self, container_manager
+    ):
+        async def fake_run(func, *args, **kwargs):
+            if func is container_manager.docker_client.containers.get:
+                await asyncio.sleep(1)
+                return None
+
+            raise AssertionError(f"Unexpected function {func}")
+
+        container_manager._run_docker_call = fake_run
+        container_manager.DOCKER_LOOKUP_TIMEOUT_SECONDS = 0.01
+        container_manager._container_states["test-container-id"] = "running"
+        container_manager._monitoring_active = True
+
+        async def stop_soon():
+            await asyncio.sleep(0.05)
+            container_manager._monitoring_active = False
+
+        stopper = asyncio.create_task(stop_soon())
+        await container_manager._monitoring_loop()
+        await stopper
+
+        container_manager.logger.error.assert_called()
+
+    @pytest.mark.asyncio
     async def test_list_containers_success(self, container_manager, mock_container):
         """Test successful container listing."""
-        # Setup
-        container_manager.docker_client.containers.list.return_value = [mock_container]
+        container_manager._container_states["test-container-id"] = "running"
+        container_manager.docker_client.containers.get.return_value = mock_container
 
         # Execute
         result = await container_manager.list_containers()
@@ -363,34 +530,40 @@ class TestContainerManager:
         self, container_manager, mock_container
     ):
         """Test listing skips containers removed during inspection."""
-        missing_container = MagicMock()
-        missing_container.name = "missing-container"
-        type(missing_container).id = property(lambda self: "missing-container-id")
-        type(missing_container).attrs = property(
-            lambda self: (_ for _ in ()).throw(NotFound("Container not found"))
-        )
+        container_manager._container_states["test-container-id"] = "running"
+        container_manager._container_states["missing-container-id"] = "running"
 
-        container_manager.docker_client.containers.list.return_value = [
-            mock_container,
-            missing_container,
-        ]
+        def get_container(container_id):
+            if container_id == "test-container-id":
+                return mock_container
+
+            if container_id == "missing-container-id":
+                raise NotFound("Container not found")
+
+            raise AssertionError(f"Unexpected container_id {container_id}")
+
+        container_manager.docker_client.containers.get.side_effect = get_container
 
         result = await container_manager.list_containers()
 
         assert len(result) == 1
         assert result[0].id == "test-container-id"
+        assert "missing-container-id" not in container_manager._container_states
 
     @pytest.mark.asyncio
     async def test_list_containers_times_out_when_docker_hangs(self, container_manager):
         """Test listing fails fast when Docker listing hangs."""
 
         async def fake_run(func, *args, **kwargs):
-            if func is container_manager.docker_client.containers.list:
+            if func is container_manager.docker_client.containers.get:
                 await asyncio.sleep(60)
+                return None
 
             raise AssertionError(f"Unexpected function {func}")
 
         container_manager._run_docker_call = fake_run
+        container_manager.DOCKER_LOOKUP_TIMEOUT_SECONDS = 0.01
+        container_manager._container_states["test-container-id"] = "running"
 
         with pytest.raises(asyncio.TimeoutError):
             await container_manager.list_containers()

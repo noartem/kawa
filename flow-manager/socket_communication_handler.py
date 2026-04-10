@@ -7,6 +7,7 @@ commands and runtime events.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
 import socket
@@ -39,6 +40,8 @@ DisconnectCallback = Callable[[str], Coroutine[object, object, None]]
 
 
 class SocketCommunicationHandler:
+    SOCKET_EXECUTOR_MAX_WORKERS = 64
+
     def __init__(
         self,
         logger: SystemLogger,
@@ -47,6 +50,10 @@ class SocketCommunicationHandler:
         self.socket_dir = Path(socket_dir)
         self.socket_dir.mkdir(parents=True, exist_ok=True)
         self.logger = logger
+        self._socket_executor = ThreadPoolExecutor(
+            max_workers=self.SOCKET_EXECUTOR_MAX_WORKERS,
+            thread_name_prefix="socket-io",
+        )
 
         self._connections: Dict[str, socket.socket] = {}
         self._clients: Dict[str, socket.socket] = {}
@@ -291,7 +298,11 @@ class SocketCommunicationHandler:
 
                 try:
                     await asyncio.wait_for(
-                        loop.run_in_executor(None, client.sendall, payload),
+                        loop.run_in_executor(
+                            self._socket_executor,
+                            client.sendall,
+                            payload,
+                        ),
                         timeout=remaining,
                     )
                     self.logger.communication(container_id, "sent", message)
@@ -330,6 +341,10 @@ class SocketCommunicationHandler:
 
         self.logger.debug("All socket connections closed", {})
 
+    async def close(self) -> None:
+        await self.close_all_connections()
+        self._socket_executor.shutdown(wait=False, cancel_futures=True)
+
     async def _accept_loop(self, container_id: str) -> None:
         loop = asyncio.get_running_loop()
 
@@ -339,7 +354,10 @@ class SocketCommunicationHandler:
                 return
 
             try:
-                client, _ = await loop.run_in_executor(None, sock.accept)
+                client, _ = await loop.run_in_executor(
+                    self._socket_executor,
+                    sock.accept,
+                )
             except asyncio.CancelledError:
                 raise
             except OSError:
@@ -431,7 +449,9 @@ class SocketCommunicationHandler:
         while len(chunks) < size:
             try:
                 chunk = await loop.run_in_executor(
-                    None, client.recv, size - len(chunks)
+                    self._socket_executor,
+                    client.recv,
+                    size - len(chunks),
                 )
             except OSError as exc:
                 raise SocketConnectionError("socket closed") from exc

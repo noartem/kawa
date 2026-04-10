@@ -7,6 +7,8 @@ and cleanup with Unix socket integration.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 import inspect
 import json
 import os
@@ -34,9 +36,16 @@ from system_logger import SystemLogger
 
 
 class ContainerManager:
+    DOCKER_CALL_CONCURRENCY = 8
+    DOCKER_EXECUTOR_MAX_WORKERS = 64
     STOP_GRACE_PERIOD_SECONDS = 5
     STOP_OPERATION_TIMEOUT_SECONDS = 15
     FORCE_KILL_TIMEOUT_SECONDS = 10
+    CREATE_OPERATION_TIMEOUT_SECONDS = 30
+    START_OPERATION_TIMEOUT_SECONDS = 30
+    RELOAD_OPERATION_TIMEOUT_SECONDS = 10
+    STATS_OPERATION_TIMEOUT_SECONDS = 5
+    EXEC_OPERATION_TIMEOUT_SECONDS = 15
 
     def __init__(self, logger: SystemLogger, socket_dir: str = "/tmp/kawaflow/sockets"):
         """
@@ -48,7 +57,11 @@ class ContainerManager:
         self.docker_client = docker.from_env()
         self.socket_dir = socket_dir
         self.logger = logger
-        self._docker_call_lock = asyncio.Lock()
+        self._docker_call_semaphore = asyncio.Semaphore(self.DOCKER_CALL_CONCURRENCY)
+        self._docker_executor = ThreadPoolExecutor(
+            max_workers=self.DOCKER_EXECUTOR_MAX_WORKERS,
+            thread_name_prefix="docker-call",
+        )
 
         # Ensure socket directory exists
         os.makedirs(self.socket_dir, exist_ok=True)
@@ -94,8 +107,12 @@ class ContainerManager:
     async def _run_docker_call(
         self, func: Callable[..., Any], *args: Any, **kwargs: Any
     ) -> Any:
-        async with self._docker_call_lock:
-            return await asyncio.to_thread(func, *args, **kwargs)
+        async with self._docker_call_semaphore:
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                self._docker_executor,
+                partial(func, *args, **kwargs),
+            )
 
     async def _run_docker_call_with_timeout(
         self,
@@ -125,6 +142,9 @@ class ContainerManager:
                 await handler(item)
 
         await asyncio.gather(*(_run(item) for item in items))
+
+    async def close(self) -> None:
+        self._docker_executor.shutdown(wait=False, cancel_futures=True)
 
     def _container_labels(self, container: Any) -> Dict[str, str]:
         labels = getattr(container, "labels", None)
@@ -246,7 +266,8 @@ class ContainerManager:
 
             # Create container
             labels = self._build_labels(config.labels)
-            container = await self._run_docker_call(
+            container = await self._run_docker_call_with_timeout(
+                self.CREATE_OPERATION_TIMEOUT_SECONDS,
                 self.docker_client.containers.create,
                 image=config.image,
                 name=container_name,
@@ -259,8 +280,14 @@ class ContainerManager:
                 detach=True,
             )
             self._container_states[container.id] = ContainerState.CREATED
-            await self._run_docker_call(container.start)
-            await self._run_docker_call(container.reload)
+            await self._run_docker_call_with_timeout(
+                self.START_OPERATION_TIMEOUT_SECONDS,
+                container.start,
+            )
+            await self._run_docker_call_with_timeout(
+                self.RELOAD_OPERATION_TIMEOUT_SECONDS,
+                container.reload,
+            )
 
             # Create container info
             container_info = self._build_container_info(container, socket_path)
@@ -283,6 +310,16 @@ class ContainerManager:
                 e, {"operation": "create_container", "image": config.image}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e,
+                {
+                    "operation": "create_container",
+                    "image": config.image,
+                    "name": config.name,
+                },
+            )
+            raise APIError(f"Timed out creating container {config.name}") from e
         except APIError as e:
             self.logger.error(
                 e, {"operation": "create_container", "config": config.dict()}
@@ -303,10 +340,15 @@ class ContainerManager:
         try:
             self.logger.debug("Starting container", {"container_id": container_id})
 
-            container = await self._run_docker_call(
-                self.docker_client.containers.get, container_id
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
             )
-            await self._run_docker_call(container.start)
+            await self._run_docker_call_with_timeout(
+                self.START_OPERATION_TIMEOUT_SECONDS,
+                container.start,
+            )
 
             self.logger.container_operation(
                 "start", container_id, {"status": "started"}
@@ -317,6 +359,11 @@ class ContainerManager:
                 e, {"operation": "start_container", "container_id": container_id}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e, {"operation": "start_container", "container_id": container_id}
+            )
+            raise APIError(f"Timed out starting container {container_id}") from e
         except APIError as e:
             self.logger.error(
                 e, {"operation": "start_container", "container_id": container_id}
@@ -347,12 +394,10 @@ class ContainerManager:
             forced = False
 
             try:
-                await asyncio.wait_for(
-                    self._run_docker_call(
-                        container.stop,
-                        timeout=self.STOP_GRACE_PERIOD_SECONDS,
-                    ),
-                    timeout=self.STOP_OPERATION_TIMEOUT_SECONDS,
+                await self._run_docker_call_with_timeout(
+                    self.STOP_OPERATION_TIMEOUT_SECONDS,
+                    container.stop,
+                    timeout=self.STOP_GRACE_PERIOD_SECONDS,
                 )
             except asyncio.TimeoutError:
                 forced = True
@@ -360,9 +405,9 @@ class ContainerManager:
                     "Container stop timed out; forcing kill",
                     {"container_id": container_id},
                 )
-                await asyncio.wait_for(
-                    self._run_docker_call(container.kill),
-                    timeout=self.FORCE_KILL_TIMEOUT_SECONDS,
+                await self._run_docker_call_with_timeout(
+                    self.FORCE_KILL_TIMEOUT_SECONDS,
+                    container.kill,
                 )
 
             self.logger.container_operation(
@@ -409,8 +454,19 @@ class ContainerManager:
         try:
             self.logger.debug("Restarting container", {"container_id": container_id})
 
-            container = self.docker_client.containers.get(container_id)
-            container.restart()
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
+            )
+            await self._run_docker_call_with_timeout(
+                self.START_OPERATION_TIMEOUT_SECONDS,
+                container.restart,
+            )
+            await self._run_docker_call_with_timeout(
+                self.RELOAD_OPERATION_TIMEOUT_SECONDS,
+                container.reload,
+            )
 
             self.logger.container_operation(
                 "restart", container_id, {"status": "restarted"}
@@ -421,6 +477,11 @@ class ContainerManager:
                 e, {"operation": "restart_container", "container_id": container_id}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e, {"operation": "restart_container", "container_id": container_id}
+            )
+            raise APIError(f"Timed out restarting container {container_id}") from e
         except APIError as e:
             self.logger.error(
                 e, {"operation": "restart_container", "container_id": container_id}
@@ -758,12 +819,10 @@ class ContainerManager:
             # Stop container if running
             if container.status in ["running", "paused"]:
                 self._expected_stops.add(container_id)
-                await asyncio.wait_for(
-                    self._run_docker_call(
-                        container.stop,
-                        timeout=self.STOP_GRACE_PERIOD_SECONDS,
-                    ),
-                    timeout=self.STOP_OPERATION_TIMEOUT_SECONDS,
+                await self._run_docker_call_with_timeout(
+                    self.STOP_OPERATION_TIMEOUT_SECONDS,
+                    container.stop,
+                    timeout=self.STOP_GRACE_PERIOD_SECONDS,
                 )
 
             # Clean up health check resources
@@ -863,10 +922,15 @@ class ContainerManager:
             NotFound: If container doesn't exist
         """
         try:
-            container = await self._run_docker_call(
-                self.docker_client.containers.get, container_id
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
             )
-            await self._run_docker_call(container.reload)
+            await self._run_docker_call_with_timeout(
+                self.RELOAD_OPERATION_TIMEOUT_SECONDS,
+                container.reload,
+            )
 
             # Parse container state
             state_str = container.attrs.get("State", {}).get("Status", "unknown")
@@ -919,6 +983,11 @@ class ContainerManager:
                 e, {"operation": "get_container_status", "container_id": container_id}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e, {"operation": "get_container_status", "container_id": container_id}
+            )
+            raise APIError(f"Timed out reading container status {container_id}") from e
 
     async def list_containers(self) -> List[ContainerInfo]:
         """
@@ -928,11 +997,7 @@ class ContainerManager:
             List[ContainerInfo]: List of container information
         """
         try:
-            containers = await self._run_docker_call_with_timeout(
-                self.DOCKER_LIST_TIMEOUT_SECONDS,
-                self.docker_client.containers.list,
-                all=True,
-            )
+            containers = await self._list_tracked_containers()
             container_infos = []
 
             for container in containers:
@@ -960,11 +1025,34 @@ class ContainerManager:
             self.logger.error(e, {"operation": "list_containers"})
             raise
 
+    async def _list_tracked_containers(self) -> List[Any]:
+        containers: List[Any] = []
+
+        for container_id in list(self._container_states.keys()):
+            try:
+                container = await self._run_docker_call_with_timeout(
+                    self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                    self.docker_client.containers.get,
+                    container_id,
+                )
+            except NotFound:
+                self._container_states.pop(container_id, None)
+                self._reported_crashes.pop(container_id, None)
+                self._expected_stops.discard(container_id)
+                self._resource_usage_history.pop(container_id, None)
+                continue
+
+            containers.append(container)
+
+        return containers
+
     async def get_container_graph(self, container_id: str) -> Dict[str, Any]:
         """Extract runtime graph information from a flow container."""
         try:
-            container = await self._run_docker_call(
-                self.docker_client.containers.get, container_id
+            container = await self._run_docker_call_with_timeout(
+                self.DOCKER_LOOKUP_TIMEOUT_SECONDS,
+                self.docker_client.containers.get,
+                container_id,
             )
 
             script = """
@@ -1214,7 +1302,8 @@ print(
 )
 """
 
-            result = await self._run_docker_call(
+            result = await self._run_docker_call_with_timeout(
+                self.EXEC_OPERATION_TIMEOUT_SECONDS,
                 container.exec_run,
                 ["python", "-c", script],
             )
@@ -1245,6 +1334,13 @@ print(
                 e, {"operation": "get_container_graph", "container_id": container_id}
             )
             raise
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e, {"operation": "get_container_graph", "container_id": container_id}
+            )
+            raise APIError(
+                f"Timed out extracting graph for container {container_id}"
+            ) from e
         except (APIError, RuntimeError, json.JSONDecodeError) as e:
             self.logger.error(
                 e, {"operation": "get_container_graph", "container_id": container_id}
@@ -1335,7 +1431,11 @@ print(
         """
         try:
             # Get container stats (non-blocking)
-            stats = await self._run_docker_call(container.stats, stream=False)
+            stats = await self._run_docker_call_with_timeout(
+                self.STATS_OPERATION_TIMEOUT_SECONDS,
+                container.stats,
+                stream=False,
+            )
             if not isinstance(stats, dict):
                 stats = {}
 
@@ -1411,6 +1511,16 @@ print(
                 "timestamp": datetime.now().isoformat(),
             }
 
+        except asyncio.TimeoutError as e:
+            self.logger.error(
+                e,
+                {
+                    "operation": "get_resource_usage",
+                    "container_id": container.id,
+                    "stage": "stats",
+                },
+            )
+            return {}
         except Exception as e:
             self.logger.error(
                 e, {"operation": "get_resource_usage", "container_id": container.id}
@@ -1548,11 +1658,7 @@ print(
 
         while self._monitoring_active:
             try:
-                # Get all containers
-                containers = await self._run_docker_call(
-                    self.docker_client.containers.list,
-                    all=True,
-                )
+                containers = await self._list_tracked_containers()
 
                 managed_containers = [
                     container
@@ -1581,7 +1687,10 @@ print(
             container: Docker container object
         """
         try:
-            await self._run_docker_call(container.reload)
+            await self._run_docker_call_with_timeout(
+                self.RELOAD_OPERATION_TIMEOUT_SECONDS,
+                container.reload,
+            )
             container_id = container.id
 
             # Parse current state

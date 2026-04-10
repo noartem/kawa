@@ -164,7 +164,8 @@ class FlowManagerApp:
 
             await self.container_manager.stop_monitoring()
             await self._stop_active_flow_containers_on_shutdown()
-            await self.socket_handler.close_all_connections()
+            await self.socket_handler.close()
+            await self.container_manager.close()
             await self.messaging.close()
 
             self.logger.debug("Flow Manager application shutdown complete", {})
