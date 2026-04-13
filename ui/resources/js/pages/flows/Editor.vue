@@ -367,19 +367,6 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     },
 ]);
 
-const editorTabs = computed<Array<{ value: FlowEditorTab; label: string }>>(
-    () => {
-        return [
-            { value: 'overview', label: t('flows.editor.tabs.overview') },
-            { value: 'editor', label: t('flows.editor.tabs.code') },
-            { value: 'chat', label: t('flows.editor.tabs.chat') },
-            { value: 'storage', label: t('flows.editor.tabs.storage') },
-            { value: 'discovery', label: t('flows.editor.tabs.discovery') },
-            { value: 'changes', label: t('flows.editor.tabs.changes') },
-        ];
-    },
-);
-
 const currentDeploymentLabel = computed(() => {
     return activeDeploymentType.value === 'production'
         ? t('environments.production')
@@ -528,10 +515,9 @@ const readEditorStateFromLocation = (): {
             deployment === 'production' || deployment === 'development'
                 ? deployment
                 : 'development',
-        tab:
-            tab === 'overview' || isWorkspaceTab(tab as FlowEditorTab)
-                ? (tab as FlowEditorTab)
-                : 'overview',
+        tab: isWorkspaceTab(tab as FlowEditorTab)
+            ? (tab as FlowEditorTab)
+            : 'editor',
     };
 };
 
@@ -1452,33 +1438,10 @@ onMounted(() => {
             <FlowEditorHeader
                 :name="form.name"
                 :description="form.description"
-                :active-deployment-type="activeDeploymentType"
                 :can-run="props.permissions.canRun"
-                :action-in-progress="actionInProgress"
-                @update:deployment-type="setActiveDeployment"
             />
 
-            <section class="px-4 py-5">
-                <nav class="flex flex-wrap gap-2" aria-label="Editor tabs">
-                    <a
-                        v-for="tab in editorTabs"
-                        :key="tab.value"
-                        :href="buildEditorUrl(activeDeploymentType, tab.value)"
-                        class="inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition"
-                        :class="
-                            activeEditorTab === tab.value
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                        "
-                        @click.prevent="setActiveEditorTab(tab.value)"
-                    >
-                        {{ tab.label }}
-                    </a>
-                </nav>
-            </section>
-
             <FlowEditorSummary
-                v-if="activeEditorTab === 'overview'"
                 :flow-runs-count="props.flow.runs_count"
                 :last-started-at="props.flow.last_started_at"
                 :last-finished-at="props.flow.last_finished_at"
@@ -1501,12 +1464,13 @@ onMounted(() => {
             />
 
             <FlowEditorWorkspace
-                v-else
                 v-model:code="form.code"
                 v-model:chat-draft="chatDraft"
                 v-model:active-tab="activeWorkspaceTab"
                 v-model:storage-environment="activeStorageEnvironment"
                 v-model:storage-content="activeStorageContent"
+                :active-deployment-type="activeDeploymentType"
+                :build-editor-url="buildEditorUrl"
                 :can-update="props.permissions.canUpdate"
                 :can-run="props.permissions.canRun"
                 :action-in-progress="actionInProgress"
@@ -1541,6 +1505,7 @@ onMounted(() => {
                 @compact-chat="compactChat"
                 @apply-proposal="applyProposal"
                 @apply-and-save-proposal="applyAndSaveProposal"
+                @update:deployment-type="setActiveDeployment"
                 @update:storage-environment="setActiveStorageEnvironment"
                 @update:storage-content="setActiveStorageContent"
                 @save-storage="saveStorage"

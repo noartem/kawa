@@ -78,6 +78,11 @@ const storageContent = defineModel<string>('storageContent', {
 });
 
 const props = defineProps<{
+    activeDeploymentType: FlowEnvironment;
+    buildEditorUrl: (
+        deployment: FlowEnvironment,
+        tab: FlowEditorWorkspaceTab,
+    ) => string;
     canUpdate: boolean;
     canRun: boolean;
     actionInProgress: string | null;
@@ -114,6 +119,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
+    'update:deployment-type': [value: FlowEnvironment];
     'run-flow': [];
     'stop-flow': [];
     'send-chat-message': [];
@@ -126,6 +132,18 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const editorTabs = computed<Array<{ value: FlowEditorWorkspaceTab; label: string }>>(
+    () => {
+        return [
+            { value: 'editor', label: t('flows.editor.tabs.code') },
+            { value: 'chat', label: t('flows.editor.tabs.chat') },
+            { value: 'storage', label: t('flows.editor.tabs.storage') },
+            { value: 'discovery', label: t('flows.editor.tabs.discovery') },
+            { value: 'changes', label: t('flows.editor.tabs.changes') },
+        ];
+    },
+);
 
 const isStatusTransitioning = computed(() => {
     return (
@@ -286,9 +304,60 @@ watch(
         <div
             class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_minmax(16rem,2fr)_minmax(24rem,3fr)]"
         >
-            <div
-                class="col-span-2 row-1 flex flex-wrap items-center justify-end gap-2"
-            >
+            <div class="col-span-2 row-1 flex flex-wrap items-center gap-3 md:gap-4">
+                <nav
+                    class="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1"
+                    aria-label="Editor tabs"
+                >
+                    <a
+                        v-for="tab in editorTabs"
+                        :key="tab.value"
+                        :href="props.buildEditorUrl(props.activeDeploymentType, tab.value)"
+                        class="rounded-md px-3 py-1.5 text-sm transition"
+                        :class="
+                            activeTab === tab.value
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                        @click.prevent="activeTab = tab.value"
+                    >
+                        {{ tab.label }}
+                    </a>
+                </nav>
+
+                <div
+                    class="ml-1 inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/40 p-1.5"
+                >
+                    <button
+                        type="button"
+                        class="rounded-md px-3.5 py-1.5 text-sm font-medium transition"
+                        :class="
+                            props.activeDeploymentType === 'development'
+                                ? 'bg-sky-500/15 text-sky-300 shadow-sm ring-1 ring-sky-500/30'
+                                : 'text-muted-foreground hover:bg-sky-500/10 hover:text-sky-200'
+                        "
+                        :disabled="props.actionInProgress !== null"
+                        @click="$emit('update:deployment-type', 'development')"
+                    >
+                        {{ t('environments.development') }}
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded-md px-3.5 py-1.5 text-sm font-medium transition"
+                        :class="
+                            props.activeDeploymentType === 'production'
+                                ? 'bg-amber-500/15 text-amber-300 shadow-sm ring-1 ring-amber-500/30'
+                                : 'text-muted-foreground hover:bg-amber-500/10 hover:text-amber-200'
+                        "
+                        :disabled="props.actionInProgress !== null"
+                        @click="$emit('update:deployment-type', 'production')"
+                    >
+                        {{ t('environments.production') }}
+                    </button>
+                </div>
+
+                <div class="grow-1" />
+
                 <div class="flex flex-wrap items-center gap-2">
                     <Badge
                         v-if="showStatusChip"

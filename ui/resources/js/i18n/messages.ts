@@ -781,10 +781,10 @@ export const messages = {
             unknown: 'неизвестно',
         },
         environments: {
-            production: 'Прод',
+            production: 'Продакшн',
             development: 'Отладка',
-            devShort: 'дев',
-            prodShort: 'прод',
+            devShort: 'отладка',
+            prodShort: 'продакшн',
         },
         appearance: {
             light: 'Светлая',
@@ -1195,8 +1195,8 @@ export const messages = {
                 },
                 discovery: {
                     webhooks_title: 'Вебхуки',
-                    production_webhook: 'Прод',
-                    development_webhook: 'Дев',
+                    production_webhook: 'Продакшн',
+                    development_webhook: 'Отладка',
                     copy_webhook: 'Копировать URL',
                     open_webhook: 'Открыть URL',
                     quick_send: 'Быстро отправить JSON',
@@ -1242,7 +1242,7 @@ export const messages = {
                     note_edit:
                         'Чтобы менять код и запускать тестовый деплой, нужны права на редактирование.',
                     note_production:
-                        'Прод-деплой отображается в верхнем блоке.',
+                        'Продакшн-деплой отображается в верхнем блоке.',
                 },
             },
             dev_deploy: {
@@ -1292,8 +1292,8 @@ export const messages = {
             past_deploys: {
                 title: 'Прошлые деплои',
                 description: 'История всех завершенных деплоев',
-                empty_production: 'Нет прод-деплоев.',
-                empty_development: 'Нет тестовых деплоев.',
+                empty_production: 'Нет продакшн-деплоев.',
+                empty_development: 'Нет отладочных деплоев.',
             },
             past_chats: {
                 title: 'Прошлые чаты',
