@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { useWebhookDispatch } from '@/composables/useWebhookDispatch';
-import { DEFAULT_WEBHOOK_PAYLOAD } from '@/lib/webhookDispatch';
+import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -8,7 +7,12 @@ import {
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Spinner } from '@/components/ui/spinner';
-import { Textarea } from '@/components/ui/textarea';
+import { useWebhookDispatch } from '@/composables/useWebhookDispatch';
+import {
+    DEFAULT_WEBHOOK_PAYLOAD,
+    isWebhookPayloadEmpty,
+    shouldRenderWebhookResponse,
+} from '@/lib/webhookDispatch';
 import { Check, ChevronDown, Copy, ExternalLink, Send } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -35,6 +39,7 @@ const dispatchMessages = computed(() => {
     return {
         genericError: t('errors.generic'),
         invalidJson: t('flows.webhook_page.invalid_json'),
+        payloadRequired: t('flows.webhook_page.payload_required'),
         response: t('flows.webhook_page.response'),
         responseError: t('flows.webhook_page.response_error'),
         responseIdle: t('flows.webhook_page.response_idle'),
@@ -44,17 +49,16 @@ const dispatchMessages = computed(() => {
     };
 });
 
-const {
-    isSubmitting,
-    payload,
-    responseState,
-    submitPayload,
-    validationError,
-} = useWebhookDispatch(
-    () => props.endpoint,
-    props.defaultPayload,
-    dispatchMessages,
-);
+const { isSubmitting, payload, responseState, submitPayload, validationError } =
+    useWebhookDispatch(
+        () => props.endpoint,
+        props.defaultPayload,
+        dispatchMessages,
+    );
+
+const isSendDisabled = computed(() => {
+    return isSubmitting.value || isWebhookPayloadEmpty(payload.value);
+});
 
 const clearCopiedTimer = (): void => {
     if (copiedTimer === null) {
@@ -142,7 +146,11 @@ onBeforeUnmount(() => {
                 <button
                     type="button"
                     class="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-emerald-700 transition duration-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:text-emerald-300"
-                    :class="copied ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200' : ''"
+                    :class="
+                        copied
+                            ? 'scale-105 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                            : ''
+                    "
                     @click="copyEndpoint"
                 >
                     <Check v-if="copied" class="size-3" aria-hidden="true" />
@@ -155,19 +163,25 @@ onBeforeUnmount(() => {
                 </button>
             </div>
 
-            <code class="block leading-relaxed break-all text-[10px] text-foreground/90">
+            <code
+                class="block text-[10px] leading-relaxed break-all text-foreground/90"
+            >
                 {{ endpoint }}
             </code>
         </div>
 
         <Collapsible v-model:open="quickSenderOpen" v-slot="{ open }">
-            <div class="overflow-hidden rounded-md border border-border/60 bg-background/80">
+            <div
+                class="overflow-hidden rounded-md border border-border/60 bg-background/80"
+            >
                 <CollapsibleTrigger as-child>
                     <button
                         type="button"
-                        class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-muted-foreground transition hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
+                        class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-muted-foreground transition hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
-                        <span class="inline-flex items-center gap-2 font-medium">
+                        <span
+                            class="inline-flex items-center gap-2 font-medium"
+                        >
                             <Send class="size-3.5" aria-hidden="true" />
                             {{ t('flows.editor.discovery.quick_send') }}
                         </span>
@@ -179,44 +193,34 @@ onBeforeUnmount(() => {
                     </button>
                 </CollapsibleTrigger>
 
-                <CollapsibleContent class="grid gap-2 border-t border-border/60 px-2 pt-2 pb-2">
-                    <p class="text-[10px] text-muted-foreground">
-                        {{ t('flows.webhook_page.payload_hint') }}
-                    </p>
-
-                    <Textarea
+                <CollapsibleContent
+                    class="grid gap-2 border-t border-border/60 px-2 pt-2 pb-2"
+                >
+                    <FlowCodeEditor
                         v-model="payload"
-                        rows="4"
-                        spellcheck="false"
+                        language="json"
                         :disabled="isSubmitting"
                         :aria-label="t('flows.webhook_page.payload_title')"
-                        class="min-h-[6rem] font-mono text-[11px] leading-5"
+                        :indent-with-tab="false"
+                        :tab-size="4"
+                        bottom-padding="0.75rem"
+                        class="min-h-[6rem] overflow-hidden rounded-md border border-input bg-transparent text-[11px] leading-5"
                         :aria-invalid="validationError ? 'true' : 'false'"
                     />
 
-                    <p v-if="validationError" class="text-[10px] text-destructive">
+                    <p
+                        v-if="validationError"
+                        class="text-[10px] text-destructive"
+                    >
                         {{ t('flows.webhook_page.invalid_json_message') }}
                         {{ validationError }}
                     </p>
 
-                    <div class="flex items-center justify-between gap-2">
-                        <span
-                            class="text-[10px] font-medium"
-                            :class="
-                                responseState.status === 'success'
-                                    ? 'text-emerald-700 dark:text-emerald-300'
-                                    : responseState.status === 'error'
-                                      ? 'text-destructive'
-                                      : 'text-muted-foreground'
-                            "
-                        >
-                            {{ responseState.label }}
-                        </span>
-
+                    <div class="flex items-center justify-end gap-2">
                         <Button
                             type="button"
                             size="sm"
-                            :disabled="isSubmitting"
+                            :disabled="isSendDisabled"
                             @click="submitPayload"
                         >
                             <Spinner v-if="isSubmitting" />
@@ -230,6 +234,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <pre
+                        v-if="shouldRenderWebhookResponse(responseState.status)"
                         aria-live="polite"
                         class="max-h-32 overflow-auto rounded-md border border-border/70 bg-muted/35 p-1.5 font-mono text-[10px] leading-5 text-foreground"
                         v-text="responseState.body"

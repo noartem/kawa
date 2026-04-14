@@ -10,6 +10,11 @@ export interface WebhookDispatchResult {
     statusText: string;
 }
 
+export type WebhookResponseStatus = 'idle' | 'sending' | 'success' | 'error';
+
+export const IDLE_WEBHOOK_RESPONSE_BODY = '';
+export const EMPTY_WEBHOOK_PAYLOAD_ERROR = 'EMPTY_WEBHOOK_PAYLOAD';
+
 export const DEFAULT_WEBHOOK_PAYLOAD = JSON.stringify(
     { message: 'hello' },
     null,
@@ -20,12 +25,21 @@ export const normalizeWebhookPayload = (
     value: string,
 ): NormalizedWebhookPayload => {
     const trimmedPayload = value.trim();
-    const requestBody = trimmedPayload === '' ? 'null' : trimmedPayload;
+
+    if (trimmedPayload === '') {
+        throw new Error(EMPTY_WEBHOOK_PAYLOAD_ERROR);
+    }
+
+    const requestBody = trimmedPayload;
 
     return {
         formattedPayload: JSON.stringify(JSON.parse(requestBody), null, 4),
         requestBody,
     };
+};
+
+export const isWebhookPayloadEmpty = (value: string): boolean => {
+    return value.trim() === '';
 };
 
 export const formatWebhookResponseBody = (
@@ -36,6 +50,12 @@ export const formatWebhookResponseBody = (
     const formattedBody = rawBody.trim() === '' ? 'null' : rawBody;
 
     return `${status} ${statusText}\n${formattedBody}`;
+};
+
+export const shouldRenderWebhookResponse = (
+    status: WebhookResponseStatus,
+): boolean => {
+    return status !== 'idle';
 };
 
 export const dispatchWebhookPayload = async (

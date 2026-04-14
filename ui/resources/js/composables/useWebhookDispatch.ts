@@ -1,4 +1,6 @@
 import {
+    EMPTY_WEBHOOK_PAYLOAD_ERROR,
+    IDLE_WEBHOOK_RESPONSE_BODY,
     dispatchWebhookPayload,
     normalizeWebhookPayload,
 } from '@/lib/webhookDispatch';
@@ -13,6 +15,7 @@ export interface WebhookResponseState {
 export interface WebhookDispatchMessages {
     genericError: string;
     invalidJson: string;
+    payloadRequired: string;
     response: string;
     responseError: string;
     responseIdle: string;
@@ -40,7 +43,7 @@ export const useWebhookDispatch = (
     const responseState = ref<WebhookResponseState>({
         status: 'idle',
         label: toValue(messages).response,
-        body: toValue(messages).responseIdle,
+        body: IDLE_WEBHOOK_RESPONSE_BODY,
     });
 
     const resolveMessages = (): WebhookDispatchMessages => {
@@ -66,7 +69,9 @@ export const useWebhookDispatch = (
             const resolvedMessages = resolveMessages();
             validationError.value =
                 error instanceof Error
-                    ? error.message
+                    ? error.message === EMPTY_WEBHOOK_PAYLOAD_ERROR
+                        ? resolvedMessages.payloadRequired
+                        : error.message
                     : resolvedMessages.genericError;
             setResponseState(
                 'error',

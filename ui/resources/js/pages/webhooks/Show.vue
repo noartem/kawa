@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { useWebhookDispatch } from '@/composables/useWebhookDispatch';
 import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useWebhookDispatch } from '@/composables/useWebhookDispatch';
+import { isWebhookPayloadEmpty } from '@/lib/webhookDispatch';
 import { show as flowShow } from '@/routes/flows';
 import { show as flowDeploymentShow } from '@/routes/flows/deployments';
 import { Head, Link } from '@inertiajs/vue3';
@@ -38,6 +39,7 @@ const webhookDispatchMessages = computed(() => {
     return {
         genericError: t('errors.generic'),
         invalidJson: t('flows.webhook_page.invalid_json'),
+        payloadRequired: t('flows.webhook_page.payload_required'),
         response: t('flows.webhook_page.response'),
         responseError: t('flows.webhook_page.response_error'),
         responseIdle: t('flows.webhook_page.response_idle'),
@@ -47,13 +49,16 @@ const webhookDispatchMessages = computed(() => {
     };
 });
 
-const {
-    isSubmitting,
-    payload,
-    responseState,
-    submitPayload,
-    validationError,
-} = useWebhookDispatch(() => props.endpoint, props.samplePayload, webhookDispatchMessages);
+const { isSubmitting, payload, responseState, submitPayload, validationError } =
+    useWebhookDispatch(
+        () => props.endpoint,
+        props.samplePayload,
+        webhookDispatchMessages,
+    );
+
+const isSendDisabled = computed(() => {
+    return isSubmitting.value || isWebhookPayloadEmpty(payload.value);
+});
 
 const environmentLabel = computed(() => {
     return props.environment === 'production'
@@ -145,7 +150,7 @@ async function copyLink(link: string) {
                     type="button"
                     variant="ghost"
                     class="h-full w-44 rounded-none border-none lg:self-stretch"
-                    :disabled="isSubmitting"
+                    :disabled="isSendDisabled"
                     @click="submitPayload"
                 >
                     <Spinner v-if="isSubmitting" />

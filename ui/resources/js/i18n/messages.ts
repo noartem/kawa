@@ -556,7 +556,6 @@ export const messages = {
                 request_format: 'Request format',
                 active_run: 'Active run',
                 payload_title: 'JSON payload',
-                payload_hint: 'Empty editor sends null.',
                 send: 'Send webhook',
                 sending: 'Sending...',
                 response: 'Response',
@@ -565,6 +564,7 @@ export const messages = {
                 response_error: 'Failed',
                 response_network_error: 'Network error',
                 invalid_json: 'Invalid JSON',
+                payload_required: 'Payload cannot be empty.',
                 invalid_json_message: 'Fix JSON before sending the request.',
                 delivery_title: 'What happens next',
                 token_hint:
@@ -1260,7 +1260,6 @@ export const messages = {
                 request_format: 'Формат запроса',
                 active_run: 'Активный ран',
                 payload_title: 'JSON payload',
-                payload_hint: 'Пустой редактор отправляет null.',
                 send: 'Отправить webhook',
                 sending: 'Отправка...',
                 response: 'Ответ',
@@ -1269,6 +1268,7 @@ export const messages = {
                 response_error: 'Ошибка',
                 response_network_error: 'Ошибка сети',
                 invalid_json: 'Некорректный JSON',
+                payload_required: 'Payload не может быть пустым.',
                 invalid_json_message: 'Исправьте JSON перед отправкой запроса.',
                 delivery_title: 'Что произойдет дальше',
                 token_hint:
