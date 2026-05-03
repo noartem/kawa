@@ -11,6 +11,7 @@ ARG PWD
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=24
 ARG COMPOSER_VERSION=2.8.7
+ARG RTK_VERSION
 ARG APP_UID
 ARG APP_GID
 
@@ -81,7 +82,15 @@ RUN apt-get update \
     && curl -fsSL https://getcomposer.org/installer | php -- --version=${COMPOSER_VERSION} --install-dir=/usr/local/bin --filename=composer \
     && rm -rf /var/lib/apt/lists/*
 
-RUN locale-gen ru_RU.UTF-8
+RUN set -eux; \
+    if ! grep -q '^ru_RU.UTF-8 UTF-8' /etc/locale.gen; then \
+        printf 'ru_RU.UTF-8 UTF-8\n' >> /etc/locale.gen; \
+    fi; \
+    locale-gen ru_RU.UTF-8
+
+RUN set -eux; \
+    curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin RTK_VERSION="${RTK_VERSION:-}" sh; \
+    rtk --version
 
 RUN groupadd -g ${APP_GID} ${USER} \
     && useradd -m -d /home/${USER} -u ${APP_UID} -g ${APP_GID} -s /bin/zsh ${USER}
@@ -89,6 +98,9 @@ RUN groupadd -g ${APP_GID} ${USER} \
 COPY .sandbox/php.ini /usr/local/etc/php/conf.d/99-sandbox.ini
 COPY .sandbox/zshrc /home/${USER}/.zshrc
 COPY .sandbox/vimrc /home/${USER}/.vimrc
+COPY .sandbox/start.sh /usr/local/bin/sandbox-start
+
+RUN chmod +x /usr/local/bin/sandbox-start
 
 RUN mkdir -p \
     ${PWD} \
@@ -155,4 +167,4 @@ ENV LC_ALL=ru_RU.UTF-8
 ENV npm_config_cache=/home/${USER}/.npm
 ENV COMPOSER_CACHE_DIR=/home/${USER}/.composer/cache
 
-CMD ["sleep", "infinity"]
+CMD ["sandbox-start"]
