@@ -1,4 +1,6 @@
-FROM ubuntu:22.04
+ARG PHP_VERSION=8.5
+
+FROM php:${PHP_VERSION}-cli-bookworm
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uvx /usr/local/bin/uvx
@@ -9,12 +11,14 @@ ARG PWD
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=24
 ARG COMPOSER_VERSION=2.8.7
-ARG PHP_VERSION=8.4
 ARG APP_UID
 ARG APP_GID
 
 ARG NEXUS_HOST=host.docker.internal
 ARG NEXUS_PORT=801
+ARG NEXUS_APT_REPOSITORY=apt-debian-bookworm
+ARG NEXUS_APT_UPDATES_REPOSITORY=apt-debian-bookworm-updates
+ARG NEXUS_APT_SECURITY_REPOSITORY=apt-debian-bookworm-security
 
 ENV NEXUS_URL=http://${NEXUS_HOST}:${NEXUS_PORT}
 ENV NPM_REGISTRY=${NEXUS_URL}/repository/npm/
@@ -22,10 +26,11 @@ ENV COMPOSER_REGISTRY=${NEXUS_URL}/repository/composer/
 ENV PYPI_INDEX=${NEXUS_URL}/repository/pypi/simple
 
 RUN set -eux; \
+    rm -f /etc/apt/sources.list.d/debian.sources; \
     cat > /etc/apt/sources.list.d/nexus.list <<EOF
- deb [trusted=yes] ${NEXUS_URL}/repository/apt-ubuntu-jammy/ jammy main restricted universe multiverse
- deb [trusted=yes] ${NEXUS_URL}/repository/apt-ubuntu-jammy-updates/ jammy-updates main restricted universe multiverse
- deb [trusted=yes] ${NEXUS_URL}/repository/apt-ubuntu-jammy-security/ jammy-security main restricted universe multiverse
+deb [trusted=yes] ${NEXUS_URL}/repository/${NEXUS_APT_REPOSITORY}/ bookworm main
+deb [trusted=yes] ${NEXUS_URL}/repository/${NEXUS_APT_UPDATES_REPOSITORY}/ bookworm-updates main
+deb [trusted=yes] ${NEXUS_URL}/repository/${NEXUS_APT_SECURITY_REPOSITORY}/ bookworm-security main
 EOF
 
 RUN apt-get update \
@@ -44,6 +49,9 @@ RUN apt-get update \
     less \
     ripgrep \
     fzf \
+    libcurl4-openssl-dev \
+    libfreetype6-dev \
+    libjpeg62-turbo-dev \
     libpng-dev \
     libzip-dev \
     libpq-dev \
@@ -54,28 +62,20 @@ RUN apt-get update \
     libonig-dev \
     libssl-dev \
     pkg-config \
-    software-properties-common \
-    && add-apt-repository -y ppa:ondrej/php \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-    php${PHP_VERSION} \
-    php${PHP_VERSION}-bcmath \
-    php${PHP_VERSION}-cli \
-    php${PHP_VERSION}-curl \
-    php${PHP_VERSION}-dev \
-    php${PHP_VERSION}-exif \
-    php${PHP_VERSION}-gd \
-    php${PHP_VERSION}-intl \
-    php${PHP_VERSION}-ldap \
-    php${PHP_VERSION}-mbstring \
-    php${PHP_VERSION}-opcache \
-    php${PHP_VERSION}-pgsql \
-    php${PHP_VERSION}-redis \
-    php${PHP_VERSION}-sockets \
-    php${PHP_VERSION}-xdebug \
-    php${PHP_VERSION}-xml \
-    php${PHP_VERSION}-xsl \
-    php${PHP_VERSION}-zip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu \
+    && docker-php-ext-install -j$(nproc) \
+    bcmath \
+    exif \
+    gd \
+    intl \
+    ldap \
+    pdo_pgsql \
+    sockets \
+    xsl \
+    zip \
+    && pecl install redis xdebug \
+    && docker-php-ext-enable redis xdebug \
     && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && curl -fsSL https://getcomposer.org/installer | php -- --version=${COMPOSER_VERSION} --install-dir=/usr/local/bin --filename=composer \
@@ -86,7 +86,7 @@ RUN locale-gen ru_RU.UTF-8
 RUN groupadd -g ${APP_GID} ${USER} \
     && useradd -m -d /home/${USER} -u ${APP_UID} -g ${APP_GID} -s /bin/zsh ${USER}
 
-COPY .sandbox/php.ini /etc/php/${PHP_VERSION}/cli/conf.d/99-sandbox.ini
+COPY .sandbox/php.ini /usr/local/etc/php/conf.d/99-sandbox.ini
 COPY .sandbox/zshrc /home/${USER}/.zshrc
 COPY .sandbox/vimrc /home/${USER}/.vimrc
 
