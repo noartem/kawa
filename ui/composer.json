@@ -24,24 +24,24 @@
         "ext-sodium": "*",
         "ext-xml": "*",
         "ext-zip": "*",
-        "inertiajs/inertia-laravel": "^2.0.19",
-        "laravel/ai": "^0.3.0",
-        "laravel/fortify": "^1.34.0",
-        "laravel/framework": "^12.49.0",
-        "laravel/tinker": "^2.11.0",
-        "laravel/wayfinder": "^0.1.13",
+        "inertiajs/inertia-laravel": "^3.0.6",
+        "laravel/ai": "^0.6.6",
+        "laravel/fortify": "^1.37.0",
+        "laravel/framework": "^13.7.0",
+        "laravel/tinker": "^3.0.2",
+        "laravel/wayfinder": "^0.1.16",
         "php-amqplib/php-amqplib": "^3.7"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24.1",
-        "laravel/boost": "^2.0",
-        "laravel/pail": "^1.2.4",
-        "laravel/pint": "^1.27.0",
-        "laravel/sail": "^1.52.0",
+        "laravel/boost": "^2.4.6",
+        "laravel/pail": "^1.2.6",
+        "laravel/pint": "^1.29.1",
+        "laravel/sail": "^1.58.0",
         "mockery/mockery": "^1.6.12",
-        "nunomaduro/collision": "^8.8.3",
-        "pestphp/pest": "^4.3.2",
-        "pestphp/pest-plugin-laravel": "^4.0.0"
+        "nunomaduro/collision": "^8.9.4",
+        "pestphp/pest": "^4.7.0",
+        "pestphp/pest-plugin-laravel": "^4.1.0"
     },
     "autoload": {
         "psr-4": {
