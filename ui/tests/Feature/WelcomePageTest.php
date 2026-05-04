@@ -10,6 +10,8 @@ test('guests see the welcome page', function () {
 
     $this->get('/')
         ->assertSuccessful()
+        ->assertSee('<script data-page="app" type="application/json">', false)
+        ->assertDontSee('<div id="app" data-page="', false)
         ->assertInertia(
             fn (Assert $page) => $page
                 ->component('Welcome')
