@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PATH="/usr/bin:/bin:${PATH:-}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUN_DIR="$ROOT_DIR/.run"
 PID_FILE="$RUN_DIR/flow-manager.pid"
+HOST="${FLOW_MANAGER_HOST:-0.0.0.0}"
+PORT="${FLOW_MANAGER_PORT:-8000}"
 
 is_pid_active() {
     local pid="$1"
@@ -14,28 +18,70 @@ is_pid_active() {
         return 1
     fi
 
-    state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
-    state="${state//[[:space:]]/}"
+    if [[ ! -r "/proc/$pid/stat" ]]; then
+        return 1
+    fi
 
-    if [[ -z "$state" ]] || [[ "${state:0:1}" == "Z" ]]; then
+    IFS=' ' read -r _ _ state _ < "/proc/$pid/stat" || return 1
+
+    if [[ -z "$state" ]] || [[ "$state" == "Z" ]]; then
         return 1
     fi
 
     return 0
 }
 
+find_running_pid() {
+    local arg=""
+    local cmdline=""
+    local proc_dir=""
+    local proc_pid=""
+    local line=""
+    local pid=""
+
+    for proc_dir in /proc/[0-9]*; do
+        proc_pid="${proc_dir#/proc/}"
+
+        if ! is_pid_active "$proc_pid" || [[ ! -r "$proc_dir/cmdline" ]]; then
+            continue
+        fi
+
+        cmdline=""
+        while IFS= read -r -d '' arg; do
+            if [[ -n "$cmdline" ]]; then
+                cmdline+=" "
+            fi
+            cmdline+="$arg"
+        done < "$proc_dir/cmdline"
+
+        if [[ "$cmdline" == *"uvicorn main:app --host $HOST --port $PORT"* ]]; then
+            pid="$proc_pid"
+        fi
+    done
+
+    if [[ -n "$pid" ]] && is_pid_active "$pid"; then
+        printf '%s' "$pid"
+    fi
+}
+
 get_process_group() {
     local pid="$1"
     local pgid=""
 
-    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null || true)"
-    pgid="${pgid//[[:space:]]/}"
+    if [[ -r "/proc/$pid/stat" ]]; then
+        IFS=' ' read -r _ _ _ _ pgid _ < "/proc/$pid/stat" || true
+    fi
+
     printf '%s' "$pgid"
 }
 
 if [[ ! -f "$PID_FILE" ]]; then
-    printf 'Flow Manager is not running (pid file not found).\n'
-    exit 0
+    pid="$(find_running_pid)"
+    if [[ -z "$pid" ]]; then
+        printf 'Flow Manager is not running (pid file not found).\n'
+        exit 0
+    fi
+    printf '%s\n' "$pid" >"$PID_FILE"
 fi
 
 pid="$(<"$PID_FILE")"
@@ -47,9 +93,14 @@ if [[ -z "$pid" ]]; then
 fi
 
 if ! is_pid_active "$pid"; then
-    rm -f "$PID_FILE"
-    printf 'Flow Manager is not running (stale pid %s).\n' "$pid"
-    exit 0
+    stale_pid="$pid"
+    pid="$(find_running_pid)"
+    if [[ -z "$pid" ]]; then
+        rm -f "$PID_FILE"
+        printf 'Flow Manager is not running (stale pid %s).\n' "$stale_pid"
+        exit 0
+    fi
+    printf '%s\n' "$pid" >"$PID_FILE"
 fi
 
 pgid="$(get_process_group "$pid")"

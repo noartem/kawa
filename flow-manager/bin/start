@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+PATH="/usr/bin:/bin:${PATH:-}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUN_DIR="$ROOT_DIR/.run"
@@ -8,6 +10,7 @@ PID_FILE="$RUN_DIR/flow-manager.pid"
 LOG_FILE="${FLOW_MANAGER_LOG_FILE:-$RUN_DIR/flow-manager.log}"
 HOST="${FLOW_MANAGER_HOST:-0.0.0.0}"
 PORT="${FLOW_MANAGER_PORT:-8000}"
+UVICORN_BIN="$ROOT_DIR/.venv/bin/uvicorn"
 
 is_pid_active() {
     local pid="$1"
@@ -17,14 +20,50 @@ is_pid_active() {
         return 1
     fi
 
-    state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
-    state="${state//[[:space:]]/}"
+    if [[ ! -r "/proc/$pid/stat" ]]; then
+        return 1
+    fi
 
-    if [[ -z "$state" ]] || [[ "${state:0:1}" == "Z" ]]; then
+    IFS=' ' read -r _ _ state _ < "/proc/$pid/stat" || return 1
+
+    if [[ -z "$state" ]] || [[ "$state" == "Z" ]]; then
         return 1
     fi
 
     return 0
+}
+
+find_running_pid() {
+    local arg=""
+    local cmdline=""
+    local proc_dir=""
+    local proc_pid=""
+    local line=""
+    local pid=""
+
+    for proc_dir in /proc/[0-9]*; do
+        proc_pid="${proc_dir#/proc/}"
+
+        if ! is_pid_active "$proc_pid" || [[ ! -r "$proc_dir/cmdline" ]]; then
+            continue
+        fi
+
+        cmdline=""
+        while IFS= read -r -d '' arg; do
+            if [[ -n "$cmdline" ]]; then
+                cmdline+=" "
+            fi
+            cmdline+="$arg"
+        done < "$proc_dir/cmdline"
+
+        if [[ "$cmdline" == *"uvicorn main:app --host $HOST --port $PORT"* ]]; then
+            pid="$proc_pid"
+        fi
+    done
+
+    if [[ -n "$pid" ]] && is_pid_active "$pid"; then
+        printf '%s' "$pid"
+    fi
 }
 
 mkdir -p "$RUN_DIR"
@@ -40,19 +79,31 @@ if [[ -f "$PID_FILE" ]]; then
     rm -f "$PID_FILE"
 fi
 
-if ! command -v uv >/dev/null 2>&1; then
-    printf 'uv is not installed. Install it first: https://docs.astral.sh/uv/\n' >&2
+existing_pid="$(find_running_pid)"
+if [[ -n "$existing_pid" ]]; then
+    printf '%s\n' "$existing_pid" >"$PID_FILE"
+    printf 'Flow Manager is already running (pid %s).\n' "$existing_pid"
+    printf 'Log file: %s\n' "$LOG_FILE"
+    exit 0
+fi
+
+if [[ -x "$UVICORN_BIN" ]]; then
+    server_cmd=("$UVICORN_BIN")
+elif command -v uv >/dev/null 2>&1; then
+    server_cmd=(uv run uvicorn)
+else
+    printf 'Neither %s nor uv is available to start Flow Manager.\n' "$UVICORN_BIN" >&2
     exit 1
 fi
 
 cd "$ROOT_DIR"
-nohup setsid uv run uvicorn main:app --host "$HOST" --port "$PORT" >>"$LOG_FILE" 2>&1 &
-pid=$!
-printf '%s\n' "$pid" >"$PID_FILE"
+nohup setsid "${server_cmd[@]}" main:app --host "$HOST" --port "$PORT" >>"$LOG_FILE" 2>&1 &
 
 sleep 1
 
-if is_pid_active "$pid"; then
+pid="$(find_running_pid)"
+if [[ -n "$pid" ]]; then
+    printf '%s\n' "$pid" >"$PID_FILE"
     printf 'Flow Manager started (pid %s) on %s:%s.\n' "$pid" "$HOST" "$PORT"
     printf 'Log file: %s\n' "$LOG_FILE"
     exit 0
