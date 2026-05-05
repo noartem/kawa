@@ -139,7 +139,12 @@ it('accepts chat requests for flows with empty code', function () {
 
     $prompt = (new FlowCodeAssistant(''))->instructions();
 
-    expect((string) $prompt)->toContain('# The Flow code is currently empty.');
+    expect((string) $prompt)
+        ->toContain('# The Flow code is currently empty.')
+        ->toContain('uv script')
+        ->toContain('PEP 723')
+        ->toContain('# /// script')
+        ->toContain('dependencies');
 });
 
 it('ignores chat code changes when the difference is only surrounding whitespace', function () {

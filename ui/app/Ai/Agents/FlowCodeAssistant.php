@@ -86,7 +86,11 @@ Built-in Kawa features available in this repo:
 
 Practical limitations and guidance:
 - Do not invent Kawa decorators, helpers, runtime APIs, or built-in events that do not exist in this repository.
-- Keep the code as a plain Python Flow file; prefer standard-library Python unless the file already uses or explicitly needs extra dependencies.
+- Keep the code as a single Python Flow script that runs through uv script / `uv run`.
+- Prefer standard-library Python unless the file already uses or explicitly needs extra dependencies.
+- When external packages are needed, declare them in a PEP 723 `# /// script` metadata block with `dependencies` entries.
+- If a PEP 723 metadata block is needed without external packages, include `dependencies = []`.
+- Add `requires-python` in the PEP 723 metadata only when the code depends on a specific Python version.
 - When adding custom events, define them with `@event` before the actors that use them.
 - When adding custom actors, make sure every referenced event class exists and the actor decorator metadata matches the implementation.
 - Favor small, composable actors and explicit event payloads over one giant actor with hidden state.

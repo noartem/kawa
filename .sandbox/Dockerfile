@@ -71,6 +71,7 @@ RUN apt-get update \
     gd \
     intl \
     ldap \
+    pcntl \
     pdo_pgsql \
     sockets \
     xsl \
