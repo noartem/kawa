@@ -394,6 +394,155 @@ PY,
 
     }
 
+    public function test_flow_service_restart_requests_stop_and_immediately_starts_new_development_run(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+            'container_id' => 'container-id-1',
+            'image' => 'flow:dev',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-1',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+        ]);
+
+        $client = $this->mock(FlowManagerClient::class);
+        $client
+            ->shouldReceive('stopContainer')
+            ->once()
+            ->with('container-id-1');
+
+        $client
+            ->shouldReceive('createContainer')
+            ->once()
+            ->withArgs(function (array $payload) use ($flow): bool {
+                return ($payload['flow_id'] ?? null) === $flow->id
+                    && ($payload['labels']['kawaflow.deployment_type'] ?? null) === 'development';
+            })
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'container_id' => 'container-id-2',
+                ],
+            ]);
+
+        $result = app(FlowService::class)->restart($flow);
+
+        $this->assertTrue($result['ok']);
+
+        $flow->refresh();
+        $run->refresh();
+
+        $newRun = $flow->runs()->latest('id')->first();
+
+        $this->assertNotNull($newRun);
+        $this->assertNotSame($run->id, $newRun->id);
+        $this->assertFalse($run->active);
+        $this->assertSame('stopping', $run->status);
+        $this->assertNotNull($run->finished_at);
+        $this->assertTrue($newRun->active);
+        $this->assertSame('created', $newRun->status);
+        $this->assertSame('container-id-2', $newRun->container_id);
+        $this->assertSame('container-id-2', $flow->container_id);
+    }
+
+    public function test_restart_action_restarts_selected_production_deployment(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'running',
+            'container_id' => 'prod-container-id-1',
+            'image' => 'flow:dev',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'production',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'prod-container-id-1',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+        ]);
+
+        $client = $this->mock(FlowManagerClient::class);
+        $client
+            ->shouldReceive('stopContainer')
+            ->once()
+            ->with('prod-container-id-1');
+
+        $client
+            ->shouldReceive('generateLock')
+            ->once()
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'lock' => 'lock-data',
+                ],
+            ]);
+
+        $client
+            ->shouldReceive('createContainer')
+            ->once()
+            ->withArgs(function (array $payload) use ($flow): bool {
+                return ($payload['flow_id'] ?? null) === $flow->id
+                    && ($payload['labels']['kawaflow.deployment_type'] ?? null) === 'production';
+            })
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'container_id' => 'prod-container-id-2',
+                ],
+            ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->post(route('flows.restart', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]));
+
+        $response
+            ->assertRedirect(route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]))
+            ->assertSessionHas('success', __('flows.restart.success'));
+
+        $flow->refresh();
+        $run->refresh();
+
+        $newRun = $flow->runs()->latest('id')->first();
+
+        $this->assertNotNull($newRun);
+        $this->assertNotSame($run->id, $newRun->id);
+        $this->assertFalse($run->active);
+        $this->assertSame('stopping', $run->status);
+        $this->assertNotNull($run->finished_at);
+        $this->assertSame('production', $newRun->type);
+        $this->assertTrue($newRun->active);
+        $this->assertSame('created', $newRun->status);
+        $this->assertSame('prod-container-id-2', $newRun->container_id);
+        $this->assertSame('prod-container-id-2', $flow->container_id);
+    }
+
     public function test_flow_service_resolves_runtime_container_before_stopping(): void
     {
         /** @var User $user */

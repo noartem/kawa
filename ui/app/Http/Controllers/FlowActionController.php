@@ -55,6 +55,22 @@ class FlowActionController extends Controller
             );
     }
 
+    public function restart(Request $request, Flow $flow, FlowService $flows): RedirectResponse
+    {
+        $result = $this->resolveEditorDeploymentType($request) === 'production'
+            ? $flows->restartProduction($flow)
+            : $flows->restart($flow);
+
+        return redirect()
+            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? __('flows.restart.success')
+                    : ($result['message'] ?? __('flows.restart.error'))
+            );
+    }
+
     public function deploy(Request $request, Flow $flow, FlowService $flows): RedirectResponse
     {
         $result = $flows->deployProduction($flow);

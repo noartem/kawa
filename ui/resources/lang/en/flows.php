@@ -16,6 +16,10 @@ return [
         'success' => 'Flow stopped.',
         'error' => 'Failed to stop flow.',
     ],
+    'restart' => [
+        'success' => 'Restart request sent.',
+        'error' => 'Failed to restart flow.',
+    ],
     'deploy' => [
         'success' => 'Deployment request sent.',
         'error' => 'Failed to deploy flow.',

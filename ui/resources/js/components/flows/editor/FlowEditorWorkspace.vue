@@ -40,6 +40,7 @@ import {
     ChevronDown,
     History,
     Play,
+    RotateCcw,
     Square,
 } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -121,6 +122,7 @@ const props = defineProps<{
 defineEmits<{
     'update:deployment-type': [value: FlowEnvironment];
     'run-flow': [];
+    'restart-flow': [];
     'stop-flow': [];
     'send-chat-message': [];
     'retry-chat-message': [];
@@ -147,7 +149,9 @@ const editorTabs = computed<Array<{ value: FlowEditorWorkspaceTab; label: string
 
 const isStatusTransitioning = computed(() => {
     return (
-        props.actionInProgress === 'run' || props.actionInProgress === 'stop'
+        props.actionInProgress === 'run' ||
+        props.actionInProgress === 'restart' ||
+        props.actionInProgress === 'stop'
     );
 });
 
@@ -171,6 +175,10 @@ const showStatusChip = computed(() => {
 
 const statusChipStatus = computed<string>(() => {
     if (props.actionInProgress === 'run') {
+        return 'creating';
+    }
+
+    if (props.actionInProgress === 'restart') {
         return 'creating';
     }
 
@@ -379,17 +387,27 @@ watch(
                         {{ statusChipLabel }}
                     </Badge>
 
-                    <Button
-                        v-if="currentDeploymentActive"
-                        variant="outline"
-                        :disabled="
-                            !canRun || actionInProgress !== null || chatPending
-                        "
-                        @click="$emit('stop-flow')"
-                    >
-                        <Square class="size-4" />
-                        {{ t('actions.stop') }}
-                    </Button>
+                    <template v-if="currentDeploymentActive">
+                        <Button
+                            :disabled="
+                                !canRun || actionInProgress !== null || chatPending
+                            "
+                            @click="$emit('restart-flow')"
+                        >
+                            <RotateCcw class="size-4" />
+                            {{ t('actions.restart') }}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            :disabled="
+                                !canRun || actionInProgress !== null || chatPending
+                            "
+                            @click="$emit('stop-flow')"
+                        >
+                            <Square class="size-4" />
+                            {{ t('actions.stop') }}
+                        </Button>
+                    </template>
                     <Button
                         v-else
                         :disabled="

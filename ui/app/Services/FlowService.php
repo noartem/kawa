@@ -32,6 +32,11 @@ final readonly class FlowService
         return $this->stopDeployment($flow, 'development');
     }
 
+    public function restart(Flow $flow): array
+    {
+        return $this->restartDeployment($flow, 'development');
+    }
+
     public function delete(Flow $flow): array
     {
         $activeRuns = $flow->runs()->where('active', true)->get();
@@ -128,6 +133,11 @@ final readonly class FlowService
         return $this->stopDeployment($flow, 'production');
     }
 
+    public function restartProduction(Flow $flow): array
+    {
+        return $this->restartDeployment($flow, 'production');
+    }
+
     /**
      * @return array{ok: bool, run_id?: int, message?: string}
      */
@@ -160,6 +170,17 @@ final readonly class FlowService
             __('flows.run.error'),
             'Development deployment requested.',
         );
+    }
+
+    private function restartDeployment(Flow $flow, string $type): array
+    {
+        if ($flow->activeRun($type) !== null) {
+            $this->stopDeployment($flow, $type);
+        }
+
+        return $type === 'production'
+            ? $this->deployProduction($flow)
+            : $this->deployDevelopment($flow);
     }
 
     private function stopDeployment(Flow $flow, string $type): array

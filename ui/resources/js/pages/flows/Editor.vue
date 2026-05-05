@@ -28,6 +28,7 @@ import {
     deploy as flowDeploy,
     deployments as flowDeployments,
     destroy as flowDestroy,
+    restart as flowRestart,
     restore as flowRestore,
     run as flowRun,
     show as flowShow,
@@ -105,7 +106,14 @@ const WORKSPACE_TABS: FlowEditorWorkspaceTab[] = [
 ];
 
 const actionInProgress = ref<
-    'run' | 'stop' | 'deploy' | 'undeploy' | 'archive' | 'restore' | null
+    | 'run'
+    | 'stop'
+    | 'restart'
+    | 'deploy'
+    | 'undeploy'
+    | 'archive'
+    | 'restore'
+    | null
 >(null);
 const saving = ref(false);
 const refreshInFlight = ref(false);
@@ -1340,6 +1348,19 @@ const stopFlow = (): void => {
     );
 };
 
+const restartFlow = (): void => {
+    if (!props.permissions.canRun || form.processing || saving.value) {
+        return;
+    }
+
+    saveBeforeAction(() => {
+        submitAction(
+            'restart',
+            appendEditorQuery(flowRestart({ flow: props.flow.id ?? 0 }).url),
+        );
+    });
+};
+
 const archiveFlow = (): void => {
     if (!props.permissions.canUpdate) {
         return;
@@ -1498,6 +1519,7 @@ onMounted(() => {
                 :format-recent-date="formatRecentDate"
                 :format-date="formatDate"
                 @run-flow="runFlow"
+                @restart-flow="restartFlow"
                 @stop-flow="stopFlow"
                 @send-chat-message="sendChatMessage"
                 @retry-chat-message="retryChatMessage"

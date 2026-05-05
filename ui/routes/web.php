@@ -43,6 +43,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('flows/{flow}', [FlowController::class, 'destroy'])->name('flows.destroy')->can('view-any', [Flow::class, 'flow']);
     Route::post('flows/{flow}/run', [FlowActionController::class, 'run'])->name('flows.run')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/stop', [FlowActionController::class, 'stop'])->name('flows.stop')->can('run', [Flow::class, 'flow']);
+    Route::post('flows/{flow}/restart', [FlowActionController::class, 'restart'])->name('flows.restart')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/deploy', [FlowActionController::class, 'deploy'])->name('flows.deploy')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/undeploy', [FlowActionController::class, 'undeploy'])->name('flows.undeploy')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/archive', [FlowActionController::class, 'archive'])->name('flows.archive')->can('update', [Flow::class, 'flow']);
