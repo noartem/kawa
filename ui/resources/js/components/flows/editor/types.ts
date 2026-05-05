@@ -52,6 +52,7 @@ export interface FlowDeployment extends FlowRun {
     container_id?: string | null;
     code?: string | null;
     graph?: Record<string, unknown> | null;
+    storage_snapshot?: FlowStorageContent | null;
     webhooks?: FlowWebhookEndpoint[] | null;
     logs: FlowLog[];
 }

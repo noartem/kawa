@@ -413,6 +413,9 @@ class FlowController extends Controller
                 'updated_at' => $run->updated_at,
                 'code' => $codeSnapshot,
                 'graph' => $this->resolveRunGraphSnapshot($run),
+                'storage_snapshot' => is_array($run->storage_snapshot)
+                    ? $run->storage_snapshot
+                    : null,
                 'webhooks' => $this->webhooks->deploymentEndpoints($flow, $run, $codeSnapshot),
                 'logs' => $runLogs
                     ->map(static fn ($log) => [

@@ -690,6 +690,17 @@ PY,
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
+        FlowStorage::factory()->forFlow($flow)->createOne([
+            'environment' => 'development',
+            'content' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'ru',
+                    ],
+                ],
+            ],
+        ]);
+
         $response = $this
             ->actingAs($user)
             ->put(route('flows.storage.update', [
@@ -1298,6 +1309,18 @@ PY,
             'graph_snapshot' => ['nodes' => [], 'edges' => []],
         ]);
 
+        FlowStorage::create([
+            'flow_id' => $flow->id,
+            'environment' => 'development',
+            'content' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'ru',
+                    ],
+                ],
+            ],
+        ]);
+
         $this->mock(FlowManagerClient::class)
             ->shouldNotReceive('stopContainer');
 
@@ -1314,6 +1337,7 @@ PY,
             $finishedAt->toDateTimeString(),
             $run->finished_at?->toDateTimeString(),
         );
+        $this->assertSame('ru', $run->storage_snapshot['settings']['profile']['language'] ?? null);
         $this->assertNull($flow->container_id);
     }
 
@@ -1341,6 +1365,14 @@ PY,
             'container_id' => 'container-id-3',
             'old_state' => 'running',
             'new_state' => 'exited',
+            'environment' => 'development',
+            'storage' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'en',
+                    ],
+                ],
+            ],
         ]);
         $job->handle();
 
@@ -1348,7 +1380,16 @@ PY,
         $run->refresh();
 
         $this->assertSame('stopped', $run->status);
+        $this->assertSame('en', $run->storage_snapshot['settings']['profile']['language'] ?? null);
         $this->assertNull($flow->container_id);
+
+        $storage = FlowStorage::query()
+            ->where('flow_id', $flow->id)
+            ->where('environment', 'development')
+            ->first();
+
+        $this->assertNotNull($storage);
+        $this->assertSame('en', $storage->content['settings']['profile']['language'] ?? null);
     }
 
     public function test_status_changed_event_can_resolve_run_by_flow_run_id_before_container_binding(): void

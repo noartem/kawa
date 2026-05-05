@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import FlowDeploymentDetailsDialog from '@/components/flows/editor/FlowDeploymentDetailsDialog.vue';
 import {
     buildDeploymentGraphMeta,
     createDeploymentDetailsHelpers,
@@ -41,6 +40,7 @@ import {
     show as flowShow,
     index as flowsIndex,
 } from '@/routes/flows';
+import { show as flowDeploymentShow } from '@/routes/flows/deployments';
 import type { BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-vue-next';
@@ -103,9 +103,6 @@ const sortDirection = ref<FlowDeploymentsSortDirection>(
     props.sorting.direction,
 );
 
-const detailsOpen = ref(false);
-const selectedDeploymentId = ref<number | null>(null);
-
 const statusFilterLabel = (status: string): string => {
     switch (status) {
         case 'status_working':
@@ -129,18 +126,6 @@ const deploymentCards = computed<DeploymentCard[]>(() => {
             formatDate,
         ),
     }));
-});
-
-const selectedDeploymentCard = computed<DeploymentCard | null>(() => {
-    if (selectedDeploymentId.value === null) {
-        return null;
-    }
-
-    return (
-        deploymentCards.value.find(
-            ({ deployment }) => deployment.id === selectedDeploymentId.value,
-        ) ?? null
-    );
 });
 
 const paginationItems = computed<PaginationToken[]>(() => {
@@ -346,9 +331,15 @@ const sortIconFor = (column: FlowDeploymentsSortKey) => {
     return sortDirection.value === 'asc' ? ArrowUp : ArrowDown;
 };
 
+const deploymentHref = (deploymentId: number): string => {
+    return flowDeploymentShow({
+        flow: props.flow.id,
+        deployment: deploymentId,
+    }).url;
+};
+
 const openDeploymentDetails = (deploymentId: number): void => {
-    selectedDeploymentId.value = deploymentId;
-    detailsOpen.value = true;
+    router.visit(deploymentHref(deploymentId));
 };
 
 watch(
@@ -369,27 +360,6 @@ watch(
     },
     { deep: true },
 );
-
-watch(detailsOpen, (open) => {
-    if (!open) {
-        selectedDeploymentId.value = null;
-    }
-});
-
-watch(deploymentCards, (cards) => {
-    if (selectedDeploymentId.value === null) {
-        return;
-    }
-
-    const hasSelectedDeployment = cards.some(
-        ({ deployment }) => deployment.id === selectedDeploymentId.value,
-    );
-
-    if (!hasSelectedDeployment) {
-        detailsOpen.value = false;
-        selectedDeploymentId.value = null;
-    }
-});
 
 onBeforeUnmount(() => {
     clearQueryDebounce();
@@ -709,14 +679,5 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <FlowDeploymentDetailsDialog
-            v-model:open="detailsOpen"
-            :deployment-card="selectedDeploymentCard"
-            :status-tone="statusTone"
-            :status-label="statusLabel"
-            :run-type-label="runTypeLabel"
-            :format-date="formatDate"
-            :format-duration="formatDuration"
-        />
     </AppLayout>
 </template>

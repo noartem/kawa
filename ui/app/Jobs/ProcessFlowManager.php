@@ -191,12 +191,18 @@ class ProcessFlowManager implements ShouldQueue
 
         if (in_array($status, ['stopped', 'exited', 'finished', 'dead'], true)) {
             if ($flowRun) {
-                $flowRun->update([
+                $updates = [
                     'active' => false,
                     'status' => 'stopped',
                     'finished_at' => now(),
                     'meta' => $this->payload,
-                ]);
+                ];
+
+                if (is_array($this->payload['storage'] ?? null)) {
+                    $updates['storage_snapshot'] = $this->payload['storage'];
+                }
+
+                $flowRun->update($updates);
             }
 
             $this->clearFlowContainerBinding($flow);

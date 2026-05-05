@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+type DeploymentDetailsTab = 'code' | 'storage' | 'discovery';
+
 interface FlowCodeEditorExpose {
     focusLine: (line: number, flash?: boolean) => boolean;
 }
@@ -45,6 +47,15 @@ const overviewSection = ref<HTMLElement | null>(null);
 const codeEditor = ref<FlowCodeEditorExpose | null>(null);
 const flowGraph = ref<FlowGraphExpose | null>(null);
 const selectedDiscoveryTarget = ref<DiscoverySelectionTarget | null>(null);
+const activeTab = ref<DeploymentDetailsTab>('code');
+
+const deploymentTabs = computed<
+    Array<{ value: DeploymentDetailsTab; label: string }>
+>(() => [
+    { value: 'code', label: t('flows.editor.tabs.code') },
+    { value: 'storage', label: t('flows.editor.tabs.storage') },
+    { value: 'discovery', label: t('flows.editor.tabs.discovery') },
+]);
 
 const graphMeta = computed(() => {
     if (!props.deployment) {
@@ -59,11 +70,18 @@ const graphMeta = computed(() => {
     );
 });
 
+const storageSnapshotJson = computed(() => {
+    const snapshot = props.deployment?.storage_snapshot ?? null;
+
+    if (snapshot === null) {
+        return JSON.stringify({}, null, 2);
+    }
+
+    return JSON.stringify(snapshot, null, 2);
+});
+
 const jumpToCode = async (line: number): Promise<void> => {
-    codeSection.value?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-    });
+    activeTab.value = 'code';
 
     await nextTick();
 
@@ -76,15 +94,11 @@ const openDiscoveryNode = (payload: {
     id: string;
     type: 'actor' | 'event';
 }): void => {
-    overviewSection.value?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-    });
-
     selectedDiscoveryTarget.value = {
         ...payload,
         requestKey: Date.now(),
     };
+    activeTab.value = 'discovery';
 };
 
 const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
@@ -157,58 +171,128 @@ const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
             </h1>
         </div>
 
-        <div
-            v-if="deployment && graphMeta"
-            class="grid min-h-0 gap-3 overflow-y-auto px-6 pt-4 pb-6 lg:grid-cols-2"
-        >
+        <section v-if="deployment && graphMeta" class="h-[100vh] p-4">
             <div
-                ref="codeSection"
-                class="relative overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25 lg:col-span-2"
+                class="grid h-full gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:grid-rows-[42px_minmax(16rem,2fr)_minmax(24rem,3fr)]"
             >
-                <FlowCodeEditor
-                    ref="codeEditor"
-                    :model-value="deployment.code || t('common.empty')"
-                    :disabled="true"
-                    class="h-[28rem] text-xs lg:h-[32rem]"
+                <div class="flex flex-wrap items-center gap-3 md:col-span-2">
+                    <nav
+                        class="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-1"
+                        aria-label="Deployment tabs"
+                    >
+                        <button
+                            v-for="tab in deploymentTabs"
+                            :key="tab.value"
+                            type="button"
+                            class="rounded-md px-3 py-1.5 text-sm transition"
+                            :class="
+                                activeTab === tab.value
+                                    ? 'bg-background text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                            "
+                            @click="activeTab = tab.value"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </nav>
+
+                    <Badge variant="outline">
+                        {{ runTypeLabel(deployment.type) }}
+                    </Badge>
+                </div>
+
+                <div
+                    class="min-h-0 overflow-hidden md:col-start-1 md:row-span-2 md:row-start-2"
+                >
+                    <div v-if="activeTab === 'code'" class="flex h-full flex-col">
+                        <div
+                            ref="codeSection"
+                            class="relative h-full overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25"
+                        >
+                            <FlowCodeEditor
+                                ref="codeEditor"
+                                id="deployment-code"
+                                :model-value="deployment.code || t('common.empty')"
+                                :disabled="true"
+                                class="h-full"
+                                bottom-padding="3rem"
+                            />
+                        </div>
+                    </div>
+
+                    <div v-else-if="activeTab === 'storage'" class="flex h-full flex-col">
+                        <div
+                            class="flex items-center justify-between gap-3 rounded-t-xl border border-b-0 border-border bg-muted/20 px-4 py-3"
+                        >
+                            <div>
+                                <p class="text-sm font-semibold text-foreground">
+                                    {{ t('flows.editor.storage.title') }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ t('flows.editor.storage.description') }}
+                                </p>
+                            </div>
+
+                            <Badge variant="outline">
+                                {{ runTypeLabel(deployment.type) }}
+                            </Badge>
+                        </div>
+
+                        <div
+                            class="min-h-0 flex-1 overflow-hidden rounded-b-xl border border-border bg-linear-to-br from-background to-muted/25"
+                        >
+                            <FlowCodeEditor
+                                id="deployment-storage"
+                                :model-value="storageSnapshotJson"
+                                language="json"
+                                :disabled="true"
+                                class="h-full"
+                                bottom-padding="3rem"
+                            />
+                        </div>
+
+                        <div
+                            class="mt-3 rounded-xl border border-border bg-muted/15 px-4 py-3 text-sm text-muted-foreground"
+                        >
+                            {{ t('flows.editor.storage.help') }}
+                        </div>
+                    </div>
+
+                    <div v-else ref="overviewSection" class="h-full">
+                        <div
+                            class="h-full overflow-hidden rounded-xl border border-border bg-muted/15"
+                        >
+                            <FlowDiscoveryPanel
+                                class="h-full"
+                                :graph="deployment.graph"
+                                :webhook-endpoints="deployment.webhooks ?? []"
+                                :selected-target="selectedDiscoveryTarget"
+                                @jump-to-code="jumpToCode"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <FlowGraph
+                    ref="flowGraph"
+                    class="h-full min-h-0 md:col-start-2 md:row-start-2"
+                    :graph="deployment.graph"
+                    :meta="graphMeta"
+                    :webhook-endpoints="deployment.webhooks ?? []"
+                    @jump-to-code="jumpToCode"
+                    @node-select="openDiscoveryNode"
+                />
+
+                <FlowLogsPanel
+                    :logs="deployment.logs"
+                    :stream-key="deployment.id"
+                    class="h-full min-h-0 md:col-start-2 md:row-start-3"
+                    :empty-message="t('flows.logs.empty')"
+                    compact
+                    @dispatch-edge-highlight="highlightDispatchPath"
+                    @select-node="openDiscoveryNode"
                 />
             </div>
-
-            <div
-                ref="overviewSection"
-                class="h-[28rem] min-h-0 overflow-hidden lg:h-[32rem]"
-            >
-                <div
-                    class="h-full overflow-hidden rounded-xl border border-border bg-muted/15"
-                >
-                    <FlowDiscoveryPanel
-                        class="h-full"
-                        :graph="deployment.graph"
-                        :webhook-endpoints="deployment.webhooks ?? []"
-                        :selected-target="selectedDiscoveryTarget"
-                        @jump-to-code="jumpToCode"
-                    />
-                </div>
-            </div>
-
-            <FlowGraph
-                ref="flowGraph"
-                class="h-[28rem] min-h-0 lg:h-[32rem]"
-                :graph="deployment.graph"
-                :meta="graphMeta"
-                :webhook-endpoints="deployment.webhooks ?? []"
-                @jump-to-code="jumpToCode"
-                @node-select="openDiscoveryNode"
-            />
-
-            <FlowLogsPanel
-                :logs="deployment.logs"
-                :stream-key="deployment.id"
-                class="col-span-2 h-[28rem] min-h-0 lg:h-[32rem]"
-                :empty-message="t('flows.logs.empty')"
-                compact
-                dense
-                @dispatch-edge-highlight="highlightDispatchPath"
-            />
-        </div>
+        </section>
     </div>
 </template>

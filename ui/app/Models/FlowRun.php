@@ -23,6 +23,7 @@ class FlowRun extends Model
         'events',
         'code_snapshot',
         'graph_snapshot',
+        'storage_snapshot',
         'started_at',
         'finished_at',
     ];
@@ -35,6 +36,7 @@ class FlowRun extends Model
         'events' => 'array',
         'code_snapshot' => 'string',
         'graph_snapshot' => 'array',
+        'storage_snapshot' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];

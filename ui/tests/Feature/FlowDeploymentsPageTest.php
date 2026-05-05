@@ -140,6 +140,13 @@ class FlowDeploymentsPageTest extends TestCase
             'status' => 'success',
             'container_id' => 'container-123',
             'code_snapshot' => $flow->code,
+            'storage_snapshot' => [
+                'settings' => [
+                    'profile' => [
+                        'language' => 'en',
+                    ],
+                ],
+            ],
         ]);
 
         $response = $this->actingAs($user)->get(route('flows.deployments.show', [
@@ -155,6 +162,7 @@ class FlowDeploymentsPageTest extends TestCase
             ->where('deployment.id', $deployment->id)
             ->where('deployment.type', 'production')
             ->where('deployment.status', 'success')
+            ->where('deployment.storage_snapshot.settings.profile.language', 'en')
         );
     }
 

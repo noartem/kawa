@@ -1535,6 +1535,7 @@ onMounted(() => {
 
             <FlowEditorDeployments
                 v-if="deploymentCards.length"
+                :flow-id="props.flow.id"
                 :deployment-cards="deploymentCards"
                 :all-deployments-url="allDeploymentsUrl"
                 :status-tone="statusTone"

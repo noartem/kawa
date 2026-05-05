@@ -265,6 +265,9 @@ final readonly class FlowService
             'active' => false,
             'status' => 'stopped',
             'finished_at' => $finishedAt,
+            'storage_snapshot' => is_array($run->storage_snapshot)
+                ? $run->storage_snapshot
+                : $this->storagePayload($flow, $run->type),
         ]);
 
         if ($run->container_id !== null && $flow->container_id === $run->container_id) {
