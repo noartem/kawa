@@ -214,11 +214,20 @@ class UIClient:
         response = self._client.get(f"/flows/{flow_id}")
         response.raise_for_status()
 
-        match = re.search(r'data-page="([^"]+)"', response.text)
-        if not match:
+        payload_match = re.search(
+            r'<script\s+data-page="app"\s+type="application/json">(.*?)</script>',
+            response.text,
+            re.DOTALL,
+        )
+        if payload_match:
+            payload = json.loads(unescape(payload_match.group(1)))
+            return payload.get("props", {})
+
+        legacy_match = re.search(r'<div\s+id="app"\s+data-page="([^"]+)"', response.text)
+        if not legacy_match:
             raise RuntimeError("Unable to find Inertia page payload")
 
-        payload = json.loads(unescape(match.group(1)))
+        payload = json.loads(unescape(legacy_match.group(1)))
         return payload.get("props", {})
 
     def wait_for_container_id(self, flow_id: int, timeout: int = 90) -> Optional[str]:

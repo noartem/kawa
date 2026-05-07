@@ -379,7 +379,10 @@ PY,
         $this->mock(FlowManagerClient::class)
             ->shouldReceive('stopContainer')
             ->once()
-            ->with('container-id-1');
+            ->with('container-id-1')
+            ->andReturn([
+                'ok' => true,
+            ]);
 
         $service = app(FlowService::class);
         $result = $service->stop($flow);
@@ -421,7 +424,10 @@ PY,
         $client
             ->shouldReceive('stopContainer')
             ->once()
-            ->with('container-id-1');
+            ->with('container-id-1')
+            ->andReturn([
+                'ok' => true,
+            ]);
 
         $client
             ->shouldReceive('createContainer')
@@ -484,7 +490,10 @@ PY,
         $client
             ->shouldReceive('stopContainer')
             ->once()
-            ->with('prod-container-id-1');
+            ->with('prod-container-id-1')
+            ->andReturn([
+                'ok' => true,
+            ]);
 
         $client
             ->shouldReceive('generateLock')
@@ -543,6 +552,63 @@ PY,
         $this->assertSame('prod-container-id-2', $flow->container_id);
     }
 
+    public function test_flow_service_restart_returns_failure_when_active_stop_fails(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'running',
+            'container_id' => 'container-id-1',
+            'image' => 'flow:dev',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'running',
+            'started_at' => now()->subMinute(),
+            'container_id' => 'container-id-1',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+        ]);
+
+        $client = $this->mock(FlowManagerClient::class);
+        $client
+            ->shouldReceive('stopContainer')
+            ->once()
+            ->with('container-id-1')
+            ->andReturn([
+                'ok' => false,
+                'message' => 'runtime unavailable',
+            ]);
+
+        $client
+            ->shouldReceive('createContainer')
+            ->never();
+
+        $result = app(FlowService::class)->restart($flow);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('runtime unavailable', $result['message']);
+
+        $flow->refresh();
+        $run->refresh();
+
+        $this->assertCount(1, $flow->runs);
+        $this->assertTrue($run->active);
+        $this->assertSame('running', $run->status);
+        $this->assertSame('container-id-1', $flow->container_id);
+
+        $logEntry = $run->logs()->latest('id')->first();
+
+        $this->assertNotNull($logEntry);
+        $this->assertSame('error', $logEntry->level);
+        $this->assertSame('runtime unavailable', $logEntry->message);
+    }
+
     public function test_flow_service_resolves_runtime_container_before_stopping(): void
     {
         /** @var User $user */
@@ -593,7 +659,10 @@ PY,
         $client
             ->shouldReceive('stopContainer')
             ->once()
-            ->with('container-id-2');
+            ->with('container-id-2')
+            ->andReturn([
+                'ok' => true,
+            ]);
 
         $service = app(FlowService::class);
         $result = $service->stop($flow);

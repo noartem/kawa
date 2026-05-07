@@ -56,3 +56,10 @@ tasks:
         vars:
           COMMAND: /bin/zsh -c "{{.CLI_ARGS}}"
 
+  opencode:
+    aliases: [oc]
+    cmds:
+      - task: shell-execute
+        vars:
+          CLI_ARGS: opencode {{.CLI_ARGS}}
+

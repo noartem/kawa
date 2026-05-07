@@ -175,7 +175,11 @@ final readonly class FlowService
     private function restartDeployment(Flow $flow, string $type): array
     {
         if ($flow->activeRun($type) !== null) {
-            $this->stopDeployment($flow, $type);
+            $stopResult = $this->stopDeployment($flow, $type);
+
+            if (! ($stopResult['ok'] ?? false)) {
+                return $stopResult;
+            }
         }
 
         return $type === 'production'
@@ -208,6 +212,9 @@ final readonly class FlowService
             return ['ok' => true];
         }
 
+        $previousRunStatus = $run->status;
+        $previousFlowStatus = $flow->status;
+
         $run->update([
             'status' => 'stopping',
         ]);
@@ -238,7 +245,42 @@ final readonly class FlowService
         }
 
         if ($containerId) {
-            $this->client->stopContainer($containerId);
+            $response = $this->client->stopContainer($containerId);
+
+            if (! ($response['ok'] ?? false)) {
+                $errorMessage = $this->resolveFlowManagerError(
+                    $response,
+                    $type === 'production' ? __('flows.undeploy.error') : __('flows.stop.error'),
+                );
+
+                $run->update([
+                    'status' => $previousRunStatus,
+                ]);
+
+                if ($type === 'production' && $previousFlowStatus !== null) {
+                    $flow->update([
+                        'status' => $previousFlowStatus,
+                    ]);
+                }
+
+                $run->logs()->create([
+                    'flow_id' => $flow->id,
+                    'flow_run_id' => $run->id,
+                    'level' => 'error',
+                    'message' => $errorMessage,
+                    'context' => [
+                        'deployment_type' => $type,
+                        'container_id' => $containerId,
+                        'response' => $response,
+                    ],
+                ]);
+
+                return [
+                    'ok' => false,
+                    'run_id' => $run->id,
+                    'message' => $errorMessage,
+                ];
+            }
         } else {
             $this->finalizeStoppedRun($flow, $run);
         }
