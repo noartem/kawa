@@ -16,7 +16,7 @@ use Illuminate\Database\Seeder;
 
 class AdminShowcaseFlowSeeder extends Seeder
 {
-    private const ADMIN_EMAIL = 'admin@kawaflow.localhost';
+    private const ADMIN_EMAIL = 'admin@kawa.localhost';
 
     private const FLOW_SLUG = 'admin-showcase-flow';
 

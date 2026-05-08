@@ -11,14 +11,8 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         User::factory()->admin()->withoutTwoFactor()->create([
-            'name' => 'Admin',
-            'email' => 'admin@kawaflow.localhost',
-            'password' => Hash::make('12345678'),
-        ]);
-
-        User::factory()->withoutTwoFactor()->create([
-            'name' => 'Artem Noskov',
-            'email' => 'artem@noartem.ru',
+            'name' => 'Админ А.Д.',
+            'email' => 'admin@kawa.localhost',
             'password' => Hash::make('12345678'),
         ]);
 
