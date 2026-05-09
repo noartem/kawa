@@ -57,15 +57,15 @@ FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE)
 
 ```json
 {
-  "data": {
-    "id": 1,
-    "name": "Widget",
-    "price": "29.99",
-    "category": {
-      "id": 5,
-      "name": "Tools"
+    "data": {
+        "id": 1,
+        "name": "Widget",
+        "price": "29.99",
+        "category": {
+            "id": 5,
+            "name": "Tools"
+        }
     }
-  }
 }
 ```
 
@@ -73,12 +73,12 @@ FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE)
 
 ```json
 {
-  "data": {
-    "id": 1,
-    "name": "Widget",
-    "price": 2999,
-    "category": null
-  }
+    "data": {
+        "id": 1,
+        "name": "Widget",
+        "price": 2999,
+        "category": null
+    }
 }
 ```
 

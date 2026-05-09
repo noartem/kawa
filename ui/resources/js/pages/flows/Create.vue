@@ -16,8 +16,16 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 
+type FlowTemplate =
+    | 'blank'
+    | 'cron'
+    | 'webhook'
+    | 'rss'
+    | 'imap'
+    | 'air_quality';
+
 const props = defineProps<{
-    defaultTemplate: 'blank' | 'cron' | 'webhook';
+    defaultTemplate: FlowTemplate;
     defaultTimezone: string;
     timezoneOptions: string[];
 }>();
@@ -35,12 +43,12 @@ const detectBrowserTimezone = (): string | null => {
     return null;
 };
 
-const selectedTemplate = ref<'blank' | 'cron' | 'webhook'>(
-    props.defaultTemplate,
-);
+const selectedTemplate = ref<FlowTemplate>(props.defaultTemplate);
 const timezone = ref(detectBrowserTimezone() ?? props.defaultTimezone);
 
-const templates = computed(() => [
+const templates = computed<
+    Array<{ id: FlowTemplate; name: string; description: string }>
+>(() => [
     {
         id: 'blank',
         name: t('flows.create.template.blank.name'),
@@ -55,6 +63,21 @@ const templates = computed(() => [
         id: 'webhook',
         name: t('flows.create.template.webhook.name'),
         description: t('flows.create.template.webhook.description'),
+    },
+    {
+        id: 'rss',
+        name: t('flows.create.template.rss.name'),
+        description: t('flows.create.template.rss.description'),
+    },
+    {
+        id: 'imap',
+        name: t('flows.create.template.imap.name'),
+        description: t('flows.create.template.imap.description'),
+    },
+    {
+        id: 'air_quality',
+        name: t('flows.create.template.air_quality.name'),
+        description: t('flows.create.template.air_quality.description'),
     },
 ]);
 
@@ -73,7 +96,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
     <Head :title="t('flows.create.title')" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="mx-auto max-w-2xl space-y-8 pt-4 pb-12">
+        <div class="space-y-8 pt-4 pb-12">
             <div class="space-y-2 px-4">
                 <h1 class="text-3xl font-semibold">
                     {{ t('flows.create.title') }}
@@ -87,12 +110,12 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
 
             <Form
                 v-bind="store.form()"
-                class="space-y-6 px-4"
+                class="space-y-6"
                 v-slot="{ errors, processing }"
             >
-                <div class="space-y-3">
+                <div class="space-y-3 px-4">
                     <Label>{{ t('flows.create.template.label') }}</Label>
-                    <div class="grid gap-3 md:grid-cols-3">
+                    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <button
                             type="button"
                             v-for="tmpl in templates"
@@ -103,12 +126,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                                     ? 'border-primary ring-2 ring-primary/20'
                                     : 'border-border'
                             "
-                            @click="
-                                selectedTemplate = tmpl.id as
-                                    | 'blank'
-                                    | 'cron'
-                                    | 'webhook'
-                            "
+                            @click="selectedTemplate = tmpl.id"
                         >
                             <div class="flex items-center gap-2">
                                 <div
@@ -145,7 +163,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
 
                 <Separator />
 
-                <div class="grid gap-4">
+                <div class="grid max-w-196 gap-4 px-4">
                     <div class="space-y-2">
                         <Label for="name">{{ t('forms.name') }}</Label>
                         <Input
@@ -208,9 +226,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
                     </div>
                 </div>
 
-                <Separator />
-
-                <Button type="submit" class="w-full" :disabled="processing">
+                <Button type="submit" class="mx-4" :disabled="processing">
                     <Spinner v-if="processing" />
                     {{ t('flows.actions.create') }}
                 </Button>

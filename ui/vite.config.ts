@@ -6,30 +6,46 @@ import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
+    const devServerPort = Number(env.VITE_PORT || 5173);
+    const devServerOrigin = env.VITE_ORIGIN || undefined;
+    const allowedDevOrigins = [
+        /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+        ...(env.APP_URL ? [env.APP_URL] : []),
+    ];
+    const usePolling = ['1', 'true', 'yes', 'on'].includes(
+        (env.VITE_USE_POLLING || '').toLowerCase(),
+    );
 
     return {
         server: {
-            host: env.VITE_HOST,
-            port: env.VITE_PORT,
-            origin: env.VITE_ORIGIN,
-            hmr: {
-                host: env.VITE_HMR_HOST,
-                port: env.VITE_HMR_PORT,
+            host: env.VITE_HOST || 'localhost',
+            port: devServerPort,
+            strictPort: true,
+            origin: devServerOrigin,
+            cors: {
+                origin: allowedDevOrigins,
             },
             watch: {
-                usePolling: true,
-                interval: 200,
-            },
-            cors: {
-                origin: env.APP_URL,
-                credentials: true,
+                ignored: ['**/*.swp', '**/*.swo', '**/*~', '**/.#*'],
+                ...(usePolling
+                    ? {
+                          usePolling: true,
+                          interval: Number(env.VITE_WATCH_INTERVAL || 250),
+                      }
+                    : {}),
             },
         },
         plugins: [
             laravel({
                 input: ['resources/js/app.ts'],
                 ssr: 'resources/js/ssr.ts',
-                refresh: true,
+                refresh: [
+                    'app/View/Components/**',
+                    'lang/**',
+                    'resources/lang/**',
+                    'resources/views/**',
+                    'routes/**',
+                ],
             }),
             tailwindcss(),
             wayfinder({

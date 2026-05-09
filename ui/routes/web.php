@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::get('flows/create', [FlowController::class, 'create'])->name('flows.create')->can('create', Flow::class);
     Route::post('flows', [FlowController::class, 'store'])->name('flows.store')->can('create', Flow::class);
     Route::get('flows/{flow}', [FlowController::class, 'show'])->name('flows.show')->can('update', [Flow::class, 'flow']);
+    Route::get('flows/{flow}/editor', [FlowController::class, 'editor'])->name('flows.editor')->can('update', [Flow::class, 'flow']);
     Route::put('flows/{flow}', [FlowController::class, 'update'])->name('flows.update')->can('view-any', [Flow::class, 'flow']);
     Route::put('flows/{flow}/storage', [FlowController::class, 'updateStorage'])->name('flows.storage.update')->can('update', [Flow::class, 'flow']);
     Route::delete('flows/{flow}', [FlowController::class, 'destroy'])->name('flows.destroy')->can('view-any', [Flow::class, 'flow']);
@@ -48,11 +49,15 @@ Route::middleware('auth')->group(function () {
     Route::post('flows/{flow}/undeploy', [FlowActionController::class, 'undeploy'])->name('flows.undeploy')->can('run', [Flow::class, 'flow']);
     Route::post('flows/{flow}/archive', [FlowActionController::class, 'archive'])->name('flows.archive')->can('update', [Flow::class, 'flow']);
     Route::post('flows/{flow}/restore', [FlowActionController::class, 'restore'])->name('flows.restore')->can('update', [Flow::class, 'flow']);
-    Route::get('flows/{flow}/chat', [FlowChatController::class, 'index'])->name('flows.chat.index')->can('update', [Flow::class, 'flow']);
-    Route::post('flows/{flow}/chat', [FlowChatController::class, 'store'])->name('flows.chat.store')->can('update', [Flow::class, 'flow']);
-    Route::get('flows/{flow}/chat/debug', [FlowChatController::class, 'debug'])->name('flows.chat.debug')->can('update', [Flow::class, 'flow']);
-    Route::post('flows/{flow}/chat/new', [FlowChatController::class, 'newChat'])->name('flows.chat.new')->can('update', [Flow::class, 'flow']);
-    Route::post('flows/{flow}/chat/compact', [FlowChatController::class, 'compact'])->name('flows.chat.compact')->can('update', [Flow::class, 'flow']);
+    Route::scopeBindings()->group(function (): void {
+        Route::get('flows/{flow}/chats', [FlowChatController::class, 'index'])->name('flows.chat.index')->can('update', [Flow::class, 'flow']);
+        Route::post('flows/{flow}/chats', [FlowChatController::class, 'store'])->name('flows.chat.store')->can('update', [Flow::class, 'flow']);
+        Route::get('flows/{flow}/chats/debug', [FlowChatController::class, 'debug'])->name('flows.chat.debug')->can('update', [Flow::class, 'flow']);
+        Route::get('flows/{flow}/chats/{chat}', [FlowChatController::class, 'show'])->name('flows.chat.show')->can('update', [Flow::class, 'flow']);
+        Route::post('flows/{flow}/chats/{chat}/messages', [FlowChatController::class, 'storeMessage'])->name('flows.chat.messages.store')->can('update', [Flow::class, 'flow']);
+        Route::get('flows/{flow}/chats/{chat}/messages/requests/{chatRequest}', [FlowChatController::class, 'showMessageRequest'])->name('flows.chat.messages.requests.show')->can('update', [Flow::class, 'flow']);
+        Route::post('flows/{flow}/chats/{chat}/compact', [FlowChatController::class, 'compact'])->name('flows.chat.compact')->can('update', [Flow::class, 'flow']);
+    });
     Route::get('flows/{flow}/deployments', [FlowController::class, 'deployments'])->name('flows.deployments')->can('view-logs', [Flow::class, 'flow']);
     Route::get('flows/{flow}/deployments/{deployment}', [FlowController::class, 'deployment'])->name('flows.deployments.show')->can('view-logs', [Flow::class, 'flow']);
     Route::get('flows/{flow}/logs', [FlowLogController::class, 'index'])->name('flows.logs')->can('view-logs', [Flow::class, 'flow']);

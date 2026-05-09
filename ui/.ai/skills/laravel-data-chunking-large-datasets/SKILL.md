@@ -356,47 +356,47 @@ test('handles empty datasets gracefully', function () {
 
 1. **Modifying filter columns during chunk()**
 
-   ```php
-   // WRONG: May skip records
-   User::where('processed', false)
-       ->chunk(100, function ($users) {
-           foreach ($users as $user) {
-               $user->update(['processed' => true]); // Changes the WHERE condition!
-           }
-       });
+    ```php
+    // WRONG: May skip records
+    User::where('processed', false)
+        ->chunk(100, function ($users) {
+            foreach ($users as $user) {
+                $user->update(['processed' => true]); // Changes the WHERE condition!
+            }
+        });
 
-   // CORRECT: Use chunkById()
-   User::where('processed', false)
-       ->chunkById(100, function ($users) {
-           foreach ($users as $user) {
-               $user->update(['processed' => true]);
-           }
-       });
-   ```
+    // CORRECT: Use chunkById()
+    User::where('processed', false)
+        ->chunkById(100, function ($users) {
+            foreach ($users as $user) {
+                $user->update(['processed' => true]);
+            }
+        });
+    ```
 
 2. **Not handling chunk callback returns**
 
-   ```php
-   // Return false to stop chunking
-   User::chunk(100, function ($users) {
-       foreach ($users as $user) {
-           if ($user->hasIssue()) {
-               return false; // Stop processing
-           }
-           $user->process();
-       }
-   });
-   ```
+    ```php
+    // Return false to stop chunking
+    User::chunk(100, function ($users) {
+        foreach ($users as $user) {
+            if ($user->hasIssue()) {
+                return false; // Stop processing
+            }
+            $user->process();
+        }
+    });
+    ```
 
 3. **Ignoring database connection limits**
 
-   ```php
-   // Consider connection timeouts for long operations
-   DB::connection()->getPdo()->setAttribute(PDO::ATTR_TIMEOUT, 3600);
+    ```php
+    // Consider connection timeouts for long operations
+    DB::connection()->getPdo()->setAttribute(PDO::ATTR_TIMEOUT, 3600);
 
-   User::chunkById(100, function ($users) {
-       // Long running process
-   });
-   ```
+    User::chunkById(100, function ($users) {
+        // Long running process
+    });
+    ```
 
 Remember: When dealing with large datasets, always think about memory usage, query efficiency, and processing time. Chunk your data appropriately!

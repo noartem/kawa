@@ -239,6 +239,44 @@ async def test_fire_and_forget_command_skips_response_queue_publish():
 
 
 @pytest.mark.asyncio
+async def test_fire_and_forget_create_failure_publishes_domain_error_event():
+    handler, messaging, container_manager, _, user_logger = _make_handler()
+    container_manager.create_container = AsyncMock(side_effect=Exception("missing image"))
+    user_logger.container_error = AsyncMock()
+
+    await handler._dispatch_command(
+        {
+            "action": "create_container",
+            "data": {
+                "flow_id": 7,
+                "flow_run_id": 11,
+                "image": "flow:dev",
+                "name": "flow-7-run-11",
+            },
+        },
+        message=None,
+    )
+
+    assert messaging.published_responses == []
+    assert len(messaging.published_events) == 1
+    assert messaging.published_events[0]["event"] == "container_create_failed"
+    assert messaging.published_events[0]["payload"] == {
+        "flow_id": 7,
+        "flow_run_id": 11,
+        "container_id": None,
+        "name": "flow-7-run-11",
+        "image": "flow:dev",
+        "error_type": "system_error",
+        "message": "missing image",
+    }
+    user_logger.container_error.assert_awaited_once_with(
+        "unknown",
+        "missing image",
+        operation="create_container",
+    )
+
+
+@pytest.mark.asyncio
 async def test_status_change_callback_publishes_only_domain_event():
     handler, messaging, container_manager, _, user_logger = _make_handler()
     container = Mock()

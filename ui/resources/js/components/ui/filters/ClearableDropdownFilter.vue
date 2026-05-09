@@ -72,7 +72,7 @@ const clearValue = (event: Event): void => {
                 :class="cn('h-9 w-full justify-between', props.class)"
             >
                 <span class="truncate">{{ selectedLabel }}</span>
-                <span class="ml-2 inline-flex items-center gap-1.5">
+                <span class="ml-0.5 inline-flex items-center gap-1.5">
                     <span
                         v-if="canClear"
                         role="button"

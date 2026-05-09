@@ -126,38 +126,38 @@ Route::prefix('v1')->group(function () {
 ## Key Principles
 
 1. **Routes are declarations, not implementations**
-   - Define the HTTP verb, path, and controller method
-   - Nothing more
+    - Define the HTTP verb, path, and controller method
+    - Nothing more
 
 2. **Use route model binding**
 
-   ```php
-   // Laravel automatically resolves the Order model
-   Route::put('/orders/{order}', [OrderController::class, 'update']);
-   ```
+    ```php
+    // Laravel automatically resolves the Order model
+    Route::put('/orders/{order}', [OrderController::class, 'update']);
+    ```
 
 3. **Group related routes**
 
-   ```php
-   Route::controller(OrderController::class)->group(function () {
-       Route::get('/orders', 'index');
-       Route::get('/orders/{order}', 'show');
-       Route::post('/orders', 'store');
-   });
-   ```
+    ```php
+    Route::controller(OrderController::class)->group(function () {
+        Route::get('/orders', 'index');
+        Route::get('/orders/{order}', 'show');
+        Route::post('/orders', 'store');
+    });
+    ```
 
 4. **Use resource controllers when appropriate**
 
-   ```php
-   Route::resource('photos', PhotoController::class)
-       ->only(['index', 'show'])
-       ->names('gallery.photos');
-   ```
+    ```php
+    Route::resource('photos', PhotoController::class)
+        ->only(['index', 'show'])
+        ->names('gallery.photos');
+    ```
 
 5. **Leverage route caching in production**
-   ```bash
-   sail artisan route:cache
-   ```
+    ```bash
+    sail artisan route:cache
+    ```
 
 ## Common Mistakes to Avoid
 

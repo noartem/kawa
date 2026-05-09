@@ -43,8 +43,8 @@ pnpm add motion-v @vueuse/nuxt
 ```ts
 // nuxt.config.ts - Nuxt 3 setup
 export default defineNuxtConfig({
-  modules: ['motion-v/nuxt'],
-})
+    modules: ['motion-v/nuxt'],
+});
 ```
 
 ## Quick Reference
@@ -73,18 +73,18 @@ Render any HTML/SVG element with animation capabilities:
 
 ```vue
 <script setup lang="ts">
-import { motion } from 'motion-v'
+import { motion } from 'motion-v';
 </script>
 
 <template>
-  <motion.div
-    :initial="{ opacity: 0, y: 20 }"
-    :animate="{ opacity: 1, y: 0 }"
-    :exit="{ opacity: 0, y: -20 }"
-    :transition="{ duration: 0.3 }"
-  >
-    Animated content
-  </motion.div>
+    <motion.div
+        :initial="{ opacity: 0, y: 20 }"
+        :animate="{ opacity: 1, y: 0 }"
+        :exit="{ opacity: 0, y: -20 }"
+        :transition="{ duration: 0.3 }"
+    >
+        Animated content
+    </motion.div>
 </template>
 ```
 
@@ -92,9 +92,9 @@ import { motion } from 'motion-v'
 
 ```vue
 <motion.button
-  :whileHover="{ scale: 1.05 }"
-  :whilePress="{ scale: 0.95 }"
-  :transition="{ type: 'spring', stiffness: 400 }"
+    :whileHover="{ scale: 1.05 }"
+    :whilePress="{ scale: 0.95 }"
+    :transition="{ type: 'spring', stiffness: 400 }"
 >
   Click me
 </motion.button>
@@ -104,9 +104,9 @@ import { motion } from 'motion-v'
 
 ```vue
 <motion.div
-  :initial="{ opacity: 0 }"
-  :whileInView="{ opacity: 1 }"
-  :viewport="{ once: true, margin: '-100px' }"
+    :initial="{ opacity: 0 }"
+    :whileInView="{ opacity: 1 }"
+    :viewport="{ once: true, margin: '-100px' }"
 >
   Appears on scroll
 </motion.div>

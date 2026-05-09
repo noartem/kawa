@@ -453,6 +453,7 @@ final readonly class FlowService
         $deploymentRoot = $this->deploymentRoot($flow, $run);
         $timezone = $flow->timezone ?? config('app.timezone', 'UTC');
         $graphSnapshot = is_array($run->graph_snapshot) ? $run->graph_snapshot : [];
+        $code = is_string($run->code_snapshot) ? $run->code_snapshot : ($flow->code ?? '');
 
         $payload = [
             'image' => $flow->image ?? 'flow:dev',
@@ -488,9 +489,7 @@ final readonly class FlowService
                 $deploymentRoot => '/flow',
             ],
             'command' => [
-                'uv',
-                'run',
-                '/flow/main.py',
+                ...$this->runtimeCommand($code),
             ],
             'working_dir' => '/flow',
         ];
@@ -587,6 +586,23 @@ if __name__ == '__main__':
 PY;
 
         return ($header !== '' ? $header."\n\n" : '').$bootstrap."\n";
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function runtimeCommand(string $flowCode): array
+    {
+        $command = ['uv', 'run'];
+
+        if ($this->extractPep723ScriptHeader($flowCode) !== '') {
+            $command[] = '--with-editable';
+            $command[] = '/tmp/kawa';
+        }
+
+        $command[] = '/flow/main.py';
+
+        return $command;
     }
 
     private function extractPep723ScriptHeader(string $flowCode): string

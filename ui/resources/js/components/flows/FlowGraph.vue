@@ -22,9 +22,17 @@ import {
     propagateDispatchPathHighlight,
     type DispatchHighlightTarget,
     type DispatchPathHighlight,
+    type EdgeFocusTarget,
+    type EdgeHoverHighlightTarget,
+    type FlowGraphEdgeHighlight,
 } from './graphHighlights';
+import {
+    logFlowGraphVisibility,
+    summarizeGraphForDebug,
+} from './graphVisibilityDebug';
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { filterFlowGraphByHiddenNodeIds } from './graphVisibility';
 
 interface GraphNodePayload {
     id: string;
@@ -45,24 +53,32 @@ interface GraphMeta {
     freshnessLabel?: string;
 }
 
-interface FlowGraphRendererExpose extends DispatchHighlightTarget {
+interface FlowGraphRendererExpose
+    extends DispatchHighlightTarget,
+        EdgeHoverHighlightTarget,
+        EdgeFocusTarget {
     zoomIn: () => void;
     zoomOut: () => void;
     resetView: () => void;
+    focusNode: (nodeId: string) => void;
 }
 
 const props = withDefaults(
     defineProps<{
         graph?: Record<string, unknown> | null;
+        hiddenNodeIds?: string[];
         meta?: GraphMeta | null;
         webhookEndpoints?: FlowWebhookEndpoint[];
         outdated?: boolean;
+        variant?: 'framed' | 'plain';
     }>(),
     {
         graph: null,
+        hiddenNodeIds: () => [],
         meta: null,
         webhookEndpoints: () => [],
         outdated: false,
+        variant: 'framed',
     },
 );
 
@@ -72,6 +88,10 @@ const emit = defineEmits<{
         payload: { id: string; type: 'event' | 'actor' },
     ): void;
     (event: 'jump-to-code', line: number): void;
+    (
+        event: 'toggle-node-visibility',
+        payload: { id: string; type: 'event' | 'actor' },
+    ): void;
 }>();
 
 const { t } = useI18n();
@@ -81,6 +101,7 @@ const fullscreenSelectedTarget = ref<DiscoverySelectionTarget | null>(null);
 const inlineZoom = ref(100);
 const modalZoom = ref(100);
 const pendingModalDispatchHighlight = ref<DispatchPathHighlight | null>(null);
+const hoveredEdgeHighlight = ref<FlowGraphEdgeHighlight | null>(null);
 
 const inlineRenderer = ref<FlowGraphRendererExpose | null>(null);
 const modalRenderer = ref<FlowGraphRendererExpose | null>(null);
@@ -109,8 +130,14 @@ const countGraphNodesByType = (
     return count;
 };
 
+const filteredGraph = computed<Record<string, unknown> | null>(() => {
+    return filterFlowGraphByHiddenNodeIds(props.graph, props.hiddenNodeIds);
+});
+
 const hasGraphData = computed(() => {
-    const rawNodes = Array.isArray(props.graph?.nodes) ? props.graph.nodes : [];
+    const rawNodes = Array.isArray(filteredGraph.value?.nodes)
+        ? filteredGraph.value.nodes
+        : [];
 
     return rawNodes.length > 0;
 });
@@ -127,6 +154,12 @@ const graphMeta = computed(() => {
             (props.outdated ? t('common.outdated') : t('common.updated_at')),
         updatedAt: props.meta?.updatedAt ?? t('common.empty'),
     };
+});
+
+const containerClass = computed(() => {
+    return props.variant === 'plain'
+        ? 'relative overflow-hidden bg-linear-to-br from-background to-muted/25'
+        : 'relative overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25';
 });
 
 const formatZoom = (zoomPercent: number): string => {
@@ -156,11 +189,18 @@ watch(fullscreenOpen, (isOpen) => {
 });
 
 watch(
-    () => props.graph,
+    [() => props.graph, () => props.hiddenNodeIds],
     () => {
         pendingModalDispatchHighlight.value = null;
+
+        logFlowGraphVisibility('FlowGraph.filteredGraph', {
+            hiddenNodeIds: [...props.hiddenNodeIds],
+            inputGraph: summarizeGraphForDebug(props.graph),
+            filteredGraph: summarizeGraphForDebug(filteredGraph.value),
+            hasGraphData: hasGraphData.value,
+        });
     },
-    { deep: true },
+    { deep: true, immediate: true },
 );
 
 const zoomIn = (target: FlowGraphRendererExpose | null): void => {
@@ -175,6 +215,17 @@ const resetView = (target: FlowGraphRendererExpose | null): void => {
     target?.resetView();
 };
 
+const focusRendererNode = (
+    target: FlowGraphRendererExpose | null,
+    nodeId: string,
+): void => {
+    if (!nodeId) {
+        return;
+    }
+
+    target?.focusNode(nodeId);
+};
+
 const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
     pendingModalDispatchHighlight.value = payload;
 
@@ -186,11 +237,22 @@ const highlightDispatchPath = (payload: DispatchPathHighlight): void => {
     pendingModalDispatchHighlight.value = modalRenderer.value ? null : payload;
 };
 
+const setHoveredEdgeHighlight = (
+    payload: FlowGraphEdgeHighlight | null,
+): void => {
+    hoveredEdgeHighlight.value = payload;
+
+    inlineRenderer.value?.setHoveredEdgeHighlight(payload);
+    modalRenderer.value?.setHoveredEdgeHighlight(payload);
+};
+
 watch(modalRenderer, (renderer) => {
     pendingModalDispatchHighlight.value = flushPendingDispatchPathHighlight(
         renderer,
         pendingModalDispatchHighlight.value,
     );
+
+    renderer?.setHoveredEdgeHighlight(hoveredEdgeHighlight.value);
 });
 
 const selectInlineNode = (node: GraphNodePayload): void => {
@@ -216,6 +278,39 @@ const selectModalNode = (node: GraphNodePayload): void => {
     };
 };
 
+const focusModalNodeFromOverview = (payload: {
+    id: string;
+    type: 'event' | 'actor';
+}): void => {
+    focusRendererNode(modalRenderer.value, payload.id);
+};
+
+const toggleNodeVisibility = (payload: {
+    id: string;
+    type: 'event' | 'actor';
+}): void => {
+    logFlowGraphVisibility('FlowGraph.toggleNodeVisibility', payload);
+    emit('toggle-node-visibility', payload);
+};
+
+const focusNode = (nodeId: string): void => {
+    if (fullscreenOpen.value && modalRenderer.value) {
+        focusRendererNode(modalRenderer.value, nodeId);
+        return;
+    }
+
+    focusRendererNode(inlineRenderer.value, nodeId);
+};
+
+const focusEdge = (payload: FlowGraphEdgeHighlight): void => {
+    if (fullscreenOpen.value && modalRenderer.value) {
+        modalRenderer.value.focusEdge(payload);
+        return;
+    }
+
+    inlineRenderer.value?.focusEdge(payload);
+};
+
 const handleModalJumpToCode = async (line: number): Promise<void> => {
     closeFullscreen();
 
@@ -226,14 +321,14 @@ const handleModalJumpToCode = async (line: number): Promise<void> => {
 
 defineExpose({
     highlightDispatchPath,
+    focusEdge,
+    focusNode,
+    setHoveredEdgeHighlight,
 });
 </script>
 
 <template>
-    <div
-        v-bind="$attrs"
-        class="relative overflow-hidden rounded-xl border border-border bg-linear-to-br from-background to-muted/25"
-    >
+    <div v-bind="$attrs" :class="containerClass">
         <div class="absolute top-2 right-2 z-10 flex items-center gap-1">
             <div
                 class="pointer-events-auto flex items-center gap-1 rounded-md border border-border/80 bg-background/90 p-1 shadow-sm backdrop-blur"
@@ -299,7 +394,7 @@ defineExpose({
                 <FlowGraphRenderer
                     ref="inlineRenderer"
                     class="h-full w-full"
-                    :graph="props.graph"
+                    :graph="filteredGraph"
                     @node-click="selectInlineNode"
                     @zoom-change="inlineZoom = $event"
                 />
@@ -358,7 +453,7 @@ defineExpose({
 
     <Dialog v-model:open="fullscreenOpen">
         <DialogContent
-            class="h-[90vh] w-[95vw] max-w-[95vw] overflow-hidden p-0 sm:max-w-[95vw] lg:max-w-[88vw] xl:max-w-[84vw]"
+            class="h-[90vh] w-[95vw] max-w-[95vw] overflow-hidden p-0 sm:max-w-[95vw] lg:max-w-[88vw] xl:max-w-[84vw] [&>[data-slot=dialog-close]]:hidden"
         >
             <DialogTitle class="sr-only">{{
                 t('flows.graph.fullscreen_title')
@@ -368,8 +463,26 @@ defineExpose({
             </DialogDescription>
 
             <div
-                class="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(18rem,40vh)] lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1"
+                class="grid h-full min-h-0 grid-rows-[minmax(18rem,40vh)_minmax(0,1fr)] lg:grid-cols-[24rem_minmax(0,1fr)] lg:grid-rows-1"
             >
+                <div
+                    class="min-h-0 border-b border-border bg-background/80 lg:border-r lg:border-b-0"
+                >
+                    <div class="h-full min-h-0">
+                        <FlowDiscoveryPanel
+                            class="h-full min-h-0"
+                            :graph="props.graph"
+                            :hidden-node-ids="props.hiddenNodeIds"
+                            :webhook-endpoints="props.webhookEndpoints"
+                            :selected-target="fullscreenSelectedTarget"
+                            :outdated="props.outdated"
+                            @jump-to-code="handleModalJumpToCode"
+                            @node-select="focusModalNodeFromOverview"
+                            @toggle-node-visibility="toggleNodeVisibility"
+                        />
+                    </div>
+                </div>
+
                 <div class="relative min-h-0 overflow-hidden">
                     <div
                         class="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border border-border/80 bg-background/90 p-1 shadow-sm backdrop-blur"
@@ -438,13 +551,13 @@ defineExpose({
                             v-if="hasGraphData"
                             ref="modalRenderer"
                             class="h-full w-full"
-                            :graph="props.graph"
+                            :graph="filteredGraph"
                             @node-click="selectModalNode"
                             @zoom-change="modalZoom = $event"
                         />
 
                         <div
-                            v-else
+                            v-if="!hasGraphData"
                             class="flex h-full w-full items-center justify-center p-6"
                         >
                             <div
@@ -497,33 +610,6 @@ defineExpose({
                                 graphMeta.updatedAt
                             }}</span>
                         </span>
-                    </div>
-                </div>
-
-                <div
-                    class="min-h-0 border-t border-border bg-background/80 lg:border-t-0 lg:border-l"
-                >
-                    <div
-                        class="flex h-full min-h-0 flex-col gap-3 p-4 pt-12 lg:pt-4"
-                    >
-                        <div
-                            class="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-                        >
-                            {{ t('flows.editor.tabs.discovery') }}
-                        </div>
-
-                        <div
-                            class="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-muted/10"
-                        >
-                            <FlowDiscoveryPanel
-                                class="h-full min-h-0"
-                                :graph="props.graph"
-                                :webhook-endpoints="props.webhookEndpoints"
-                                :selected-target="fullscreenSelectedTarget"
-                                :outdated="props.outdated"
-                                @jump-to-code="handleModalJumpToCode"
-                            />
-                        </div>
                     </div>
                 </div>
             </div>

@@ -26,7 +26,7 @@ def format_weather_info(data) -> str:
 
 
 @actor(
-    receivs=(Cron.by("0 8 * * *"), DateWeatherInfo),
+    receives=(Cron.by("0 8 * * *"), DateWeatherInfo),
     sends=(GetDateWeatherInfo, SendEmail, NotSupported),
 )
 def CreateDailyMessageActor(ctx: Context, event):
@@ -41,7 +41,7 @@ def CreateDailyMessageActor(ctx: Context, event):
 
 
 @actor(
-    receivs=GetDateWeatherInfo,
+    receives=GetDateWeatherInfo,
     sends=DateWeatherInfo,
     max_instances=1,
     keep_instance=timedelta(minutes=1),

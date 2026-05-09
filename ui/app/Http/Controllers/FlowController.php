@@ -13,6 +13,7 @@ use App\Services\FlowService;
 use App\Services\FlowWebhookService;
 use App\Support\FlowCodeDiff;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,6 +26,8 @@ use RuntimeException;
 
 class FlowController extends Controller
 {
+    private const DEFAULT_PAGE_ORIGIN = 'show';
+
     private const DEFAULT_EDITOR_DEPLOYMENT = 'development';
 
     private const DEFAULT_EDITOR_TAB = 'overview';
@@ -43,6 +46,11 @@ class FlowController extends Controller
         'changes',
     ];
 
+    private const PAGE_ORIGINS = [
+        'show',
+        'editor',
+    ];
+
     public function __construct(
         private readonly FlowWebhookService $webhooks,
     ) {}
@@ -58,6 +66,9 @@ class FlowController extends Controller
     private const TEMPLATE_FILES = [
         'cron' => 'flow-templates/cron.py',
         'webhook' => 'flow-templates/webhook.py',
+        'rss' => 'flow-templates/rss.py',
+        'imap' => 'flow-templates/imap.py',
+        'air_quality' => 'flow-templates/air_quality.py',
     ];
 
     public function index(Request $request): Response
@@ -120,6 +131,33 @@ class FlowController extends Controller
         Flow $flow,
         FlowChatService $flowChatService,
     ): Response {
+        return Inertia::render('flows/Show', $this->editorPageProps(
+            $request,
+            $flow,
+            $flowChatService,
+        ));
+    }
+
+    public function editor(
+        Request $request,
+        Flow $flow,
+        FlowChatService $flowChatService,
+    ): Response {
+        return Inertia::render('flows/Editor', $this->editorPageProps(
+            $request,
+            $flow,
+            $flowChatService,
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editorPageProps(
+        Request $request,
+        Flow $flow,
+        FlowChatService $flowChatService,
+    ): array {
         $flow->load(['user', 'activeChatConversation.messages', 'storages'])->loadCount('runs');
 
         $productionRun = $flow->activeRun('production');
@@ -130,9 +168,10 @@ class FlowController extends Controller
         $history = $flow->histories()->latest()->limit(10)->get();
         $deployments = $this->buildDeployments($flow, self::EDITOR_DEPLOYMENTS_LIMIT);
 
-        return Inertia::render('flows/Editor', [
+        return [
             'mode' => 'edit',
             'flow' => $flow,
+            'allChatsUrl' => route('flows.chat.index', $flow),
             'deployments' => $deployments,
             'productionRun' => $productionRun,
             'lastProductionDeployment' => $lastProductionDeployment,
@@ -157,7 +196,7 @@ class FlowController extends Controller
                 'canUpdate' => $request->user()->can('update', $flow),
                 'canDelete' => $request->user()->can('delete', $flow),
             ],
-        ]);
+        ];
     }
 
     public function deployments(FlowDeploymentsIndexRequest $request, Flow $flow): Response
@@ -214,7 +253,7 @@ class FlowController extends Controller
         Request $request,
         Flow $flow,
         FlowCodeDiff $flowCodeDiff,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $timezoneOptions = $this->timezoneOptions();
 
         $data = $request->validate([
@@ -239,8 +278,21 @@ class FlowController extends Controller
 
         $flow->update($data);
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'flow' => [
+                    'name' => $flow->name,
+                    'description' => $flow->description ?? '',
+                    'code' => $flow->code ?? '',
+                    'timezone' => $flow->timezone,
+                    'code_updated_at' => $flow->code_updated_at?->toJSON(),
+                ],
+                'message' => __('flows.updated'),
+            ]);
+        }
+
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with('success', __('flows.updated'));
     }
 
@@ -250,7 +302,7 @@ class FlowController extends Controller
 
         if ($flow->activeRun($environment) !== null) {
             return redirect()
-                ->route('flows.show', $this->editorRouteParameters($request, $flow))
+                ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
                 ->with('error', __('flows.storage.error_active'));
         }
 
@@ -260,7 +312,7 @@ class FlowController extends Controller
         );
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with('success', __('flows.storage.updated'));
     }
 
@@ -706,6 +758,22 @@ class FlowController extends Controller
         return is_string($tab) && in_array($tab, self::EDITOR_TABS, true)
             ? $tab
             : self::DEFAULT_EDITOR_TAB;
+    }
+
+    private function editorRedirectRoute(Request $request): string
+    {
+        return $this->resolvePageOrigin($request) === 'editor'
+            ? 'flows.editor'
+            : 'flows.show';
+    }
+
+    private function resolvePageOrigin(Request $request): string
+    {
+        $origin = $request->query('origin');
+
+        return is_string($origin) && in_array($origin, self::PAGE_ORIGINS, true)
+            ? $origin
+            : self::DEFAULT_PAGE_ORIGIN;
     }
 
     /**

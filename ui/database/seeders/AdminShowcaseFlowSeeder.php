@@ -639,7 +639,7 @@ class IntakePrepared:
     summary: str
 
 
-@actor(receivs=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
+@actor(receives=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
 class ScheduleCollector:
     def __call__(self, ctx: Context, event: Cron) -> None:
         ticket_id = f"cron-{event.datetime.strftime('%H%M')}"
@@ -649,7 +649,7 @@ class ScheduleCollector:
         ctx.dispatch(Message(message=f"[ops] collected {ticket_id}"))
 
 
-@actor(receivs=IntakeRequested, sends=(IntakePrepared, Message))
+@actor(receives=IntakeRequested, sends=(IntakePrepared, Message))
 def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
     ctx.dispatch(
         IntakePrepared(
@@ -695,7 +695,7 @@ class DigestQueued:
 
 
 @actor(
-    receivs=Cron.by("*/15 * * * *"),
+    receives=Cron.by("*/15 * * * *"),
     sends=(IntakeRequested, Message),
     min_instances=1,
     max_instances=2,
@@ -714,7 +714,7 @@ class ScheduleCollector:
         ctx.dispatch(Message(message=f"[ops] collected {ticket_id}"))
 
 
-@actor(receivs=IntakeRequested, sends=(IntakePrepared, Message), min_instances=1, max_instances=4)
+@actor(receives=IntakeRequested, sends=(IntakePrepared, Message), min_instances=1, max_instances=4)
 def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
     ctx.dispatch(
         IntakePrepared(
@@ -726,7 +726,7 @@ def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
     ctx.dispatch(Message(message=f"[ops] prepared {event.ticket_id}"))
 
 
-@actor(receivs=IntakePrepared, sends=(ApprovalRequested, DigestQueued, SendEmail, Message))
+@actor(receives=IntakePrepared, sends=(ApprovalRequested, DigestQueued, SendEmail, Message))
 class ApprovalRouter:
     def __call__(self, ctx: Context, event: IntakePrepared) -> None:
         ctx.dispatch(
@@ -749,7 +749,7 @@ class ApprovalRouter:
         ctx.dispatch(Message(message=f"[ops] routed {event.ticket_id}"))
 
 
-@actor(receivs=DigestQueued, sends=Message)
+@actor(receives=DigestQueued, sends=Message)
 def PublishDigest(ctx: Context, event: DigestQueued) -> None:
     ctx.dispatch(Message(message=f"[digest] {event.ticket_id}: {event.summary}"))
 PY;
@@ -795,7 +795,7 @@ class DigestQueued:
 
 
 @actor(
-    receivs=(Cron.by("*/15 * * * *"), EscalationRequested),
+    receives=(Cron.by("*/15 * * * *"), EscalationRequested),
     sends=(IntakeRequested, Message),
     min_instances=1,
     max_instances=2,
@@ -827,7 +827,7 @@ class ScheduleCollector:
         ctx.dispatch(Message(message=f"[ops] collected {ticket_id}"))
 
 
-@actor(receivs=IntakeRequested, sends=(IntakePrepared, Message), min_instances=1, max_instances=4)
+@actor(receives=IntakeRequested, sends=(IntakePrepared, Message), min_instances=1, max_instances=4)
 def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
     summary = f"Prepared {event.ticket_id} for {event.requested_by}"
     ctx.dispatch(
@@ -841,7 +841,7 @@ def NormalizeIntake(ctx: Context, event: IntakeRequested) -> None:
 
 
 @actor(
-    receivs=IntakePrepared,
+    receives=IntakePrepared,
     sends=(ApprovalRequested, DigestQueued, SendEmail, Message),
     keep_instance=True,
 )
@@ -867,7 +867,7 @@ class ApprovalRouter:
         ctx.dispatch(Message(message=f"[ops] routed {event.ticket_id}"))
 
 
-@actor(receivs=ApprovalRequested, sends=(EscalationRequested, Message))
+@actor(receives=ApprovalRequested, sends=(EscalationRequested, Message))
 def EscalationMonitor(ctx: Context, event: ApprovalRequested) -> None:
     if event.priority != "urgent":
         ctx.dispatch(Message(message=f"[ops] approval queued for {event.ticket_id}"))
@@ -882,7 +882,7 @@ def EscalationMonitor(ctx: Context, event: ApprovalRequested) -> None:
     ctx.dispatch(Message(message=f"[ops] escalated {event.ticket_id}"))
 
 
-@actor(receivs=DigestQueued, sends=Message)
+@actor(receives=DigestQueued, sends=Message)
 def PublishDigest(ctx: Context, event: DigestQueued) -> None:
     ctx.dispatch(Message(message=f"[digest] {event.ticket_id}: {event.summary}"))
 PY;
@@ -900,7 +900,7 @@ class IntakeRequested:
     details: str | None = None
 
 
-@actor(receivs=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
+@actor(receives=Cron.by("0 * * * *"), sends=(IntakeRequested, Message))
 def CollectScheduledIntake(ctx: Context, event: Cron) -> None:
     ctx.dispatch(
         IntakeRequested(
@@ -911,7 +911,7 @@ def CollectScheduledIntake(ctx: Context, event: Cron) -> None:
     ctx.dispatch(Message(message="[example] scheduled intake received"))
 
 
-@actor(receivs=Webhook.by("ops.intake"), sends=(IntakeRequested, Message))
+@actor(receives=Webhook.by("ops.intake"), sends=(IntakeRequested, Message))
 def CollectWebhookIntake(ctx: Context, event: Webhook) -> None:
     ctx.dispatch(
         IntakeRequested(
@@ -922,7 +922,7 @@ def CollectWebhookIntake(ctx: Context, event: Webhook) -> None:
     ctx.dispatch(Message(message=f"[example] webhook {event.slug} received"))
 
 
-@actor(receivs=IntakeRequested, sends=Message)
+@actor(receives=IntakeRequested, sends=Message)
 def PublishIntake(ctx: Context, event: IntakeRequested) -> None:
     suffix = f" ({event.details})" if event.details else ""
     ctx.dispatch(Message(message=f"[example] processed {event.source} intake{suffix}"))

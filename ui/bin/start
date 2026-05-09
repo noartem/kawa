@@ -1,78 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="${UI_DEV_RUN_DIR:-$ROOT_DIR/.run}"
-PID_FILE="$RUN_DIR/ui-dev.pid"
-LOG_FILE="${UI_DEV_LOG_FILE:-$RUN_DIR/ui-dev.log}"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.ui-dev-common.sh"
 
-is_tcp_port_available() {
-    local port="$1"
+resolve_port() {
+    local key="$1"
+    local fallback="$2"
+    local port=""
 
-    php -r '$port = (int) $argv[1]; $server = @stream_socket_server("tcp://0.0.0.0:${port}", $errorCode, $errorMessage); if ($server === false) { exit(1); } fclose($server);' "$port" >/dev/null 2>&1
-}
+    port="$(configured_port "$key" || true)"
 
-select_app_port() {
-    local requested_port="${APP_PORT:-}"
-    local fallback_port=""
-
-    if [[ -z "$requested_port" ]] || [[ ! "$requested_port" =~ ^[0-9]+$ ]]; then
+    if [[ -n "$port" ]]; then
+        printf '%s\n' "$port"
         return 0
     fi
 
-    if is_tcp_port_available "$requested_port"; then
-        return 0
-    fi
-
-    fallback_port="$requested_port"
-
-    for ((attempt = 0; attempt < 100; attempt++)); do
-        fallback_port=$((fallback_port + 1))
-
-        if is_tcp_port_available "$fallback_port"; then
-            export APP_PORT="$fallback_port"
-            printf 'APP_PORT %s is in use, using %s instead.\n' "$requested_port" "$fallback_port"
-
-            return 0
-        fi
-    done
-
-    printf 'APP_PORT %s is in use and no fallback port was found.\n' "$requested_port" >&2
-    exit 1
-}
-
-is_pid_active() {
-    local pid="$1"
-    local state=""
-
-    if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
-        return 1
-    fi
-
-    if [[ -r "/proc/$pid/status" ]]; then
-        while IFS=$'\t' read -r key value; do
-            if [[ "$key" == 'State:' ]]; then
-                state="${value%% *}"
-                break
-            fi
-        done <"/proc/$pid/status"
-    fi
-
-    if [[ -z "$state" ]] && command -v ps >/dev/null 2>&1; then
-        state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
-        state="${state//[[:space:]]/}"
-    fi
-
-    if [[ -z "$state" ]]; then
-        return 0
-    fi
-
-    if [[ "${state:0:1}" == "Z" ]]; then
-        return 1
-    fi
-
-    return 0
+    printf '%s\n' "$fallback"
 }
 
 mkdir -p "$RUN_DIR"
@@ -93,7 +36,18 @@ if ! command -v composer >/dev/null 2>&1; then
     exit 1
 fi
 
-select_app_port
+export APP_PORT="$(resolve_port APP_PORT 9000)"
+export VITE_PORT="$(resolve_port VITE_PORT 5173)"
+export VITE_HMR_CLIENT_PORT="$(resolve_port VITE_HMR_CLIENT_PORT "$VITE_PORT")"
+
+terminate_port_listener 'APP_PORT' "$APP_PORT"
+terminate_port_listener 'VITE_PORT' "$VITE_PORT"
+
+if [[ "$VITE_HMR_CLIENT_PORT" != "$VITE_PORT" ]]; then
+    terminate_port_listener 'VITE_HMR_CLIENT_PORT' "$VITE_HMR_CLIENT_PORT"
+fi
+
+write_runtime_ports "$APP_PORT" "$VITE_PORT" "$VITE_HMR_CLIENT_PORT"
 
 cd "$ROOT_DIR"
 nohup setsid composer run dev >>"$LOG_FILE" 2>&1 &
@@ -108,6 +62,6 @@ if is_pid_active "$pid"; then
     exit 0
 fi
 
-rm -f "$PID_FILE"
+remove_runtime_files
 printf 'Failed to start UI dev stack. Check log file: %s\n' "$LOG_FILE" >&2
 exit 1

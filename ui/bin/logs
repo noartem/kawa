@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="$ROOT_DIR/.run"
+RUN_DIR="${UI_DEV_RUN_DIR:-$ROOT_DIR/.run}"
 LOG_FILE="${UI_DEV_LOG_FILE:-$RUN_DIR/ui-dev.log}"
 LINES="${UI_DEV_LOG_LINES:-200}"
 FOLLOW=true

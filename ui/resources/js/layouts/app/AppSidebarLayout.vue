@@ -40,7 +40,10 @@ const errorMessage = computed(() => flash.value.error ?? null);
     <AppShell variant="sidebar">
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
-            <AppSidebarHeader :breadcrumbs="breadcrumbs" />
+            <AppSidebarHeader :breadcrumbs="breadcrumbs">
+                <slot name="header" />
+            </AppSidebarHeader>
+
             <slot />
 
             <div

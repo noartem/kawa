@@ -232,3 +232,73 @@ it('applies requested archived chat sorting', function () {
         ->where('chats.data.2.id', $manyMessagesChat->id)
     );
 });
+
+it('shows a dedicated archived chat detail page', function () {
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+
+    $chat = AgentConversation::query()->create([
+        'user_id' => $user->id,
+        'flow_id' => $flow->id,
+        'title' => 'Archived implementation thread',
+    ]);
+
+    $chat->messages()->createMany([
+        [
+            'user_id' => $user->id,
+            'agent' => 'tests.agent',
+            'role' => 'user',
+            'content' => 'Please summarize the archived work.',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'prompt'],
+        ],
+        [
+            'user_id' => $user->id,
+            'agent' => 'tests.agent',
+            'role' => 'assistant',
+            'content' => 'Archived work summary.',
+            'attachments' => [],
+            'tool_calls' => [],
+            'tool_results' => [],
+            'usage' => [],
+            'meta' => ['kind' => 'assistant_reply'],
+        ],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('flows.chat.show', [
+        'flow' => $flow,
+        'chat' => $chat,
+    ]));
+
+    $response->assertSuccessful();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('flows/Chat')
+        ->where('flow.id', $flow->id)
+        ->where('chat.id', $chat->id)
+        ->where('chat.title', 'Archived implementation thread')
+        ->where('chat.messages_count', 2)
+        ->where('chat.messages.0.content', 'Please summarize the archived work.')
+        ->where('chat.messages.1.content', 'Archived work summary.')
+    );
+});
+
+it('returns 404 when the archived chat does not belong to the flow', function () {
+    $user = User::factory()->createOne();
+    $flow = Flow::factory()->forUser($user)->createOne();
+    $otherFlow = Flow::factory()->forUser($user)->createOne();
+    $otherChat = AgentConversation::query()->create([
+        'user_id' => $user->id,
+        'flow_id' => $otherFlow->id,
+        'title' => 'Other flow chat',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('flows.chat.show', [
+            'flow' => $flow,
+            'chat' => $otherChat,
+        ]))
+        ->assertNotFound();
+});

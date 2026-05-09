@@ -14,7 +14,7 @@ class Ping:
     pass
 
 
-@actor(receivs=Cron.by(\"*/5 * * * *\"))
+@actor(receives=Cron.by(\"*/5 * * * *\"))
 def Starter(ctx: Context, event):
     print(\"start\")
 """

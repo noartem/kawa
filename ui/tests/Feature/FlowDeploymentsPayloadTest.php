@@ -29,7 +29,7 @@ class FlowDeploymentsPayloadTest extends TestCase
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -99,7 +99,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('activeDeploymentType', 'development')
             ->where('activeEditorTab', 'overview')
             ->where('lastProductionDeployment.id', $oldRun->id)
@@ -158,7 +158,7 @@ PY,
         ]);
 
         $response = $this->actingAs($user)->get(
-            route('flows.show', [
+            route('flows.editor', [
                 'flow' => $flow,
                 'deployment' => 'production',
                 'tab' => 'chat',
@@ -170,6 +170,35 @@ PY,
             ->component('flows/Editor')
             ->where('activeDeploymentType', 'production')
             ->where('activeEditorTab', 'chat')
+        );
+    }
+
+    public function test_show_payload_uses_query_params_for_active_deployment_and_tab(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        FlowRun::factory()->forFlow($flow)->createOne([
+            'type' => 'production',
+            'status' => 'ready',
+            'active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->get(
+            route('flows.show', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'changes',
+            ]),
+        );
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('flows/Show')
+            ->where('activeDeploymentType', 'production')
+            ->where('activeEditorTab', 'changes')
         );
     }
 
@@ -204,7 +233,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('lastDevelopmentDeployment.id', $developmentRun->id)
             ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'node.latest-dev')
             ->has('deployments', 5)
@@ -223,7 +252,7 @@ PY,
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -244,7 +273,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('lastDevelopmentDeployment.id', $inactiveRun->id)
             ->where('webhookEndpoints', [])
             ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
@@ -266,7 +295,7 @@ from kawa import Context, Webhook as Hook, actor
 
 # Webhook.by("phantom.comment") should never become an endpoint.
 @actor(
-    receivs=(
+    receives=(
         Hook.by("orders.created"),
     )
 )
@@ -293,7 +322,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->has('webhookEndpoints', 1)
             ->where('webhookEndpoints.0.slug', 'orders.created')
             ->where('webhookEndpoints.0.development_url', $developmentEndpoint)
@@ -311,12 +340,12 @@ PY,
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def FirstHandler(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def SecondHandler(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -348,7 +377,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('lastDevelopmentDeployment.id', $run->id)
             ->where('lastDevelopmentDeployment.graph.nodes.0.source_line', 1)
             ->where('lastDevelopmentDeployment.webhooks.0.slug', 'orders.created')
@@ -369,12 +398,12 @@ PY,
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleOrders(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 
 
-@actor(receivs=Webhook.by("users.created"))
+@actor(receives=Webhook.by("users.created"))
 def HandleUsers(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -406,7 +435,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('lastDevelopmentDeployment.id', $run->id)
             ->has('webhookEndpoints', 1)
             ->where('webhookEndpoints.0.slug', 'orders.created')
@@ -432,7 +461,7 @@ from kawa import Context, Webhook, actor
 
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -448,7 +477,7 @@ PY,
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -468,7 +497,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('webhookEndpoints.0.slug', 'orders.created')
             ->where('webhookEndpoints.0.source_line', 6)
             ->where('webhookEndpoints.0.production_url', $this->webhookUrl($flow, 'production', 'orders.created'))
@@ -486,7 +515,7 @@ PY,
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,
@@ -505,7 +534,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('lastDevelopmentDeployment.id', $run->id)
             ->where('webhookEndpoints.0.slug', 'orders.created')
             ->where('webhookEndpoints.0.development_url', null)
@@ -543,7 +572,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('deployments.0.logs.0.message', 'Actor dispatched message')
             ->where('deployments.0.logs.1.message', 'Actor invoked by webhook')
             ->where(
@@ -588,7 +617,7 @@ PY,
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('flows/Editor')
+            ->component('flows/Show')
             ->where('storage.development.users.0.name', 'Ada')
             ->where('storage.production.settings.profile.language', 'ru')
         );

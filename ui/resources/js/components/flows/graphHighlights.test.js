@@ -1,128 +1,159 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import test from 'node:test';
 
 import {
-    flushPendingDispatchPathHighlight,
-    propagateDispatchPathHighlight,
-    resolveDispatchHighlightEdgeIds,
+    getProgrammaticHighlightStrength,
+    PROGRAMMATIC_HIGHLIGHT_FADE_MS,
+    PROGRAMMATIC_HIGHLIGHT_FLASH_MS,
+    pruneProgrammaticHighlights,
+    resolveDirectHighlightEdgeIds,
     resolveEdgeHighlightAttributes,
+    resolveHighlightedEdgeSize,
+    resolveNodeHighlightAttributes,
 } from './graphHighlights.ts';
+import {
+    FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA,
+    FLOW_GRAPH_EDGE_HOVER_SIZE,
+} from './graphStyle.ts';
 
-describe('graph highlight helpers', () => {
-    it('resolves trigger, dispatch, and downstream edges for a dispatch path', () => {
-        const graph = {
+test('getProgrammaticHighlightStrength stays full during flash window', () => {
+    const highlights = new Map([['node-a', 100]]);
+
+    assert.equal(
+        getProgrammaticHighlightStrength(
+            highlights,
+            'node-a',
+            100 + PROGRAMMATIC_HIGHLIGHT_FLASH_MS,
+        ),
+        1,
+    );
+});
+
+test('getProgrammaticHighlightStrength fades after flash window', () => {
+    const highlights = new Map([['node-a', 100]]);
+    const midway =
+        100 +
+        PROGRAMMATIC_HIGHLIGHT_FLASH_MS +
+        PROGRAMMATIC_HIGHLIGHT_FADE_MS / 2;
+
+    assert.equal(
+        getProgrammaticHighlightStrength(highlights, 'node-a', midway),
+        0.5,
+    );
+});
+
+test('pruneProgrammaticHighlights removes expired entries', () => {
+    const highlights = new Map([
+        ['fresh', 100],
+        ['expired', 10],
+    ]);
+
+    const hasActiveHighlights = pruneProgrammaticHighlights(
+        highlights,
+        10 + PROGRAMMATIC_HIGHLIGHT_FLASH_MS + PROGRAMMATIC_HIGHLIGHT_FADE_MS,
+    );
+
+    assert.equal(hasActiveHighlights, true);
+    assert.deepEqual([...highlights.keys()], ['fresh']);
+});
+
+test('resolveNodeHighlightAttributes emphasizes focused nodes', () => {
+    const attributes = resolveNodeHighlightAttributes({
+        baseColor: '#34d399',
+        baseSize: 10,
+        hovered: false,
+        programmaticHighlightStrength: 1,
+    });
+
+    assert.equal(attributes.size, 14);
+    assert.equal(attributes.zIndex, 4);
+    assert.equal(attributes.forceLabel, true);
+    assert.equal(attributes.color, 'rgb(34, 197, 94)');
+});
+
+test('resolveNodeHighlightAttributes preserves hover sizing without focus', () => {
+    const attributes = resolveNodeHighlightAttributes({
+        baseColor: '#38bdf8',
+        baseSize: 10,
+        hovered: true,
+        programmaticHighlightStrength: 0,
+    });
+
+    assert.equal(attributes.size, 11.25);
+    assert.equal(attributes.zIndex, 2);
+    assert.equal('forceLabel' in attributes, false);
+    assert.equal('color' in attributes, false);
+});
+
+test('resolveDirectHighlightEdgeIds returns a single matching edge', () => {
+    const edgeIds = resolveDirectHighlightEdgeIds(
+        {
             nodes: [
                 { id: 'Start', type: 'event' },
                 { id: 'Worker', type: 'actor' },
-                { id: 'Done', type: 'event' },
-                { id: 'Archive', type: 'actor' },
             ],
-            edges: [
-                { from: 'Start', to: 'Worker' },
-                { from: 'Worker', to: 'Done' },
-                { from: 'Done', to: 'Archive' },
-                { from: 'Missing', to: 'Done' },
-            ],
-        };
+            edges: [{ from: 'Start', to: 'Worker' }],
+        },
+        {
+            from: 'Start',
+            to: 'Worker',
+        },
+    );
 
-        const edgeIds = resolveDispatchHighlightEdgeIds(graph, {
-            actor: 'Worker',
-            event: 'Done',
-            triggerEvent: 'Start',
-        });
+    assert.deepEqual([...edgeIds], ['Start->Worker']);
+});
 
-        assert.deepEqual([...edgeIds].sort(), [
-            'Done->Archive',
-            'Start->Worker',
-            'Worker->Done',
-        ]);
-    });
-
-    it('propagates dispatch highlights to inline and fullscreen renderers', () => {
-        const calls = [];
-        const payload = {
-            actor: 'Worker',
-            event: 'Done',
-            triggerEvent: 'Start',
-        };
-
-        propagateDispatchPathHighlight(
-            [
-                {
-                    highlightDispatchPath(nextPayload) {
-                        calls.push(['inline', nextPayload]);
-                    },
-                },
-                null,
-                {
-                    highlightDispatchPath(nextPayload) {
-                        calls.push(['fullscreen', nextPayload]);
-                    },
-                },
-            ],
-            payload,
-        );
-
-        assert.deepEqual(calls, [
-            ['inline', payload],
-            ['fullscreen', payload],
-        ]);
-    });
-
-    it('replays the latest pending dispatch highlight once a renderer mounts', () => {
-        const calls = [];
-        const payload = {
-            actor: 'Worker',
-            event: 'Done',
-            triggerEvent: 'Start',
-        };
-
-        const pendingWithoutRenderer = flushPendingDispatchPathHighlight(
-            null,
-            payload,
-        );
-
-        assert.deepEqual(pendingWithoutRenderer, payload);
-
-        const pendingAfterMount = flushPendingDispatchPathHighlight(
-            {
-                highlightDispatchPath(nextPayload) {
-                    calls.push(nextPayload);
-                },
-            },
-            pendingWithoutRenderer,
-        );
-
-        assert.equal(pendingAfterMount, null);
-        assert.deepEqual(calls, [payload]);
-    });
-
-    it('keeps programmatic highlights visible while hover highlighting is active', () => {
-        const highlightedEdge = resolveEdgeHighlightAttributes({
+test('resolveEdgeHighlightAttributes dims unrelated edges during hover', () => {
+    assert.deepEqual(
+        resolveEdgeHighlightAttributes({
             edgeId: 'Worker->Done',
             baseColor: '#34d399',
             baseSize: 2,
-            hoveredNodeId: 'AnotherNode',
-            hoverHighlightedEdgeIds: new Set(['Other->Edge']),
-            programmaticHighlightStrength: 1,
-        });
-
-        assert.equal(highlightedEdge.zIndex, 2);
-        assert.equal(highlightedEdge.size, 4.4);
-        assert.notEqual(highlightedEdge.color, '#34d399');
-
-        const dimmedEdge = resolveEdgeHighlightAttributes({
-            edgeId: 'Worker->Done',
-            baseColor: '#34d399',
-            baseSize: 2,
-            hoveredNodeId: 'AnotherNode',
+            hoverActive: true,
             hoverHighlightedEdgeIds: new Set(['Other->Edge']),
             programmaticHighlightStrength: 0,
-        });
-
-        assert.deepEqual(dimmedEdge, {
+        }),
+        {
             color: 'rgba(148, 163, 184, 0.12)',
             zIndex: 0,
-        });
+        },
+    );
+});
+
+test('resolveEdgeHighlightAttributes preserves stronger programmatic edge highlight', () => {
+    const attributes = resolveEdgeHighlightAttributes({
+        edgeId: 'Worker->Done',
+        baseColor: '#34d399',
+        baseSize: 2,
+        hoverActive: true,
+        hoverHighlightedEdgeIds: new Set(['Worker->Done']),
+        programmaticHighlightStrength: 1,
     });
+
+    assert.equal(
+        attributes.size,
+        2 + FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA,
+    );
+    assert.equal(attributes.zIndex, 3);
+    assert.notEqual(attributes.color, '#34d399');
+});
+
+test('resolveHighlightedEdgeSize respects hover and programmatic width', () => {
+    assert.equal(
+        resolveHighlightedEdgeSize({
+            baseSize: 2,
+            hoverHighlighted: true,
+            programmaticHighlightStrength: 1,
+        }),
+        2 + FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA,
+    );
+
+    assert.equal(
+        resolveHighlightedEdgeSize({
+            baseSize: 1,
+            hoverHighlighted: true,
+            programmaticHighlightStrength: 0,
+        }),
+        FLOW_GRAPH_EDGE_HOVER_SIZE,
+    );
 });

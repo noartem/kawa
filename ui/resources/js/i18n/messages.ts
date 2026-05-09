@@ -295,6 +295,8 @@ export const messages = {
                 create: 'Create flow',
                 save: 'Save changes',
                 all: 'All flows',
+                general: 'General',
+                open_editor: 'Open editor',
             },
             create: {
                 title: 'New flow',
@@ -312,6 +314,18 @@ export const messages = {
                     webhook: {
                         name: 'Webhook',
                         description: 'React to HTTP webhook events',
+                    },
+                    rss: {
+                        name: 'RSS digest',
+                        description: 'Summarize new feed items and email them',
+                    },
+                    imap: {
+                        name: 'IMAP inbox',
+                        description: 'Fetch emails and dispatch one event per message',
+                    },
+                    air_quality: {
+                        name: 'Air quality',
+                        description: 'Check places hourly and alert on poor air',
                     },
                 },
             },
@@ -437,18 +451,29 @@ export const messages = {
                 empty_diff: 'diff is empty',
             },
             editor: {
-                title: 'Flow editor',
+                title: 'Editor',
                 description: 'Test run, code, graph, and chat',
+                unsaved_code_confirm:
+                    'You have unsaved code changes. Leave this page?',
+                actions: {
+                    save_and_start: 'Save & Start',
+                    save_and_restart: 'Save & Restart',
+                    open_graph: 'Open graph panel',
+                    close_graph: 'Close graph panel',
+                    open_logs: 'Open logs panel',
+                    close_logs: 'Close logs panel',
+                },
                 tabs: {
                     overview: 'Overview',
-                    code: 'Code editor',
-                    chat: 'Chat with code',
+                    info: 'Info',
+                    code: 'Code',
+                    chat: 'Chat',
                     storage: 'Storage',
                     discovery: 'Discovery',
                     changes: 'Changes',
                     hint: 'Write code or chat to update it.',
                 },
-                code_label: 'Code editor',
+                code_label: 'Code',
                 graph_label: 'Graph (JSON)',
                 chat: {
                     title: 'Chat with code',
@@ -459,6 +484,7 @@ export const messages = {
                     placeholder:
                         'Describe the change you want in the Flow code...',
                     send: 'Send',
+                    history: 'History',
                     new_chat: 'New chat',
                     compact: 'Compact',
                     retry: 'Retry',
@@ -503,6 +529,8 @@ export const messages = {
                     events_title: 'Events',
                     actor_label: 'Actor',
                     event_label: 'Event',
+                    hide_node: 'Hide {type}: {name}',
+                    show_node: 'Show {type}: {name}',
                     receives: 'Receives',
                     sends: 'Sends',
                     consumed_by: 'Consumed by',
@@ -526,12 +554,9 @@ export const messages = {
                     help: 'Use dotted keys in actors via ctx.storage.get/set/delete.',
                     save: 'Save storage',
                     invalid_json: 'Storage must contain valid JSON.',
-                    invalid_root:
-                        'Storage JSON must be an object or array at the root.',
-                    readonly_active:
-                        'Stop the active deployment of this environment to edit storage.',
-                    readonly_permissions:
-                        'You need edit permissions to update storage.',
+                    invalid_root: 'Storage must be an object or array.',
+                    readonly_active: 'Stop the active deployment to edit.',
+                    readonly_permissions: 'You need edit permissions.',
                 },
                 readonly: {
                     title: 'Editor unavailable',
@@ -557,7 +582,7 @@ export const messages = {
                 request_format: 'Request format',
                 active_run: 'Active run',
                 payload_title: 'JSON payload',
-                send: 'Send webhook',
+                send: 'Send',
                 sending: 'Sending...',
                 response: 'Response',
                 response_idle: 'Awaiting request...',
@@ -632,6 +657,7 @@ export const messages = {
                 title: 'Deployments',
                 logs: 'Logs',
                 all: 'All deployments',
+                container_id: 'Container ID',
                 details_title: 'Deployment details',
             },
             deployments_page: {
@@ -997,6 +1023,8 @@ export const messages = {
                 create: 'Создать поток',
                 save: 'Сохранить изменения',
                 all: 'Все потоки',
+                general: 'Общее',
+                open_editor: 'Открыть редактор',
             },
             create: {
                 title: 'Новый поток',
@@ -1014,6 +1042,18 @@ export const messages = {
                     webhook: {
                         name: 'Webhook',
                         description: 'Реакция на события HTTP webhook',
+                    },
+                    rss: {
+                        name: 'RSS-дайджест',
+                        description: 'Собирает новые записи из RSS и отправляет письмо',
+                    },
+                    imap: {
+                        name: 'IMAP почта',
+                        description: 'Забирает письма и создаёт событие на каждое сообщение',
+                    },
+                    air_quality: {
+                        name: 'Качество воздуха',
+                        description: 'Проверяет места каждый час и предупреждает о плохом воздухе',
                     },
                 },
             },
@@ -1143,27 +1183,39 @@ export const messages = {
                 empty_diff: 'diff пустой',
             },
             editor: {
-                title: 'Редактор Потока',
+                title: 'Редактор',
                 description: 'Тестовый запуск, код, граф и чат',
+                unsaved_code_confirm:
+                    'У вас есть несохраненные изменения кода. Покинуть страницу?',
+                actions: {
+                    save_and_start: 'Сохранить и запустить',
+                    save_and_restart: 'Сохранить и перезапустить',
+                    open_graph: 'Открыть панель графа',
+                    close_graph: 'Закрыть панель графа',
+                    open_logs: 'Открыть панель логов',
+                    close_logs: 'Закрыть панель логов',
+                },
                 tabs: {
                     overview: 'Обзор',
-                    code: 'Редактор кода',
-                    chat: 'Чат с кодом',
+                    info: 'О деплое',
+                    code: 'Код',
+                    chat: 'Чат',
                     storage: 'Хранилище',
                     discovery: 'Обзор',
                     changes: 'Изменения',
                     hint: 'Пишите код или общайтесь с чатом, который его изменит.',
                 },
-                code_label: 'Редактор кода',
+                code_label: 'Редактор',
                 graph_label: 'Граф (JSON)',
                 chat: {
-                    title: 'Чат с кодом',
+                    title: 'Чат',
                     subtitle: 'Опишите изменение и примените его к потоку.',
                     empty_title: 'Начните новую ветку работы',
                     empty_description:
                         'Попросите ассистента написать или доработать текущий код Потока.',
                     placeholder: 'Опишите, что нужно изменить в коде Потока...',
                     send: 'Отправить',
+                    history: 'История',
                     new_chat: 'Новый чат',
                     compact: 'Сжать',
                     retry: 'Повторить',
@@ -1208,6 +1260,8 @@ export const messages = {
                     events_title: 'События',
                     actor_label: 'Актор',
                     event_label: 'Событие',
+                    hide_node: 'Скрыть {type}: {name}',
+                    show_node: 'Показать {type}: {name}',
                     receives: 'Получает',
                     sends: 'Отдает',
                     consumed_by: 'Получают',
@@ -1231,12 +1285,9 @@ export const messages = {
                     help: 'В акторах используйте ctx.storage.get/set/delete с dotted keys.',
                     save: 'Сохранить хранилище',
                     invalid_json: 'Хранилище должно содержать корректный JSON.',
-                    invalid_root:
-                        'В корне JSON хранилища должен быть объект или массив.',
-                    readonly_active:
-                        'Остановите активный деплой этого окружения, чтобы редактировать хранилище.',
-                    readonly_permissions:
-                        'Для изменения хранилища нужны права на редактирование.',
+                    invalid_root: 'Данные должны быть объектом или массивом.',
+                    readonly_active: 'Остановите, чтобы редактировать.',
+                    readonly_permissions: 'Нужны права на редактирование.',
                 },
                 readonly: {
                     title: 'Редактор недоступен',
@@ -1262,7 +1313,7 @@ export const messages = {
                 request_format: 'Формат запроса',
                 active_run: 'Активный ран',
                 payload_title: 'JSON payload',
-                send: 'Отправить webhook',
+                send: 'Отправить',
                 sending: 'Отправка...',
                 response: 'Ответ',
                 response_idle: 'Ожидание запроса...',
@@ -1337,6 +1388,7 @@ export const messages = {
                 title: 'Деплои',
                 logs: 'Логи',
                 all: 'Все деплои',
+                container_id: 'ID контейнера',
                 details_title: 'Детали деплоя',
             },
             deployments_page: {

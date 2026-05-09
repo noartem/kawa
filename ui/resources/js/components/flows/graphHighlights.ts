@@ -1,11 +1,29 @@
+import {
+    FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA,
+    FLOW_GRAPH_EDGE_HOVER_SIZE,
+} from './graphStyle.ts';
+
 export interface DispatchPathHighlight {
     actor: string;
     event: string;
     triggerEvent: string | null;
 }
 
+export interface FlowGraphEdgeHighlight {
+    from: string;
+    to: string;
+}
+
 export interface DispatchHighlightTarget {
     highlightDispatchPath: (payload: DispatchPathHighlight) => void;
+}
+
+export interface EdgeHoverHighlightTarget {
+    setHoveredEdgeHighlight: (payload: FlowGraphEdgeHighlight | null) => void;
+}
+
+export interface EdgeFocusTarget {
+    focusEdge: (payload: FlowGraphEdgeHighlight) => void;
 }
 
 interface NormalizedEdge {
@@ -17,12 +35,22 @@ interface EdgeHighlightAttributesOptions {
     edgeId: string;
     baseColor: string;
     baseSize: number;
-    hoveredNodeId: string | null;
+    hoverActive: boolean;
     hoverHighlightedEdgeIds: Set<string>;
     programmaticHighlightStrength: number;
 }
 
+interface NodeHighlightAttributesOptions {
+    baseColor: string;
+    baseSize: number;
+    hovered: boolean;
+    programmaticHighlightStrength: number;
+}
+
 export const PROGRAMMATIC_HIGHLIGHT_COLOR = '#22c55e';
+export const PROGRAMMATIC_HIGHLIGHT_FLASH_MS = 260;
+export const PROGRAMMATIC_HIGHLIGHT_FADE_MS = 2100;
+export const PROGRAMMATIC_NODE_HIGHLIGHT_SIZE_DELTA = 4;
 
 const dimmedEdgeColor = 'rgba(148, 163, 184, 0.12)';
 
@@ -137,6 +165,112 @@ const mixEdgeColor = (
     return `rgb(${mixChannel(base.r, overlay.r)}, ${mixChannel(base.g, overlay.g)}, ${mixChannel(base.b, overlay.b)})`;
 };
 
+export const getProgrammaticHighlightStrength = (
+    highlights: Map<string, number>,
+    highlightId: string,
+    now: number = performance.now(),
+): number => {
+    const startedAt = highlights.get(highlightId);
+
+    if (typeof startedAt !== 'number') {
+        return 0;
+    }
+
+    const elapsed = now - startedAt;
+    if (elapsed <= PROGRAMMATIC_HIGHLIGHT_FLASH_MS) {
+        return 1;
+    }
+
+    return clamp(
+        1 -
+            (elapsed - PROGRAMMATIC_HIGHLIGHT_FLASH_MS) /
+                PROGRAMMATIC_HIGHLIGHT_FADE_MS,
+        0,
+        1,
+    );
+};
+
+export const pruneProgrammaticHighlights = (
+    highlights: Map<string, number>,
+    now: number = performance.now(),
+): boolean => {
+    let hasActiveHighlights = false;
+
+    for (const [highlightId, startedAt] of highlights) {
+        if (
+            now - startedAt >=
+            PROGRAMMATIC_HIGHLIGHT_FLASH_MS + PROGRAMMATIC_HIGHLIGHT_FADE_MS
+        ) {
+            highlights.delete(highlightId);
+            continue;
+        }
+
+        hasActiveHighlights = true;
+    }
+
+    return hasActiveHighlights;
+};
+
+export const resolveHighlightedEdgeSize = ({
+    baseSize,
+    hoverHighlighted,
+    programmaticHighlightStrength,
+}: {
+    baseSize: number;
+    hoverHighlighted: boolean;
+    programmaticHighlightStrength: number;
+}): number => {
+    let nextSize = baseSize;
+
+    if (hoverHighlighted) {
+        nextSize = Math.max(nextSize, FLOW_GRAPH_EDGE_HOVER_SIZE);
+    }
+
+    if (programmaticHighlightStrength > 0) {
+        nextSize = Math.max(
+            nextSize,
+            baseSize +
+                FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA *
+                    programmaticHighlightStrength,
+        );
+    }
+
+    return nextSize;
+};
+
+export const resolveNodeHighlightAttributes = ({
+    baseColor,
+    baseSize,
+    hovered,
+    programmaticHighlightStrength,
+}: NodeHighlightAttributesOptions): Record<
+    string,
+    number | string | boolean
+> => {
+    const nextAttributes: Record<string, number | string | boolean> = {};
+    const hasProgrammaticHighlight = programmaticHighlightStrength > 0;
+
+    if (hovered || hasProgrammaticHighlight) {
+        nextAttributes.size =
+            baseSize +
+            (hovered ? 1.25 : 0) +
+            PROGRAMMATIC_NODE_HIGHLIGHT_SIZE_DELTA *
+                programmaticHighlightStrength;
+        nextAttributes.zIndex = hasProgrammaticHighlight ? 4 : 2;
+    }
+
+    if (hasProgrammaticHighlight) {
+        nextAttributes.color = mixEdgeColor(
+            baseColor,
+            PROGRAMMATIC_HIGHLIGHT_COLOR,
+            Math.max(0.35, programmaticHighlightStrength),
+        );
+        nextAttributes.forceLabel = true;
+    }
+
+    return nextAttributes;
+};
+
 export const resolveDispatchHighlightEdgeIds = (
     graph: Record<string, unknown> | null | undefined,
     highlight: DispatchPathHighlight,
@@ -172,6 +306,27 @@ export const resolveDispatchHighlightEdgeIds = (
     return edgeIds;
 };
 
+export const resolveDirectHighlightEdgeIds = (
+    graph: Record<string, unknown> | null | undefined,
+    highlight: FlowGraphEdgeHighlight,
+): Set<string> => {
+    const edgeIds = new Set<string>();
+    const fromId = resolveGraphId(highlight.from);
+    const toId = resolveGraphId(highlight.to);
+
+    if (!fromId || !toId) {
+        return edgeIds;
+    }
+
+    const edgeId = `${fromId}->${toId}`;
+
+    if (resolveNormalizedEdges(graph).some((edge) => edge.id === edgeId)) {
+        edgeIds.add(edgeId);
+    }
+
+    return edgeIds;
+};
+
 export const propagateDispatchPathHighlight = (
     targets: Array<DispatchHighlightTarget | null | undefined>,
     payload: DispatchPathHighlight,
@@ -198,17 +353,13 @@ export const resolveEdgeHighlightAttributes = ({
     edgeId,
     baseColor,
     baseSize,
-    hoveredNodeId,
+    hoverActive,
     hoverHighlightedEdgeIds,
     programmaticHighlightStrength,
 }: EdgeHighlightAttributesOptions): Record<string, number | string> => {
     const hoverHighlighted = hoverHighlightedEdgeIds.has(edgeId);
 
-    if (
-        hoveredNodeId &&
-        !hoverHighlighted &&
-        programmaticHighlightStrength <= 0
-    ) {
+    if (hoverActive && !hoverHighlighted && programmaticHighlightStrength <= 0) {
         return {
             color: dimmedEdgeColor,
             zIndex: 0,
@@ -218,7 +369,11 @@ export const resolveEdgeHighlightAttributes = ({
     const nextAttributes: Record<string, number | string> = {};
 
     if (hoverHighlighted) {
-        nextAttributes.size = Math.max(baseSize, 3.2);
+        nextAttributes.size = resolveHighlightedEdgeSize({
+            baseSize,
+            hoverHighlighted,
+            programmaticHighlightStrength,
+        });
         nextAttributes.zIndex = 1;
     }
 
@@ -228,12 +383,11 @@ export const resolveEdgeHighlightAttributes = ({
             PROGRAMMATIC_HIGHLIGHT_COLOR,
             programmaticHighlightStrength,
         );
-        nextAttributes.size = Math.max(
-            typeof nextAttributes.size === 'number'
-                ? nextAttributes.size
-                : baseSize,
-            baseSize + 3.2 * programmaticHighlightStrength,
-        );
+        nextAttributes.size = resolveHighlightedEdgeSize({
+            baseSize,
+            hoverHighlighted,
+            programmaticHighlightStrength,
+        });
         nextAttributes.zIndex = Math.max(
             typeof nextAttributes.zIndex === 'number'
                 ? nextAttributes.zIndex

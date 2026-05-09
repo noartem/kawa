@@ -1,0 +1,132 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$arguments = array_slice($argv, 1);
+
+if (count($arguments) === 5 && $arguments[0] === '-o' && $arguments[1] === 'pid' && $arguments[2] === '--no-headers' && $arguments[3] === '--ppid' && ctype_digit($arguments[4])) {
+    $children = childPids((int) $arguments[4]);
+
+    foreach ($children as $childPid) {
+        echo $childPid, PHP_EOL;
+    }
+
+    exit(0);
+}
+
+if (count($arguments) === 4 && $arguments[0] === '-o' && in_array($arguments[1], ['stat=', 'pgid='], true) && $arguments[2] === '-p' && ctype_digit($arguments[3])) {
+    $pid = (int) $arguments[3];
+
+    if ($arguments[1] === 'stat=') {
+        $state = processState($pid);
+
+        if ($state === null) {
+            exit(1);
+        }
+
+        echo $state, PHP_EOL;
+        exit(0);
+    }
+
+    $processGroupId = processGroupId($pid);
+
+    if ($processGroupId === null) {
+        exit(1);
+    }
+
+    echo $processGroupId, PHP_EOL;
+    exit(0);
+}
+
+fwrite(STDERR, "Unsupported ps invocation.\n");
+exit(1);
+
+function childPids(int $parentPid): array
+{
+    $children = [];
+
+    foreach (glob('/proc/[0-9]*/status') ?: [] as $statusPath) {
+        $pid = (int) basename(dirname($statusPath));
+        $status = @file($statusPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        if ($status === false) {
+            continue;
+        }
+
+        foreach ($status as $line) {
+            if (! str_starts_with($line, 'PPid:')) {
+                continue;
+            }
+
+            $value = trim(substr($line, 5));
+
+            if ((int) $value === $parentPid) {
+                $children[] = $pid;
+            }
+
+            break;
+        }
+    }
+
+    sort($children);
+
+    return $children;
+}
+
+function processState(int $pid): ?string
+{
+    $statusPath = "/proc/{$pid}/status";
+
+    if (! is_readable($statusPath)) {
+        return null;
+    }
+
+    $status = file($statusPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    if ($status === false) {
+        return null;
+    }
+
+    foreach ($status as $line) {
+        if (! str_starts_with($line, 'State:')) {
+            continue;
+        }
+
+        $value = trim(substr($line, 6));
+        $parts = preg_split('/\s+/', $value);
+
+        return $parts[0] ?? null;
+    }
+
+    return null;
+}
+
+function processGroupId(int $pid): ?int
+{
+    $statPath = "/proc/{$pid}/stat";
+
+    if (! is_readable($statPath)) {
+        return null;
+    }
+
+    $stat = file_get_contents($statPath);
+
+    if ($stat === false) {
+        return null;
+    }
+
+    $commandEnd = strrpos($stat, ')');
+
+    if ($commandEnd === false) {
+        return null;
+    }
+
+    $fields = preg_split('/\s+/', trim(substr($stat, $commandEnd + 1)));
+
+    if (! isset($fields[2])) {
+        return null;
+    }
+
+    return (int) $fields[2];
+}

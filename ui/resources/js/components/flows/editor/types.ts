@@ -97,6 +97,13 @@ export interface FlowChatConversation {
     messages: FlowChatMessage[];
 }
 
+export interface FlowChatRequestStatus {
+    id: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    poll_url: string;
+    completed_at?: string | null;
+}
+
 export interface FlowChatsPaginator {
     data: FlowChatConversation[];
     current_page: number;

@@ -55,7 +55,7 @@ export const formatWebhookResponseBody = (
 export const shouldRenderWebhookResponse = (
     status: WebhookResponseStatus,
 ): boolean => {
-    return status !== 'idle';
+    return status === 'success';
 };
 
 export const dispatchWebhookPayload = async (

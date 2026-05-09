@@ -214,7 +214,7 @@ class FlowWebhookControllerTest extends TestCase
 from kawa import Context, Webhook, actor
 
 
-@actor(receivs=Webhook.by("orders.created"))
+@actor(receives=Webhook.by("orders.created"))
 def HandleWebhook(ctx: Context, event: Webhook) -> None:
     print(event.payload)
 PY,

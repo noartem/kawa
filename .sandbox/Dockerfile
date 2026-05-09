@@ -1,17 +1,19 @@
 ARG PHP_VERSION=8.5
+ARG PHP_IMAGE_DIGEST=sha256:36664e49e4bdc669d9e2cba2e708c288b7fafade442dd1cd3c30d6cb97370b82
 
-FROM php:${PHP_VERSION}-cli-bookworm
+FROM php:${PHP_VERSION}-cli-bookworm@${PHP_IMAGE_DIGEST}
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uvx /usr/local/bin/uvx
+COPY --from=ghcr.io/astral-sh/uv:latest@sha256:798712e57f879c5393777cbda2bb309b29fcdeb0532129d4b1c3125c5385975a /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:latest@sha256:798712e57f879c5393777cbda2bb309b29fcdeb0532129d4b1c3125c5385975a /uvx /usr/local/bin/uvx
 
 ARG USER
 ARG PWD
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG NODE_MAJOR=24
-ARG COMPOSER_VERSION=2.8.7
+ARG COMPOSER_VERSION=2.8.12
 ARG RTK_VERSION
+ARG RTK_REQUIRED=0
 ARG APP_UID
 ARG APP_GID
 
@@ -49,6 +51,7 @@ RUN apt-get update \
     vim \
     less \
     ripgrep \
+    fd-find \
     fzf \
     libcurl4-openssl-dev \
     libfreetype6-dev \
@@ -81,6 +84,7 @@ RUN apt-get update \
     && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && curl -fsSL https://getcomposer.org/installer | php -- --version=${COMPOSER_VERSION} --install-dir=/usr/local/bin --filename=composer \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
@@ -90,8 +94,19 @@ RUN set -eux; \
     locale-gen ru_RU.UTF-8
 
 RUN set -eux; \
-    curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | RTK_INSTALL_DIR=/usr/local/bin RTK_VERSION="${RTK_VERSION:-}" sh; \
-    rtk --version
+    install_script="$(mktemp)"; \
+    if curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+        -o "${install_script}" \
+        https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh \
+        && RTK_INSTALL_DIR=/usr/local/bin RTK_VERSION="${RTK_VERSION:-}" sh "${install_script}"; then \
+        rtk --version; \
+    elif [ "${RTK_REQUIRED}" = "1" ]; then \
+        rm -f "${install_script}"; \
+        exit 1; \
+    else \
+        printf '%s\n' 'Warning: failed to install rtk; continuing without it' >&2; \
+    fi; \
+    rm -f "${install_script}"
 
 RUN groupadd -g ${APP_GID} ${USER} \
     && useradd -m -d /home/${USER} -u ${APP_UID} -g ${APP_GID} -s /bin/zsh ${USER}

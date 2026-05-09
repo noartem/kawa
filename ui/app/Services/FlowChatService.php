@@ -4,28 +4,34 @@ namespace App\Services;
 
 use App\Ai\Agents\FlowChatCompactor;
 use App\Ai\Agents\FlowCodeAssistant;
+use App\Jobs\ProcessFlowChatRequest;
 use App\Models\AgentConversation;
 use App\Models\AgentConversationMessage;
 use App\Models\Flow;
+use App\Models\FlowChatRequestStatus;
 use App\Models\User;
 use App\Support\FlowCodeDiff;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Laravel\Ai\Exceptions\AiException;
+use Laravel\Ai\Exceptions\InsufficientCreditsException;
+use Laravel\Ai\Exceptions\ProviderOverloadedException;
+use Laravel\Ai\Exceptions\RateLimitedException;
 use Laravel\Ai\Messages\Message;
+use Throwable;
 
 class FlowChatService
 {
-    private const SUPPORTED_HISTORY_KINDS = [
-        'apply_proposal',
-        'apply_and_save_proposal',
-    ];
+    private const DEFAULT_MAX_HISTORY_MESSAGES = 12;
 
     public function __construct(
         private readonly FlowCodeDiff $flowCodeDiff,
+        private readonly FlowChatCompletionClient $flowChatCompletionClient,
     ) {}
 
     /**
@@ -39,6 +45,16 @@ class FlowChatService
             return null;
         }
 
+        $conversation->loadMissing('messages');
+
+        return $this->serializeConversation($conversation);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function conversationPayload(AgentConversation $conversation): array
+    {
         $conversation->loadMissing('messages');
 
         return $this->serializeConversation($conversation);
@@ -112,36 +128,82 @@ class FlowChatService
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function submitMessage(
+        Flow $flow,
+        AgentConversation $conversation,
+        User $user,
+        string $message,
+        string $currentCode,
+    ): array {
+        if (FlowCodeAssistant::isFaked()) {
+            return [
+                ...$this->sendMessage($flow, $conversation, $user, $message, $currentCode),
+                'chatRequest' => null,
+                'status' => FlowChatRequestStatus::STATUS_COMPLETED,
+            ];
+        }
+
+        $message = $this->sanitizeUtf8($message);
+        $currentCode = $this->sanitizeUtf8($currentCode);
+
+        $chatRequest = DB::transaction(function () use ($conversation, $currentCode, $flow, $message, $user): FlowChatRequestStatus {
+            $chatRequest = $conversation->chatRequests()->create([
+                'flow_id' => $flow->id,
+                'user_id' => $user->id,
+                'status' => FlowChatRequestStatus::STATUS_PENDING,
+                'message' => $message,
+                'current_code' => $currentCode,
+            ]);
+
+            ProcessFlowChatRequest::dispatch($chatRequest->id)->afterCommit();
+
+            return $chatRequest;
+        });
+
+        return [
+            'activeChat' => $this->serializeConversation($conversation->fresh('messages')),
+            'pastChats' => $this->pastChatsPayload($flow->fresh()),
+            'chatRequest' => $this->serializeChatRequest($flow, $conversation, $chatRequest),
+            'status' => $chatRequest->status,
+            'error' => null,
+            '__http_status' => 202,
+        ];
+    }
+
+    /**
      * @return array{activeChat: array<string, mixed>, pastChats: array<int, array<string, mixed>>}
      */
     public function sendMessage(
         Flow $flow,
+        AgentConversation $conversation,
         User $user,
         string $message,
         string $currentCode,
-        array $history = [],
     ): array {
         $message = $this->sanitizeUtf8($message);
         $currentCode = $this->sanitizeUtf8($currentCode);
-        $history = $this->sanitizeHistory($history);
-        $conversation = $this->resolveActiveConversation($flow, $user, $message);
+
+        $conversation->loadMissing('messages');
         $shouldGenerateTitle = $conversation->messages->isEmpty();
 
-        if ($history !== []) {
-            $conversation = $this->appendHistoryMessages($conversation, $user, $history);
-        }
-
         $existingMessageCount = $conversation->messages->count();
-        $response = $this->makeFlowCodeAssistant(
+        $assistant = $this->makeFlowCodeAssistant(
             conversation: $conversation,
             user: $user,
             currentCode: $currentCode,
             shouldGenerateTitle: $shouldGenerateTitle,
-        )->prompt($message);
+        );
+        $response = $this->flowChatCompletionClient->complete($assistant, $message);
 
         $assistantTitle = trim($this->sanitizeUtf8((string) ($response['title'] ?? '')));
         $assistantReply = trim($this->sanitizeUtf8((string) ($response['reply'] ?? '')));
         $assistantCode = $this->sanitizeUtf8((string) ($response['code'] ?? $currentCode));
+
+        if (Str::of($assistantCode)->trim()->isEmpty()) {
+            $assistantCode = $currentCode;
+        }
 
         if (! $this->hasMeaningfulCodeChanges($currentCode, $assistantCode)) {
             $assistantCode = $currentCode;
@@ -161,9 +223,11 @@ class FlowChatService
             ? $this->sanitizeUtf8($this->flowCodeDiff->build($currentCode, $assistantCode))
             : null;
 
-        $conversation = $this->storeLatestExchangeMetadata(
-            conversationId: $response->conversationId ?? $conversation->id,
+        $conversation = $this->storeExchange(
+            conversationId: (string) ($response['conversation_id'] ?? $conversation->id),
+            user: $user,
             existingMessageCount: $existingMessageCount,
+            userMessage: $message,
             assistantReply: $assistantReply,
             assistantMeta: [
                 'kind' => $hasCodeChanges ? 'code_suggestion' : 'assistant_reply',
@@ -171,7 +235,15 @@ class FlowChatService
                 'source_code' => $currentCode,
                 'proposed_code' => $assistantCode,
                 'diff' => $assistantDiff,
+                'provider' => is_string($response['provider'] ?? null)
+                    ? $response['provider']
+                    : 'openai',
+                'model' => is_string($response['model'] ?? null)
+                    ? $response['model']
+                    : FlowCodeAssistant::MODEL,
             ],
+            assistantUsage: is_array($response['usage'] ?? null) ? $response['usage'] : [],
+            messagesPersistedByAgent: (bool) ($response['persisted_by_agent'] ?? false),
         );
 
         if ($shouldGenerateTitle) {
@@ -189,15 +261,95 @@ class FlowChatService
         ];
     }
 
-    /**
-     * @return array{activeChat: null, pastChats: array<int, array<string, mixed>>}
-     */
-    public function startNewChat(Flow $flow): array
+    public function processQueuedMessage(int $chatRequestId): void
     {
-        $flow->forceFill(['active_chat_conversation_id' => null])->save();
+        /** @var FlowChatRequestStatus $chatRequest */
+        $chatRequest = FlowChatRequestStatus::query()
+            ->with(['flow', 'conversation', 'user'])
+            ->findOrFail($chatRequestId);
+
+        if (in_array($chatRequest->status, [
+            FlowChatRequestStatus::STATUS_COMPLETED,
+            FlowChatRequestStatus::STATUS_FAILED,
+        ], true)) {
+            return;
+        }
+
+        $chatRequest->forceFill([
+            'status' => FlowChatRequestStatus::STATUS_PROCESSING,
+            'error_code' => null,
+            'error_message' => null,
+            'error_status' => null,
+            'completed_at' => null,
+        ])->save();
+
+        try {
+            $this->sendMessage(
+                $chatRequest->flow()->firstOrFail(),
+                $chatRequest->conversation()->firstOrFail(),
+                $chatRequest->user()->firstOrFail(),
+                $chatRequest->message,
+                (string) ($chatRequest->current_code ?? ''),
+            );
+
+            $chatRequest->forceFill([
+                'status' => FlowChatRequestStatus::STATUS_COMPLETED,
+                'completed_at' => now(),
+            ])->save();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $error = $this->resolveAsyncChatError($exception);
+
+            $chatRequest->forceFill([
+                'status' => FlowChatRequestStatus::STATUS_FAILED,
+                'error_code' => $error['code'],
+                'error_message' => $error['message'],
+                'error_status' => $error['status'],
+                'completed_at' => now(),
+            ])->save();
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function chatRequestPayload(
+        Flow $flow,
+        AgentConversation $conversation,
+        FlowChatRequestStatus $chatRequest,
+    ): array {
+        $chatRequest->loadMissing('conversation.messages');
 
         return [
-            'activeChat' => null,
+            'activeChat' => $this->serializeConversation($conversation->fresh('messages')),
+            'pastChats' => $this->pastChatsPayload($flow->fresh()),
+            'chatRequest' => $this->serializeChatRequest($flow, $conversation, $chatRequest),
+            'status' => $chatRequest->status,
+            'error' => $chatRequest->status === FlowChatRequestStatus::STATUS_FAILED
+                ? [
+                    'message' => $chatRequest->error_message,
+                    'code' => $chatRequest->error_code,
+                    'status' => $chatRequest->error_status,
+                ]
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{activeChat: array<string, mixed>, pastChats: array<int, array<string, mixed>>}
+     */
+    public function createChat(Flow $flow, User $user): array
+    {
+        $conversation = $flow->conversations()->create([
+            'user_id' => $user->id,
+            'title' => 'New chat',
+        ]);
+
+        $flow->forceFill(['active_chat_conversation_id' => $conversation->id])->save();
+
+        return [
+            'activeChat' => $this->serializeConversation($conversation->fresh('messages')),
             'pastChats' => $this->pastChatsPayload($flow->fresh()),
         ];
     }
@@ -205,19 +357,15 @@ class FlowChatService
     /**
      * @return array{activeChat: array<string, mixed>, pastChats: array<int, array<string, mixed>>}
      */
-    public function compactActiveChat(Flow $flow, User $user, string $currentCode): array
-    {
-        $activeConversation = $flow->activeChatConversation;
+    public function compactChat(
+        Flow $flow,
+        AgentConversation $conversation,
+        User $user,
+        string $currentCode,
+    ): array {
+        $conversation->loadMissing('messages');
 
-        if (! $activeConversation instanceof AgentConversation) {
-            throw ValidationException::withMessages([
-                'chat' => 'No active chat to compact.',
-            ]);
-        }
-
-        $activeConversation->loadMissing('messages');
-
-        if ($activeConversation->messages->isEmpty()) {
+        if ($conversation->messages->isEmpty()) {
             throw ValidationException::withMessages([
                 'chat' => 'No active chat to compact.',
             ]);
@@ -225,7 +373,7 @@ class FlowChatService
 
         $response = FlowChatCompactor::make(
             currentCode: $currentCode,
-            messages: $this->conversationMessagesForAgent($activeConversation),
+            messages: $this->conversationMessagesForAgent($conversation, $currentCode),
         )->prompt('Compress this chat into a fresh continuation summary.');
 
         $title = trim($this->sanitizeUtf8((string) ($response['title'] ?? '')));
@@ -247,7 +395,7 @@ class FlowChatService
             'usage' => [],
             'meta' => [
                 'kind' => 'compact_summary',
-                'source_conversation_id' => $activeConversation->id,
+                'source_conversation_id' => $conversation->id,
             ],
         ]);
 
@@ -279,7 +427,7 @@ class FlowChatService
         $assistant = new FlowCodeAssistant(
             currentCode: $currentCode,
             messages: $activeConversation instanceof AgentConversation
-                ? $this->conversationMessagesForAgent($activeConversation)
+                ? $this->conversationMessagesForAgent($activeConversation, $currentCode)
                 : [],
             shouldGenerateTitle: $shouldGenerateTitle,
         );
@@ -320,7 +468,7 @@ class FlowChatService
                 ]
                 : null,
             'history' => $historyPayload,
-            'history_strategy' => 'single_user_transcript',
+            'history_strategy' => 'role_preserving_messages',
             'request_preview' => [
                 'system_prompt' => (string) $assistant->instructions(),
                 'history_messages' => array_map(
@@ -329,7 +477,7 @@ class FlowChatService
                         'content' => $historyMessage->content,
                     ],
                     $activeConversation instanceof AgentConversation
-                        ? $this->conversationMessagesForAgent($activeConversation)
+                        ? $this->conversationMessagesForAgent($activeConversation, $currentCode)
                         : [],
                 ),
                 'user_message' => $message,
@@ -337,29 +485,6 @@ class FlowChatService
                 'structured_output' => FlowCodeAssistant::schemaPreview($shouldGenerateTitle),
             ],
         ];
-    }
-
-    private function resolveActiveConversation(
-        Flow $flow,
-        User $user,
-        string $message,
-    ): AgentConversation {
-        $activeConversation = $flow->activeChatConversation;
-
-        if ($activeConversation instanceof AgentConversation) {
-            $activeConversation->loadMissing('messages');
-
-            return $activeConversation;
-        }
-
-        $conversation = $flow->conversations()->create([
-            'user_id' => $user->id,
-            'title' => Str::limit($message, 100, preserveWords: true),
-        ]);
-
-        $flow->forceFill(['active_chat_conversation_id' => $conversation->id])->save();
-
-        return $conversation;
     }
 
     private function makeFlowCodeAssistant(
@@ -370,7 +495,7 @@ class FlowChatService
     ): FlowCodeAssistant {
         return FlowCodeAssistant::make(
             currentCode: $currentCode,
-            messages: $this->conversationMessagesForAgent($conversation),
+            messages: $this->conversationMessagesForAgent($conversation, $currentCode),
             shouldGenerateTitle: $shouldGenerateTitle,
         )->continue($conversation->id, as: $user);
     }
@@ -378,21 +503,57 @@ class FlowChatService
     /**
      * @param  array<string, mixed>  $assistantMeta
      */
-    private function storeLatestExchangeMetadata(
+    private function storeExchange(
         string $conversationId,
+        User $user,
         int $existingMessageCount,
+        string $userMessage,
         string $assistantReply,
         array $assistantMeta,
+        array $assistantUsage,
+        bool $messagesPersistedByAgent,
     ): AgentConversation {
         return DB::transaction(function () use (
             $assistantMeta,
             $assistantReply,
+            $assistantUsage,
             $conversationId,
             $existingMessageCount,
+            $messagesPersistedByAgent,
+            $user,
+            $userMessage,
         ): AgentConversation {
             $conversation = AgentConversation::query()
                 ->with('messages')
                 ->findOrFail($conversationId);
+
+            if (! $messagesPersistedByAgent) {
+                $conversation->messages()->create([
+                    'user_id' => $user->id,
+                    'agent' => FlowCodeAssistant::class,
+                    'role' => 'user',
+                    'content' => $userMessage,
+                    'attachments' => [],
+                    'tool_calls' => [],
+                    'tool_results' => [],
+                    'usage' => [],
+                    'meta' => ['kind' => 'prompt'],
+                ]);
+
+                $conversation->messages()->create([
+                    'user_id' => $user->id,
+                    'agent' => FlowCodeAssistant::class,
+                    'role' => 'assistant',
+                    'content' => $assistantReply,
+                    'attachments' => [],
+                    'tool_calls' => [],
+                    'tool_results' => [],
+                    'usage' => $this->sanitizeForJson($assistantUsage),
+                    'meta' => $this->sanitizeForJson($assistantMeta),
+                ]);
+
+                return $conversation->fresh('messages');
+            }
 
             /** @var EloquentCollection<int, AgentConversationMessage> $newMessages */
             $newMessages = $conversation->messages
@@ -433,59 +594,11 @@ class FlowChatService
     }
 
     /**
-     * @param  array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>  $history
-     */
-    private function appendHistoryMessages(
-        AgentConversation $conversation,
-        User $user,
-        array $history,
-    ): AgentConversation {
-        $existingClientIds = [];
-
-        foreach ($conversation->messages as $message) {
-            $clientId = $message->meta['client_id'] ?? null;
-
-            if (is_string($clientId) && $clientId !== '') {
-                $existingClientIds[$clientId] = true;
-            }
-        }
-
-        $historyWasAppended = false;
-
-        foreach ($history as $entry) {
-            if (isset($existingClientIds[$entry['client_id']])) {
-                continue;
-            }
-
-            $conversation->messages()->create([
-                'user_id' => $user->id,
-                'agent' => FlowCodeAssistant::class,
-                'role' => 'user',
-                'content' => $entry['content'],
-                'attachments' => [],
-                'tool_calls' => [],
-                'tool_results' => [],
-                'usage' => [],
-                'meta' => [
-                    'client_id' => $entry['client_id'],
-                    'kind' => $entry['kind'],
-                    'source_code' => $entry['source_code'],
-                    'proposed_code' => $entry['proposed_code'],
-                ],
-            ]);
-
-            $existingClientIds[$entry['client_id']] = true;
-            $historyWasAppended = true;
-        }
-
-        return $historyWasAppended ? $conversation->fresh('messages') : $conversation;
-    }
-
-    /**
      * @return array<int, Message>
      */
     private function conversationMessagesForAgent(
         AgentConversation $conversation,
+        string $currentCode,
     ): array {
         $conversation->loadMissing('messages');
 
@@ -493,42 +606,79 @@ class FlowChatService
             return [];
         }
 
-        return [
-            new Message('user', $this->buildConversationTranscript($conversation->messages)),
-        ];
+        $maxHistoryMessages = (int) config('ai.chat.max_history_messages', self::DEFAULT_MAX_HISTORY_MESSAGES);
+        $messages = $conversation->messages;
+
+        if ($maxHistoryMessages > 0) {
+            $messages = $messages->slice(-$maxHistoryMessages)->values();
+        }
+
+        return $messages
+            ->map(fn (AgentConversationMessage $message): Message => new Message(
+                $message->role,
+                $this->buildConversationMessageContent($message, $currentCode),
+            ))
+            ->filter(fn (Message $message): bool => trim($message->content) !== '')
+            ->values()
+            ->all();
     }
 
-    /**
-     * @param  Collection<int, AgentConversationMessage>  $messages
-     */
-    private function buildConversationTranscript(Collection $messages): string
-    {
-        $lines = ['Conversation so far:'];
+    private function buildConversationMessageContent(
+        AgentConversationMessage $message,
+        string $currentCode,
+    ): string {
+        $lines = [];
+        $content = trim($message->content);
 
-        foreach ($messages as $message) {
-            $speaker = $message->role === 'assistant' ? 'Assistant' : 'User';
-            $content = trim($message->content);
+        if ($content !== '') {
+            $lines[] = $content;
+        }
 
-            if ($content !== '') {
-                $lines[] = sprintf('%s: %s', $speaker, $content);
-            }
+        $meta = is_array($message->meta) ? $message->meta : [];
+        $responseMode = is_string($meta['response_mode'] ?? null)
+            ? $meta['response_mode']
+            : null;
+        $proposedCode = is_string($meta['proposed_code'] ?? null)
+            ? $meta['proposed_code']
+            : null;
+        $kind = is_string($meta['kind'] ?? null) ? $meta['kind'] : null;
 
-            $meta = is_array($message->meta) ? $message->meta : [];
-            $responseMode = is_string($meta['response_mode'] ?? null)
-                ? $meta['response_mode']
-                : null;
+        if ($message->role === 'assistant' && $responseMode !== null) {
+            $lines[] = sprintf('Response mode: %s', $responseMode);
+        }
 
-            if ($message->role === 'assistant' && $responseMode !== null) {
-                $lines[] = sprintf('Assistant response mode: %s', $responseMode);
-            }
-
-            if ($message->role === 'assistant' && is_string($meta['proposed_code'] ?? null)) {
-                $lines[] = 'Assistant proposed code:';
-                $lines[] = (string) $meta['proposed_code'];
-            }
+        if ($message->role === 'assistant' && $this->messageContainsCodeProposal($kind, $proposedCode, $responseMode)) {
+            $lines[] = $this->assistantProposalMatchesCurrentCode($proposedCode, $currentCode)
+                ? 'The current code matches this previously suggested change.'
+                : 'This reply proposed a code change. The proposal was not applied automatically.';
+            $lines[] = 'Use the current code as the source of truth.';
         }
 
         return implode("\n", $lines);
+    }
+
+    private function messageContainsCodeProposal(
+        ?string $kind,
+        ?string $proposedCode,
+        ?string $responseMode,
+    ): bool {
+        if ($proposedCode === null) {
+            return false;
+        }
+
+        return $kind === 'code_suggestion'
+            || $responseMode === FlowCodeAssistant::RESPONSE_MODE_MESSAGE_WITH_CODE;
+    }
+
+    private function assistantProposalMatchesCurrentCode(
+        ?string $proposedCode,
+        string $currentCode,
+    ): bool {
+        if ($proposedCode === null) {
+            return false;
+        }
+
+        return ! $this->hasMeaningfulCodeChanges($proposedCode, $currentCode);
     }
 
     /**
@@ -609,40 +759,6 @@ class FlowChatService
         return $value;
     }
 
-    /**
-     * @param  array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>  $history
-     * @return array<int, array{client_id: string, kind: string, content: string, source_code: string, proposed_code: string}>
-     */
-    private function sanitizeHistory(array $history): array
-    {
-        $sanitizedHistory = [];
-
-        foreach ($history as $entry) {
-            $clientId = trim((string) ($entry['client_id'] ?? ''));
-            $kind = (string) ($entry['kind'] ?? '');
-
-            if ($clientId === '' || ! in_array($kind, self::SUPPORTED_HISTORY_KINDS, true)) {
-                continue;
-            }
-
-            $content = trim($this->sanitizeUtf8((string) ($entry['content'] ?? '')));
-
-            if ($content === '') {
-                continue;
-            }
-
-            $sanitizedHistory[] = [
-                'client_id' => $clientId,
-                'kind' => $kind,
-                'content' => $content,
-                'source_code' => $this->sanitizeUtf8((string) ($entry['source_code'] ?? '')),
-                'proposed_code' => $this->sanitizeUtf8((string) ($entry['proposed_code'] ?? '')),
-            ];
-        }
-
-        return $sanitizedHistory;
-    }
-
     private function sanitizeUtf8(string $value): string
     {
         if (preg_match('//u', $value) === 1) {
@@ -656,5 +772,106 @@ class FlowChatService
         }
 
         return mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeChatRequest(
+        Flow $flow,
+        AgentConversation $conversation,
+        FlowChatRequestStatus $chatRequest,
+    ): array {
+        return [
+            'id' => $chatRequest->id,
+            'status' => $chatRequest->status,
+            'poll_url' => route('flows.chat.messages.requests.show', [
+                'flow' => $flow,
+                'chat' => $conversation,
+                'chatRequest' => $chatRequest,
+            ]),
+            'completed_at' => optional($chatRequest->completed_at)?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array{message: string, code: string, status: int}
+     */
+    private function resolveAsyncChatError(Throwable $exception): array
+    {
+        if ($exception instanceof RateLimitedException) {
+            return [
+                'message' => 'The AI provider is rate limiting requests right now. Please try again in a moment.',
+                'code' => 'ai_rate_limited',
+                'status' => 429,
+            ];
+        }
+
+        if ($exception instanceof InsufficientCreditsException) {
+            return [
+                'message' => 'The AI provider has no available quota right now. Please try again later.',
+                'code' => 'ai_insufficient_credits',
+                'status' => 503,
+            ];
+        }
+
+        if ($exception instanceof ProviderOverloadedException || $exception instanceof ConnectionException) {
+            return [
+                'message' => 'The AI provider is temporarily unavailable. Please try again in a minute.',
+                'code' => 'ai_provider_unavailable',
+                'status' => 503,
+            ];
+        }
+
+        if ($exception instanceof AiException) {
+            $code = $this->resolveAsyncAiExceptionCode($exception);
+
+            return [
+                'message' => match ($code) {
+                    'ai_provider_unavailable' => 'The AI provider is temporarily unavailable. Please try again in a minute.',
+                    'ai_rate_limited' => 'The AI provider is rate limiting requests right now. Please try again in a moment.',
+                    'ai_insufficient_credits' => 'The AI provider has no available quota right now. Please try again later.',
+                    default => 'The AI request failed. Please try again.',
+                },
+                'code' => $code,
+                'status' => $this->resolveAsyncAiExceptionStatus($exception),
+            ];
+        }
+
+        return [
+            'message' => 'The chat request failed unexpectedly. Please try again.',
+            'code' => 'chat_request_failed',
+            'status' => 500,
+        ];
+    }
+
+    private function resolveAsyncAiExceptionCode(AiException $exception): string
+    {
+        if ($exception->getCode() === 429) {
+            return 'ai_rate_limited';
+        }
+
+        if ($exception->getCode() === 503 || str_contains($exception->getMessage(), 'Unknown error')) {
+            return 'ai_provider_unavailable';
+        }
+
+        $message = Str::lower($exception->getMessage());
+
+        if (str_contains($message, 'quota')
+            || str_contains($message, 'credit')
+            || str_contains($message, 'insufficient')) {
+            return 'ai_insufficient_credits';
+        }
+
+        return 'ai_request_failed';
+    }
+
+    private function resolveAsyncAiExceptionStatus(AiException $exception): int
+    {
+        return match ($this->resolveAsyncAiExceptionCode($exception)) {
+            'ai_rate_limited' => 429,
+            'ai_provider_unavailable', 'ai_insufficient_credits' => 503,
+            default => 500,
+        };
     }
 }

@@ -44,5 +44,7 @@ export const renderMarkdown = (value: string): string => {
         return '';
     }
 
-    return String(markdownProcessor.processSync(value.replaceAll('\r\n', '\n')));
+    return String(
+        markdownProcessor.processSync(value.replaceAll('\r\n', '\n')),
+    );
 };

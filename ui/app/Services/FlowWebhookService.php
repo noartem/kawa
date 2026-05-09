@@ -505,7 +505,7 @@ for node in ast.walk(tree):
             continue
 
         for keyword in decorator.keywords:
-            if keyword.arg not in {'receivs', 'receives'}:
+            if keyword.arg != 'receives':
                 continue
 
             for declaration in iter_webhook_calls(keyword.value):

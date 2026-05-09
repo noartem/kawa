@@ -86,6 +86,11 @@ class Flow extends Model
         return $this->hasMany(AgentConversation::class);
     }
 
+    public function chats(): HasMany
+    {
+        return $this->conversations();
+    }
+
     public function activeChatConversation(): BelongsTo
     {
         return $this->belongsTo(
@@ -93,6 +98,11 @@ class Flow extends Model
             'active_chat_conversation_id',
             'id',
         );
+    }
+
+    public function chatRequests(): HasMany
+    {
+        return $this->hasMany(FlowChatRequestStatus::class);
     }
 
     public function activeRun(string $type): ?FlowRun

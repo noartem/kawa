@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { DeploymentCard, FlowRun } from '@/components/flows/editor/types';
+import { Link } from '@inertiajs/vue3';
 import { Badge } from '@/components/ui/badge';
 import { show as flowDeploymentShow } from '@/routes/flows/deployments';
-import { Link } from '@inertiajs/vue3';
 import { ArrowUpRight } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 

@@ -6,21 +6,35 @@ import type {
 } from '@/components/flows/editor/types';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowUp, Bot, MessageSquarePlus, Minimize2 } from 'lucide-vue-next';
+import { Link } from '@inertiajs/vue3';
+import {
+    ArrowUp,
+    Bot,
+    History,
+    MessageSquarePlus,
+    Minimize2,
+} from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const draft = defineModel<string>('draft', { required: true });
 const messagesViewport = ref<HTMLDivElement | null>(null);
 
-const props = defineProps<{
-    chat: FlowChatConversation | null;
-    messages: FlowChatMessage[];
-    canUpdate: boolean;
-    pending: boolean;
-    currentCode: string;
-    formatRecentDate: (value?: string | null) => string;
-}>();
+const props = withDefaults(
+    defineProps<{
+        chat: FlowChatConversation | null;
+        messages: FlowChatMessage[];
+        canUpdate: boolean;
+        pending: boolean;
+        currentCode: string;
+        allChatsUrl?: string | null;
+        formatRecentDate: (value?: string | null) => string;
+        variant?: 'framed' | 'plain';
+    }>(),
+    {
+        variant: 'framed',
+    },
+);
 
 const emit = defineEmits<{
     send: [];
@@ -79,13 +93,17 @@ watch(messageScrollSignature, async (_next, previous) => {
 onMounted(() => {
     scrollToLatestMessage('auto');
 });
+
+const containerClass = computed(() => {
+    return props.variant === 'plain'
+        ? 'flex h-full min-h-[640px] flex-col divide-y overflow-hidden bg-background'
+        : 'flex h-full min-h-[640px] flex-col divide-y overflow-hidden rounded-xl border border-border bg-background';
+});
 </script>
 
 <template>
-    <div
-        class="flex h-full min-h-[640px] flex-col divide-y overflow-hidden rounded-xl border border-border bg-background"
-    >
-        <div class="flex flex-wrap items-start gap-2 px-4 pt-3 pb-2">
+    <div :class="containerClass">
+        <div class="flex flex-wrap items-center gap-2 bg-muted/40 px-4 py-2">
             <h2 class="text-base font-medium">
                 {{ t('flows.editor.chat.title') }}
             </h2>
@@ -94,9 +112,22 @@ onMounted(() => {
 
             <div class="flex flex-wrap gap-1">
                 <Button
+                    v-if="allChatsUrl"
+                    as-child
                     variant="outline"
                     size="sm"
-                    class="h-7 rounded-md border-0 bg-muted/50 px-2 shadow-none"
+                    class="h-7 rounded-md px-2 shadow-none"
+                >
+                    <Link :href="allChatsUrl">
+                        <History class="size-4" />
+                        {{ t('flows.editor.chat.history') }}
+                    </Link>
+                </Button>
+
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="h-7 rounded-md px-2 shadow-none"
                     :disabled="pending || !canUpdate"
                     @click="emit('new-chat')"
                 >
@@ -107,7 +138,7 @@ onMounted(() => {
                 <Button
                     variant="outline"
                     size="sm"
-                    class="h-7 rounded-md border-0 bg-muted/50 px-2 shadow-none"
+                    class="h-7 rounded-md px-2 shadow-none"
                     :disabled="!canCompact"
                     @click="emit('compact')"
                 >

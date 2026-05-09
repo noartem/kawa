@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 
 class FlowActionController extends Controller
 {
+    private const DEFAULT_PAGE_ORIGIN = 'show';
+
     private const DEFAULT_EDITOR_DEPLOYMENT = 'development';
 
     private const DEFAULT_EDITOR_TAB = 'overview';
@@ -27,12 +29,17 @@ class FlowActionController extends Controller
         'changes',
     ];
 
+    private const PAGE_ORIGINS = [
+        'show',
+        'editor',
+    ];
+
     public function run(Request $request, Flow $flow, FlowService $flows): RedirectResponse
     {
         $result = $flows->start($flow);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
@@ -46,7 +53,7 @@ class FlowActionController extends Controller
         $result = $flows->stop($flow);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
@@ -62,7 +69,7 @@ class FlowActionController extends Controller
             : $flows->restart($flow);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
@@ -76,7 +83,7 @@ class FlowActionController extends Controller
         $result = $flows->deployProduction($flow);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
@@ -90,7 +97,7 @@ class FlowActionController extends Controller
         $result = $flows->undeployProduction($flow);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
@@ -103,7 +110,7 @@ class FlowActionController extends Controller
     {
         if ($flow->hasActiveDeploys()) {
             return redirect()
-                ->route('flows.show', $this->editorRouteParameters($request, $flow))
+                ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
                 ->with('error', __('flows.archive.error_active'));
         }
 
@@ -112,7 +119,7 @@ class FlowActionController extends Controller
         ]);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with('success', __('flows.archived'));
     }
 
@@ -123,7 +130,7 @@ class FlowActionController extends Controller
         ]);
 
         return redirect()
-            ->route('flows.show', $this->editorRouteParameters($request, $flow))
+            ->route($this->editorRedirectRoute($request), $this->editorRouteParameters($request, $flow))
             ->with('success', __('flows.restored'));
     }
 
@@ -155,5 +162,21 @@ class FlowActionController extends Controller
         return is_string($tab) && in_array($tab, self::EDITOR_TABS, true)
             ? $tab
             : self::DEFAULT_EDITOR_TAB;
+    }
+
+    private function editorRedirectRoute(Request $request): string
+    {
+        return $this->resolvePageOrigin($request) === 'editor'
+            ? 'flows.editor'
+            : 'flows.show';
+    }
+
+    private function resolvePageOrigin(Request $request): string
+    {
+        $origin = $request->query('origin');
+
+        return is_string($origin) && in_array($origin, self::PAGE_ORIGINS, true)
+            ? $origin
+            : self::DEFAULT_PAGE_ORIGIN;
     }
 }

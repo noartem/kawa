@@ -29,7 +29,7 @@ class SecondDone:
     order_id: int
 
 
-@actor(receivs=Webhook.by("chain-start"), sends=FirstDone)
+@actor(receives=Webhook.by("chain-start"), sends=FirstDone)
 def FirstActor(ctx: Context, event: Webhook):
     payload = event.payload if isinstance(event.payload, dict) else {}
     order_id = int(payload.get("order_id", 0))
@@ -54,7 +54,7 @@ def FirstActor(ctx: Context, event: Webhook):
     )
 
 
-@actor(receivs=FirstDone, sends=SecondDone)
+@actor(receives=FirstDone, sends=SecondDone)
 def SecondActor(ctx: Context, event: FirstDone):
     seed_flag = str(ctx.storage.get("seed.flags.0", "missing"))
     second_note = f"{event.shared_first}|{event.order_id}"
@@ -74,7 +74,7 @@ def SecondActor(ctx: Context, event: FirstDone):
     )
 
 
-@actor(receivs=SecondDone)
+@actor(receives=SecondDone)
 def ThirdActor(ctx: Context, event: SecondDone):
     ctx.storage.set("chain.steps.2.actor", "ThirdActor")
     ctx.storage.set("chain.steps.2.seen_first_actor", event.first_actor)

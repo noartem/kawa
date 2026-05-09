@@ -38,6 +38,7 @@ All code must follow Laravel best practices and PSR-12 standards:
 6. **Proper Namespacing** - Organize imports logically, use full type hints
 
 **When reviewing or refactoring code:**
+
 - Focus on clarity and maintainability over cleverness
 - Simplify complex nested logic into readable structures
 - Extract magic values into named constants or config
@@ -97,7 +98,7 @@ final class Task extends Model
 {
     use HasFactory;
     use HasUlids;
-    
+
     protected $fillable = [
         'title',
         'description',
@@ -281,6 +282,7 @@ final readonly class StoreController
 Standard format for all responses:
 
 **Success:**
+
 ```json
 {
     "data": {...},
@@ -289,6 +291,7 @@ Standard format for all responses:
 ```
 
 **Error (Problem+JSON):**
+
 ```json
 {
     "type": "about:blank",
@@ -402,7 +405,7 @@ Replace nested ternaries with match for clarity:
 
 ```php
 // ❌ Avoid: Nested ternary
-$status = $task->completed_at 
+$status = $task->completed_at
     ? ($task->verified ? 'verified' : 'completed')
     : ($task->started_at ? 'in_progress' : 'pending');
 
@@ -424,6 +427,7 @@ $status = match (true) {
 ## Templates
 
 Template files in `assets/templates/` for quick scaffolding:
+
 - Controller.php
 - FormRequest.php
 - Payload.php

@@ -332,6 +332,20 @@ class EventHandler:
                 correlation_id=correlation_id,
             )
 
+        if action == "create_container":
+            await self.messaging.publish_event(
+                "container_create_failed",
+                {
+                    "flow_id": data.get("flow_id"),
+                    "flow_run_id": data.get("flow_run_id"),
+                    "container_id": data.get("container_id"),
+                    "name": data.get("name"),
+                    "image": data.get("image"),
+                    "error_type": error_type,
+                    "message": error_message,
+                },
+            )
+
         container_id = data.get("container_id", "unknown")
         await self.user_logger.container_error(
             container_id, error_message, operation=action

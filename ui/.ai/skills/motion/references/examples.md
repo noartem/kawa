@@ -30,10 +30,10 @@ These React/CSS libraries provide patterns easily ported to Motion Vue:
 ```vue
 <!-- Parallax -->
 <script setup>
-import { motion, useScroll, useTransform } from 'motion-v'
+import { motion, useScroll, useTransform } from 'motion-v';
 
-const { scrollYProgress } = useScroll()
-const y = useTransform(scrollYProgress, [0, 1], [0, -200])
+const { scrollYProgress } = useScroll();
+const y = useTransform(scrollYProgress, [0, 1], [0, -200]);
 </script>
 
 <motion.div :style="{ y }">Parallax content</motion.div>
@@ -42,8 +42,8 @@ const y = useTransform(scrollYProgress, [0, 1], [0, -200])
 ```vue
 <!-- Progress bar -->
 <motion.div
-  class="fixed top-0 left-0 right-0 h-1 bg-blue-500 origin-left"
-  :style="{ scaleX: scrollYProgress }"
+    class="fixed top-0 right-0 left-0 h-1 origin-left bg-blue-500"
+    :style="{ scaleX: scrollYProgress }"
 />
 ```
 
@@ -52,21 +52,21 @@ const y = useTransform(scrollYProgress, [0, 1], [0, -200])
 ```vue
 <!-- Expanding card -->
 <motion.div
-  :layoutId="`card-${id}`"
-  @click="expanded = !expanded"
-  :class="expanded ? 'w-full h-64' : 'w-32 h-32'"
+    :layoutId="`card-${id}`"
+    @click="expanded = !expanded"
+    :class="expanded ? 'h-64 w-full' : 'h-32 w-32'"
 />
 ```
 
 ```vue
 <!-- Reordering list -->
 <motion.li
-  v-for="item in items"
-  :key="item.id"
-  layout
-  :initial="{ opacity: 0 }"
-  :animate="{ opacity: 1 }"
-  :exit="{ opacity: 0 }"
+    v-for="item in items"
+    :key="item.id"
+    layout
+    :initial="{ opacity: 0 }"
+    :animate="{ opacity: 1 }"
+    :exit="{ opacity: 0 }"
 />
 ```
 
@@ -93,20 +93,20 @@ function reset() {
 </script>
 
 <motion.button
-  :style="{ x, y }"
-  @mousemove="handleMouse"
-  @mouseleave="reset"
-  :transition="{ type: 'spring', stiffness: 150 }"
+    :style="{ x, y }"
+    @mousemove="handleMouse"
+    @mouseleave="reset"
+    :transition="{ type: 'spring', stiffness: 150 }"
 />
 ```
 
 ```vue
 <!-- Swipe to dismiss -->
 <motion.div
-  drag="x"
-  :dragConstraints="{ left: 0, right: 0 }"
-  :onDragEnd="(_, info) => info.offset.x > 100 && dismiss()"
-  :style="{ x }"
+    drag="x"
+    :dragConstraints="{ left: 0, right: 0 }"
+    :onDragEnd="(_, info) => info.offset.x > 100 && dismiss()"
+    :style="{ x }"
 />
 ```
 
@@ -115,33 +115,33 @@ function reset() {
 ```vue
 <!-- Staggered text reveal -->
 <script setup>
-import { motion } from 'motion-v'
+import { motion } from 'motion-v';
 
-const words = text.split(' ')
+const words = text.split(' ');
 </script>
 
 <template>
-  <span v-for="(word, i) in words" :key="i">
-    <motion.span
-      :initial="{ opacity: 0, y: 20 }"
-      :animate="{ opacity: 1, y: 0 }"
-      :transition="{ delay: i * 0.1 }"
-    >
-      {{ word }}
-    </motion.span>
-    {{ ' ' }}
-  </span>
+    <span v-for="(word, i) in words" :key="i">
+        <motion.span
+            :initial="{ opacity: 0, y: 20 }"
+            :animate="{ opacity: 1, y: 0 }"
+            :transition="{ delay: i * 0.1 }"
+        >
+            {{ word }}
+        </motion.span>
+        {{ ' ' }}
+    </span>
 </template>
 ```
 
 ```vue
 <!-- Character animation -->
 <motion.span
-  v-for="(char, i) in text.split('')"
-  :key="i"
-  :initial="{ opacity: 0 }"
-  :animate="{ opacity: 1 }"
-  :transition="{ delay: i * 0.03 }"
+    v-for="(char, i) in text.split('')"
+    :key="i"
+    :initial="{ opacity: 0 }"
+    :animate="{ opacity: 1 }"
+    :transition="{ delay: i * 0.03 }"
 >
   {{ char }}
 </motion.span>
@@ -152,18 +152,18 @@ const words = text.split(' ')
 ```vue
 <!-- Path drawing -->
 <motion.path
-  d="M0 0 L100 100"
-  :initial="{ pathLength: 0 }"
-  :animate="{ pathLength: 1 }"
-  :transition="{ duration: 2, ease: 'easeInOut' }"
+    d="M0 0 L100 100"
+    :initial="{ pathLength: 0 }"
+    :animate="{ pathLength: 1 }"
+    :transition="{ duration: 2, ease: 'easeInOut' }"
 />
 ```
 
 ```vue
 <!-- Morphing shapes -->
 <motion.path
-  :animate="{ d: isCircle ? circlePath : squarePath }"
-  :transition="{ duration: 0.5 }"
+    :animate="{ d: isCircle ? circlePath : squarePath }"
+    :transition="{ duration: 0.5 }"
 />
 ```
 
@@ -185,9 +185,9 @@ function handleMouse(e: MouseEvent) {
 </script>
 
 <motion.div
-  :style="{ background }"
-  @mousemove="handleMouse"
-  class="fixed inset-0"
+    :style="{ background }"
+    @mousemove="handleMouse"
+    class="fixed inset-0"
 />
 ```
 

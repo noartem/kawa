@@ -1,4 +1,7 @@
-import type { DispatchPathHighlight } from './flows/graphHighlights';
+import type {
+    DispatchPathHighlight,
+    FlowGraphEdgeHighlight,
+} from './flows/graphHighlights';
 
 interface FlowLogRecord {
     id: number;
@@ -75,6 +78,84 @@ export const resolveDispatchPathHighlight = (
         event,
         triggerEvent: stringValue(context?.trigger_event),
     };
+};
+
+export const resolveLogEdgeHighlight = (
+    log: FlowLogRecord,
+): FlowGraphEdgeHighlight | null => {
+    const eventKey = extractEventKey(log.message);
+
+    if (eventKey === 'flow_runtime_event') {
+        const context = asRecord(log.context);
+        const kind = stringValue(context?.kind);
+        const actor = stringValue(context?.actor);
+
+        if (kind === 'actor_invoked') {
+            const triggerEvent =
+                stringValue(context?.trigger_event) ?? stringValue(context?.event);
+
+            if (!triggerEvent || !actor) {
+                return null;
+            }
+
+            return {
+                from: triggerEvent,
+                to: actor,
+            };
+        }
+
+        if (kind === 'event_dispatched') {
+            const event = stringValue(context?.event);
+
+            if (!actor || !event) {
+                return null;
+            }
+
+            return {
+                from: actor,
+                to: event,
+            };
+        }
+
+        return null;
+    }
+
+    if (eventKey !== 'activity' && eventKey !== 'activity_log') {
+        return null;
+    }
+
+    const context = asRecord(log.context);
+    const details = asRecord(context?.details);
+    const activityType = stringValue(context?.type);
+    const actor = stringValue(details?.actor);
+
+    if (activityType === 'actor_invoked') {
+        const triggerEvent = stringValue(details?.trigger_event);
+
+        if (!triggerEvent || !actor) {
+            return null;
+        }
+
+        return {
+            from: triggerEvent,
+            to: actor,
+        };
+    }
+
+    if (activityType === 'actor_dispatched') {
+        const dispatchedEvent = stringValue(details?.dispatched_event);
+
+        if (!actor || !dispatchedEvent) {
+            return null;
+        }
+
+        return {
+            from: actor,
+            to: dispatchedEvent,
+        };
+    }
+
+    return null;
 };
 
 export const resolveNewLogs = <TLog extends { id: number }>(

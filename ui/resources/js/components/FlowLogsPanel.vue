@@ -4,11 +4,15 @@ import { cn } from '@/lib/utils';
 import {
     resolveFreshLogIds,
     resolveDispatchPathHighlight,
+    resolveLogEdgeHighlight,
     resolveNewLogs,
     resolveStreamReplaySuppression,
     retainVisibleLogIds,
 } from './FlowLogsPanel.helpers';
-import type { DispatchPathHighlight } from './flows/graphHighlights';
+import type {
+    DispatchPathHighlight,
+    FlowGraphEdgeHighlight,
+} from './flows/graphHighlights';
 import {
     computed,
     onBeforeUnmount,
@@ -65,6 +69,7 @@ interface DisplayLog extends FlowLog {
     levelClass: string;
     labelSegments: LogLabelSegment[];
     renderedMessage: string | null;
+    edgeHighlight: FlowGraphEdgeHighlight | null;
 }
 
 const props = withDefaults(
@@ -74,17 +79,21 @@ const props = withDefaults(
         emptyMessage: string;
         compact?: boolean;
         dense?: boolean;
+        variant?: 'framed' | 'plain';
         class?: HTMLAttributes['class'];
     }>(),
     {
         compact: false,
         dense: false,
+        variant: 'framed',
     },
 );
 
 const emit = defineEmits<{
     'select-node': [payload: FlowTarget];
     'dispatch-edge-highlight': [payload: DispatchPathHighlight];
+    'log-edge-hover': [payload: FlowGraphEdgeHighlight | null];
+    'log-edge-focus': [payload: FlowGraphEdgeHighlight];
 }>();
 
 const { t, te } = useI18n();
@@ -94,6 +103,7 @@ const scrollBottomThreshold = 12;
 const payloadPreviewLimit = 6;
 const inlineValueMaxLength = 80;
 const freshLogIds = ref<Set<number>>(new Set());
+const hoveredLogId = ref<number | null>(null);
 
 const FRESH_LOG_HIGHLIGHT_MS = 1800;
 const freshLogTimers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -514,11 +524,7 @@ const resolveActivityLabelSegments = (
 
         return [
             createTextSegment(t('flows.logs.inline.webhook_prefix')),
-            createEventSegment(
-                slug,
-                detailsPayload,
-                `Webhook.by(${slug})`,
-            ),
+            createEventSegment(slug, detailsPayload, `Webhook.by(${slug})`),
             createTextSegment(t('flows.logs.inline.webhook_received_suffix')),
         ];
     }
@@ -559,7 +565,9 @@ const resolveRuntimeEventLabelSegments = (
     const actor = stringValue(context?.actor) ?? t('common.unknown');
     const event = stringValue(context?.event) ?? t('common.unknown');
     const triggerEvent =
-        stringValue(context?.trigger_event) ?? t('common.unknown');
+        stringValue(context?.trigger_event) ??
+        stringValue(context?.event) ??
+        t('common.unknown');
 
     if (kind === 'actor_invoked') {
         return createActorInvokedSegments(actor, triggerEvent, payloadDetails);
@@ -770,6 +778,7 @@ const displayLogs = computed<DisplayLog[]>(() => {
             levelLabel: resolveLogLevelLabel(log.level),
             levelClass: resolveLogLevelClass(log.level),
             labelSegments: inlineLabelSegments,
+            edgeHighlight: resolveLogEdgeHighlight(log),
             renderedMessage: resolveRenderedMessage(
                 log,
                 parsedEvent,
@@ -798,7 +807,15 @@ const messageClass = computed(() =>
 );
 
 const containerClass = computed(() => {
-    return 'divide-y overflow-y-auto overscroll-contain rounded-md border bg-muted/40';
+    return props.variant === 'plain'
+        ? 'divide-y overflow-y-auto overscroll-contain bg-muted/40'
+        : 'divide-y overflow-y-auto overscroll-contain rounded-md border bg-muted/40';
+});
+
+const emptyStateClass = computed(() => {
+    return props.variant === 'plain'
+        ? 'flex items-center justify-center p-4 text-sm text-muted-foreground'
+        : 'flex items-center justify-center rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground';
 });
 
 const nodeTokenClass =
@@ -856,7 +873,10 @@ const clearFreshLogs = (): void => {
 };
 
 const pruneFreshLogs = (): void => {
-    const retainedFreshLogIds = retainVisibleLogIds(props.logs, freshLogIds.value);
+    const retainedFreshLogIds = retainVisibleLogIds(
+        props.logs,
+        freshLogIds.value,
+    );
     const removedLogIds = [...freshLogIds.value].filter(
         (logId) => !retainedFreshLogIds.has(logId),
     );
@@ -886,6 +906,32 @@ const selectNode = (
 
     event.stopPropagation();
     emit('select-node', target);
+};
+
+const setHoveredLogEdge = (log: DisplayLog): void => {
+    hoveredLogId.value = log.id;
+    emit('log-edge-hover', log.edgeHighlight);
+};
+
+const clearHoveredLogEdge = (logId?: number): void => {
+    if (typeof logId === 'number' && hoveredLogId.value !== logId) {
+        return;
+    }
+
+    if (hoveredLogId.value === null) {
+        return;
+    }
+
+    hoveredLogId.value = null;
+    emit('log-edge-hover', null);
+};
+
+const focusLogEdge = (log: DisplayLog): void => {
+    if (!log.edgeHighlight) {
+        return;
+    }
+
+    emit('log-edge-focus', log.edgeHighlight);
 };
 
 const isScrolledToBottom = (): boolean => {
@@ -919,7 +965,20 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     clearFreshLogs();
     pendingReplaySuppressionStreamKey = undefined;
+    clearHoveredLogEdge();
 });
+
+watch(
+    () => props.logs.map((log) => log.id),
+    (logIds) => {
+        if (
+            hoveredLogId.value !== null &&
+            !logIds.includes(hoveredLogId.value)
+        ) {
+            clearHoveredLogEdge();
+        }
+    },
+);
 
 watch(
     () => ({
@@ -1005,8 +1064,12 @@ watch(
             :key="log.id"
             :class="[
                 itemPaddingClass,
+                log.edgeHighlight ? 'cursor-pointer' : '',
                 freshLogIds.has(log.id) ? 'fresh-log-entry' : '',
             ]"
+            @click="focusLogEdge(log)"
+            @mouseenter="setHoveredLogEdge(log)"
+            @mouseleave="clearHoveredLogEdge(log.id)"
         >
             <div
                 class="flex items-start justify-between gap-3 text-xs text-muted-foreground"
@@ -1036,8 +1099,7 @@ watch(
                             </span>
                             <button
                                 v-else-if="
-                                    segment.kind === 'actor' &&
-                                    segment.target
+                                    segment.kind === 'actor' && segment.target
                                 "
                                 type="button"
                                 :class="nodeButtonClass"
@@ -1057,7 +1119,11 @@ watch(
                                 >
                                     <component
                                         :is="segment.target ? 'button' : 'span'"
-                                        :type="segment.target ? 'button' : undefined"
+                                        :type="
+                                            segment.target
+                                                ? 'button'
+                                                : undefined
+                                        "
                                         :class="[
                                             nodeTokenClass,
                                             segment.target
@@ -1111,7 +1177,7 @@ watch(
     </div>
     <div
         v-else
-        class="flex items-center justify-center rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground"
+        :class="emptyStateClass"
     >
         {{ emptyMessage }}
     </div>

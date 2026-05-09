@@ -20,7 +20,7 @@ def mock_actor_definition():
     actor_def.id = "actor1"
     actor_def.name = "TestActor"
     actor_def.doc = "A test actor"
-    actor_def.receivs = []
+    actor_def.receives = []
     actor_def.sends = []
     actor_def.min_instances = 1
     actor_def.max_instances = 1

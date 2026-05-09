@@ -58,6 +58,45 @@ class FlowRunErrorHandlingTest extends TestCase
             );
     }
 
+    public function test_run_action_redirects_to_editor_when_origin_is_editor(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne();
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('createContainer')
+            ->once()
+            ->andReturn([
+                'ok' => false,
+                'message' => 'No such image: flow:dev',
+                'error_type' => 'image_not_found',
+                'details' => [
+                    'data' => [
+                        'image' => 'flow:dev',
+                    ],
+                ],
+            ]);
+
+        $this
+            ->actingAs($user)
+            ->post(route('flows.run', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+                'origin' => 'editor',
+            ]))
+            ->assertRedirect(route('flows.editor', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'chat',
+            ]))
+            ->assertSessionHas(
+                'error',
+                __('flows.run.image_not_found', ['image' => 'flow:dev']),
+            );
+    }
+
     public function test_flow_service_marks_run_as_error_when_flow_manager_returns_image_not_found(): void
     {
         /** @var User $user */
@@ -307,6 +346,64 @@ PY,
         $result = app(FlowService::class)->deployProduction($flow);
 
         $this->assertFalse($result['ok']);
+    }
+
+    public function test_mark_lock_ready_adds_local_kawa_package_for_script_metadata_runtime(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'deploying',
+            'container_id' => null,
+            'image' => 'flow:dev',
+            'code' => <<<'PY'
+# /// script
+# dependencies = [
+#   "httpx>=0.27",
+# ]
+# ///
+
+from kawa import Message
+
+print(Message(message='ok'))
+PY,
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'production',
+            'active' => true,
+            'status' => 'locked',
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => [
+                'nodes' => [],
+                'edges' => [],
+            ],
+            'lock' => 'lock-data',
+            'started_at' => now(),
+        ]);
+
+        $this->mock(FlowManagerClient::class)
+            ->shouldReceive('createContainer')
+            ->once()
+            ->withArgs(function (array $payload): bool {
+                return ($payload['command'] ?? null) === [
+                    'uv',
+                    'run',
+                    '--with-editable',
+                    '/tmp/kawa',
+                    '/flow/main.py',
+                ];
+            })
+            ->andReturn([
+                'ok' => true,
+                'data' => [
+                    'container_id' => 'production-container-id',
+                ],
+            ]);
+
+        $result = app(FlowService::class)->markLockReady($flow, $run);
+
+        $this->assertTrue($result['ok']);
     }
 
     public function test_deploy_production_returns_failure_when_runtime_container_creation_fails(): void
@@ -1354,6 +1451,42 @@ PY,
         $this->assertFalse($run->active);
         $this->assertNotNull($run->finished_at);
         $this->assertNull($flow->container_id);
+    }
+
+    public function test_container_create_failed_event_marks_creating_run_as_error(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'status' => 'draft',
+        ]);
+
+        $run = $flow->runs()->create([
+            'type' => 'development',
+            'active' => true,
+            'status' => 'creating',
+            'started_at' => now()->subMinute(),
+            'container_id' => null,
+            'code_snapshot' => $flow->code,
+            'graph_snapshot' => ['nodes' => [], 'edges' => []],
+        ]);
+
+        $job = new ProcessFlowManager('container_create_failed', [
+            'flow_id' => $flow->id,
+            'flow_run_id' => $run->id,
+            'image' => 'flow:dev',
+            'message' => 'No such image: flow:dev',
+            'error_type' => 'image_not_found',
+        ]);
+        $job->handle();
+
+        $run->refresh();
+
+        $this->assertSame('error', $run->status);
+        $this->assertFalse($run->active);
+        $this->assertNotNull($run->finished_at);
+        $this->assertSame('image_not_found', $run->meta['error_type'] ?? null);
+        $this->assertSame('No such image: flow:dev', $run->meta['message'] ?? null);
     }
 
     public function test_flow_service_normalizes_finished_active_run_to_stopped(): void

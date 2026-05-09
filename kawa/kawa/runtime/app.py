@@ -307,7 +307,7 @@ def extract_graph() -> dict:
                     continue
 
                 for keyword in decorator.keywords:
-                    if keyword.arg in ("receivs", "receives"):
+                    if keyword.arg == "receives":
                         normalized = normalize_receive(keyword.value)
                         if isinstance(normalized, list):
                             receives.extend(normalized)
@@ -616,7 +616,7 @@ def process_pending_events(pending_events: list, registry) -> None:
         for actor_definition in registry.actors.values():
             if not any(
                 receive_definition_matches_event(receive_definition, incoming_event)
-                for receive_definition in actor_definition.receivs
+                for receive_definition in actor_definition.receives
             ):
                 continue
 
@@ -718,7 +718,7 @@ def process_cron_tick(data: dict) -> dict:
     for actor_definition in registry.actors.values():
         actor_name = actor_definition.name
 
-        for receive_definition in actor_definition.receivs:
+        for receive_definition in actor_definition.receives:
             event_filter = receive_definition.eventClassOrFilter
             if not isinstance(event_filter, EventFilter):
                 continue

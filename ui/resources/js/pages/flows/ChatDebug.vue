@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { show as flowShow, index as flowsIndex } from '@/routes/flows';
+import {
+    editor as flowEditor,
+    show as flowShow,
+    index as flowsIndex,
+} from '@/routes/flows';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -50,7 +49,7 @@ const props = defineProps<{
                 role: string;
                 content: string;
                 response_mode?: string | null;
-            }>; 
+            }>;
             user_message: string;
             should_generate_title: boolean;
             structured_output: Record<string, string>;
@@ -107,13 +106,15 @@ const asPrettyJson = (value: unknown): string => {
                 <div>
                     <h1 class="text-2xl font-semibold">Chat Debug</h1>
                     <p class="text-sm text-muted-foreground">
-                        Inspect the exact Flow chat payload before it goes to the
-                        LLM.
+                        Inspect the exact Flow chat payload before it goes to
+                        the LLM.
                     </p>
                 </div>
 
                 <Button variant="outline" as-child>
-                    <a :href="flowShow({ flow: flow.id }).url">Back to editor</a>
+                    <a :href="flowEditor({ flow: flow.id }).url"
+                        >Back to editor</a
+                    >
                 </Button>
             </div>
 
@@ -161,16 +162,21 @@ const asPrettyJson = (value: unknown): string => {
                         <CardTitle>Resolved runtime config</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <pre class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{{
-asPrettyJson({
-    provider: preview.provider,
-    model: preview.model,
-    base_url: preview.base_url,
-    should_generate_title: preview.should_generate_title,
-    history_strategy: preview.history_strategy,
-    active_conversation: preview.active_conversation,
-})
-                        }}</pre>
+                        <pre
+                            class="overflow-x-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap"
+                            >{{
+                                asPrettyJson({
+                                    provider: preview.provider,
+                                    model: preview.model,
+                                    base_url: preview.base_url,
+                                    should_generate_title:
+                                        preview.should_generate_title,
+                                    history_strategy: preview.history_strategy,
+                                    active_conversation:
+                                        preview.active_conversation,
+                                })
+                            }}</pre
+                        >
                     </CardContent>
                 </Card>
 
@@ -179,9 +185,10 @@ asPrettyJson({
                         <CardTitle>Structured output schema</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <pre class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{{
-asPrettyJson(preview.schema)
-                        }}</pre>
+                        <pre
+                            class="overflow-x-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap"
+                            >{{ asPrettyJson(preview.schema) }}</pre
+                        >
                     </CardContent>
                 </Card>
             </div>
@@ -191,9 +198,10 @@ asPrettyJson(preview.schema)
                     <CardTitle>System prompt / instructions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <pre class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{{
-preview.instructions
-                    }}</pre>
+                    <pre
+                        class="overflow-x-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap"
+                        >{{ preview.instructions }}</pre
+                    >
                 </CardContent>
             </Card>
 
@@ -202,9 +210,10 @@ preview.instructions
                     <CardTitle>Persisted history used for context</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <pre class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{{
-asPrettyJson(preview.history)
-                    }}</pre>
+                    <pre
+                        class="overflow-x-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap"
+                        >{{ asPrettyJson(preview.history) }}</pre
+                    >
                 </CardContent>
             </Card>
 
@@ -213,9 +222,10 @@ asPrettyJson(preview.history)
                     <CardTitle>Final request preview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <pre class="overflow-x-auto whitespace-pre-wrap rounded-lg bg-muted p-4 text-xs">{{
-asPrettyJson(preview.request_preview)
-                    }}</pre>
+                    <pre
+                        class="overflow-x-auto rounded-lg bg-muted p-4 text-xs whitespace-pre-wrap"
+                        >{{ asPrettyJson(preview.request_preview) }}</pre
+                    >
                 </CardContent>
             </Card>
         </div>

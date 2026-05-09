@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import type { FlowWebhookEndpoint } from '@/components/flows/editor/types';
+import {
+    describeCronExpression,
+    splitCronEventName,
+} from '@/components/flows/editor/cronEvent';
 import FlowWebhookQuickSender from '@/components/flows/editor/FlowWebhookQuickSender.vue';
 import {
     Tooltip,
@@ -7,9 +12,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import cronstrue from 'cronstrue';
-import 'cronstrue/locales/ru';
-import { ArrowUpRight, ScanSearch } from 'lucide-vue-next';
+import { logFlowGraphVisibility } from '@/components/flows/graphVisibilityDebug';
+import { ArrowUpRight, Eye, EyeOff, ScanSearch } from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -67,12 +71,14 @@ const props = withDefaults(
     defineProps<{
         graph?: Record<string, unknown> | null;
         webhookEndpoints?: FlowWebhookEndpoint[];
+        hiddenNodeIds?: string[];
         selectedTarget?: DiscoverySelectionTarget | null;
         outdated?: boolean;
     }>(),
     {
         graph: null,
         webhookEndpoints: () => [],
+        hiddenNodeIds: () => [],
         selectedTarget: null,
         outdated: false,
     },
@@ -80,6 +86,14 @@ const props = withDefaults(
 
 const emit = defineEmits<{
     (event: 'jump-to-code', line: number): void;
+    (
+        event: 'node-select',
+        payload: { id: string; type: DiscoveryItemType },
+    ): void;
+    (
+        event: 'toggle-node-visibility',
+        payload: { id: string; type: DiscoveryItemType },
+    ): void;
 }>();
 
 const { locale, t } = useI18n();
@@ -143,63 +157,9 @@ const discoveryLocale = computed(() => {
     return locale.value === 'ru' ? 'ru' : 'en';
 });
 
-const extractCronExpression = (name: string): string | null => {
-    const prefix = 'CronEvent.by(';
-    if (!name.startsWith(prefix) || !name.endsWith(')')) {
-        return null;
-    }
-
-    const rawExpression = name.slice(prefix.length, -1).trim();
-    if (!rawExpression) {
-        return null;
-    }
-
-    if (
-        (rawExpression.startsWith('"') && rawExpression.endsWith('"')) ||
-        (rawExpression.startsWith("'") && rawExpression.endsWith("'"))
-    ) {
-        const unwrappedExpression = rawExpression.slice(1, -1).trim();
-
-        return unwrappedExpression.length > 0 ? unwrappedExpression : null;
-    }
-
-    return rawExpression;
-};
-
-const describeCronExpression = (name: string): string | null => {
-    const cronExpression = extractCronExpression(name);
-    if (!cronExpression) {
-        return null;
-    }
-
-    try {
-        return cronstrue.toString(cronExpression, {
-            locale: discoveryLocale.value,
-        });
-    } catch {
-        return null;
-    }
-};
-
-const splitCronEventName = (
-    name: string,
-): { prefix: string; expression: string; suffix: string } | null => {
-    const cronExpression = extractCronExpression(name);
-    if (!cronExpression) {
-        return null;
-    }
-
-    const expressionIndex = name.indexOf(cronExpression);
-    if (expressionIndex === -1) {
-        return null;
-    }
-
-    return {
-        prefix: name.slice(0, expressionIndex),
-        expression: cronExpression,
-        suffix: name.slice(expressionIndex + cronExpression.length),
-    };
-};
+const hiddenNodeIdSet = computed(() => {
+    return new Set(props.hiddenNodeIds.map((nodeId) => nodeId.trim()));
+});
 
 const extractWebhookSlug = (name: string): string | null => {
     const match = name.match(/^Webhook(?:Event)?\.by\(\s*(.+?)\s*\)$/);
@@ -452,7 +412,12 @@ const events = computed<DiscoveryEvent[]>(() => {
                         sourceLine: resolveSourceLine(node.source_line),
                         sourceKind: resolveSourceKind(node.source_kind),
                         sourceModule: resolveSourceModule(node.source_module),
-                        cronDescription: describeCronExpression(id),
+                        cronDescription: describeCronExpression(
+                            resolveGraphId(
+                                node.name ?? node.label ?? node.id,
+                            ) ?? id,
+                            discoveryLocale.value,
+                        ),
                     },
                 ];
             })
@@ -475,7 +440,9 @@ const events = computed<DiscoveryEvent[]>(() => {
             return [
                 {
                     id,
-                    name: resolveGraphId(event?.name ?? event?.id ?? rawEvent) ?? id,
+                    name:
+                        resolveGraphId(event?.name ?? event?.id ?? rawEvent) ??
+                        id,
                     type: 'event' as const,
                     consumedBy: uniqueNames(
                         edgeLinks.value.eventToActors.get(id) ?? [],
@@ -497,7 +464,11 @@ const events = computed<DiscoveryEvent[]>(() => {
                         resolveSourceModule(event?.source_module) ??
                         sourceMetadata?.sourceModule ??
                         null,
-                    cronDescription: describeCronExpression(id),
+                    cronDescription: describeCronExpression(
+                        resolveGraphId(event?.name ?? event?.id ?? rawEvent) ??
+                            id,
+                        discoveryLocale.value,
+                    ),
                 },
             ];
         })
@@ -626,10 +597,12 @@ const focusItem = async (
 };
 
 const handleItemClick = (type: DiscoveryItemType, id: string): void => {
+    emit('node-select', { id, type });
     void focusItem(type, id);
 };
 
 const openLinkedItem = (type: DiscoveryItemType, id: string): void => {
+    emit('node-select', { id, type });
     void focusItem(type, id);
 };
 
@@ -649,6 +622,41 @@ const implementationLabel = (line: number | null): string => {
     return t('flows.editor.discovery.implementation_line', {
         line,
     });
+};
+
+const isNodeHidden = (id: string): boolean => {
+    return hiddenNodeIdSet.value.has(id);
+};
+
+const toggleNodeVisibility = (type: DiscoveryItemType, id: string): void => {
+    logFlowGraphVisibility('FlowDiscoveryPanel.toggleNodeVisibility', {
+        type,
+        id,
+        hiddenBefore: isNodeHidden(id),
+        hiddenNodeIds: [...props.hiddenNodeIds],
+    });
+
+    emit('toggle-node-visibility', { id, type });
+};
+
+const nodeVisibilityLabel = (
+    type: DiscoveryItemType,
+    id: string,
+    name: string,
+): string => {
+    return t(
+        isNodeHidden(id)
+            ? 'flows.editor.discovery.show_node'
+            : 'flows.editor.discovery.hide_node',
+        {
+            type: t(
+                type === 'actor'
+                    ? 'flows.editor.discovery.actor_label'
+                    : 'flows.editor.discovery.event_label',
+            ),
+            name,
+        },
+    );
 };
 
 watch(
@@ -676,32 +684,61 @@ onBeforeUnmount(() => {
         :class="props.outdated ? 'opacity-70 grayscale saturate-0' : ''"
     >
         <template v-if="actors.length">
-            <h3
-                class="px-4 pt-3 pb-2 text-xs font-semibold tracking-wide text-muted-foreground"
+            <div
+                class="flex flex-wrap items-center gap-2 bg-muted/40 px-4 py-2"
             >
-                {{ t('flows.editor.discovery.actors_title') }}
-                ({{ actors.length }})
-            </h3>
+                <h3 class="text-sm font-medium">
+                    {{ t('flows.editor.discovery.actors_title') }}
+                    ({{ actors.length }})
+                </h3>
+            </div>
 
             <div
                 v-for="actor in actors"
                 :key="`actor-${actor.id}`"
                 :ref="(element) => setItemRef('actor', actor.id, element)"
-                class="grid gap-1 px-4 py-2 transition-colors"
-                :class="
+                class="group grid gap-1 px-4 py-2 transition-[background-color,opacity] duration-150"
+                :class="[
                     highlightedKey === `actor:${actor.id}`
                         ? 'bg-amber-400/10'
-                        : ''
-                "
+                        : '',
+                    isNodeHidden(actor.id) ? 'opacity-60' : '',
+                ]"
                 @click="handleItemClick('actor', actor.id)"
             >
-                <button
-                    type="button"
-                    class="mb-1 w-fit max-w-full truncate font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    @click.stop="handleItemClick('actor', actor.id)"
-                >
-                    {{ actor.name }}
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="min-w-0 text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                        :class="isNodeHidden(actor.id) ? 'line-through' : ''"
+                        @click.stop="handleItemClick('actor', actor.id)"
+                    >
+                        <span class="block truncate">{{ actor.name }}</span>
+                    </button>
+
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7 shrink-0 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
+                        :class="
+                            isNodeHidden(actor.id)
+                                ? 'text-muted-foreground'
+                                : 'text-foreground/70 hover:text-foreground'
+                        "
+                        :title="
+                            nodeVisibilityLabel('actor', actor.id, actor.name)
+                        "
+                        :aria-label="
+                            nodeVisibilityLabel('actor', actor.id, actor.name)
+                        "
+                        :aria-pressed="isNodeHidden(actor.id)"
+                        @click.stop="toggleNodeVisibility('actor', actor.id)"
+                    >
+                        <EyeOff v-if="isNodeHidden(actor.id)" class="size-4" />
+                        <Eye v-else class="size-4" />
+                    </Button>
+                </div>
 
                 <div
                     v-if="actor.receives.length > 0"
@@ -752,62 +789,101 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-if="displayEvents.length">
-            <h3
-                class="px-4 pt-4 pb-2 text-xs font-semibold tracking-wide text-muted-foreground"
+            <div
+                class="flex flex-wrap items-center gap-2 bg-muted/40 px-4 py-2"
             >
-                {{ t('flows.editor.discovery.events_title') }}
-                ({{ displayEvents.length }})
-            </h3>
+                <h3 class="text-sm font-medium">
+                    {{ t('flows.editor.discovery.events_title') }}
+                    ({{ displayEvents.length }})
+                </h3>
+            </div>
 
             <div
                 v-for="event in displayEvents"
                 :key="`event-${event.id}`"
                 :ref="(element) => setItemRef('event', event.id, element)"
-                class="grid gap-1 px-4 py-2 transition-colors"
-                :class="
+                class="group grid gap-1 px-4 py-2 transition-[background-color,opacity] duration-150"
+                :class="[
                     highlightedKey === `event:${event.id}`
                         ? 'bg-amber-400/10'
-                        : ''
-                "
+                        : '',
+                    isNodeHidden(event.id) ? 'opacity-60' : '',
+                ]"
                 @click="handleItemClick('event', event.id)"
             >
-                <TooltipProvider v-if="event.cronDescription" :delay-duration="0">
-                    <Tooltip>
-                        <TooltipTrigger as-child>
-                            <button
-                                type="button"
-                                class="mb-1 w-fit max-w-full truncate text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                                @click.stop="handleItemClick('event', event.id)"
-                            >
-                                <span>{{
-                                    splitCronEventName(event.name)?.prefix
-                                }}</span>
-                                <span
-                                    class="border-b border-current px-0.5 transition-colors hover:bg-amber-300/35 data-[state=open]:bg-amber-300/35"
+                <div class="flex min-w-0 flex-1 items-center gap-2">
+                    <TooltipProvider
+                        v-if="event.cronDescription"
+                        :delay-duration="0"
+                    >
+                        <button
+                            type="button"
+                            class="w-fit max-w-full truncate text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                            :class="
+                                isNodeHidden(event.id) ? 'line-through' : ''
+                            "
+                            @click.stop="handleItemClick('event', event.id)"
+                        >
+                            <span>
+                                {{ splitCronEventName(event.name)?.prefix }}
+                            </span>
+                            <Tooltip>
+                                <TooltipTrigger as-child>
+                                    <span
+                                        class="inline-block cursor-help border-b border-current px-0.5 transition-colors hover:bg-amber-300/35 data-[state=open]:bg-amber-300/35"
+                                    >
+                                        {{
+                                            splitCronEventName(event.name)
+                                                ?.expression
+                                        }}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    align="center"
+                                    class="max-w-xs text-xs"
                                 >
-                                    {{
-                                        splitCronEventName(event.name)
-                                            ?.expression
-                                    }}
-                                </span>
-                                <span>{{
-                                    splitCronEventName(event.name)?.suffix
-                                }}</span>
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" class="max-w-xs text-xs">
-                            {{ event.cronDescription }}
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-                <button
-                    v-else
-                    type="button"
-                    class="mb-1 flex min-w-0 w-fit max-w-full flex-wrap items-center gap-2 text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    @click.stop="handleItemClick('event', event.id)"
-                >
-                    <span class="min-w-0 truncate">{{ event.name }}</span>
-                </button>
+                                    {{ event.cronDescription }}
+                                </TooltipContent>
+                            </Tooltip>
+                            <span>
+                                {{ splitCronEventName(event.name)?.suffix }}
+                            </span>
+                        </button>
+                    </TooltipProvider>
+                    <button
+                        v-else
+                        type="button"
+                        class="flex w-fit max-w-full min-w-0 flex-wrap items-center gap-2 text-left font-mono text-sm font-semibold text-foreground transition hover:text-foreground/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                        :class="isNodeHidden(event.id) ? 'line-through' : ''"
+                        @click.stop="handleItemClick('event', event.id)"
+                    >
+                        <span class="min-w-0 truncate">{{ event.name }}</span>
+                    </button>
+
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7 shrink-0 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
+                        :class="
+                            isNodeHidden(event.id)
+                                ? 'text-muted-foreground'
+                                : 'text-foreground/70 hover:text-foreground'
+                        "
+                        :title="
+                            nodeVisibilityLabel('event', event.id, event.name)
+                        "
+                        :aria-label="
+                            nodeVisibilityLabel('event', event.id, event.name)
+                        "
+                        :aria-pressed="isNodeHidden(event.id)"
+                        @click.stop="toggleNodeVisibility('event', event.id)"
+                    >
+                        <EyeOff v-if="isNodeHidden(event.id)" class="size-4" />
+                        <Eye v-else class="size-4" />
+                    </Button>
+                </div>
 
                 <div
                     v-if="event.consumedBy.length > 0"

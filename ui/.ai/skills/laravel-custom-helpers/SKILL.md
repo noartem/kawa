@@ -18,7 +18,7 @@ Add to `composer.json`:
 
 ```json
 {
-  "autoload": { "files": ["app/Support/helpers.php"] }
+    "autoload": { "files": ["app/Support/helpers.php"] }
 }
 ```
 

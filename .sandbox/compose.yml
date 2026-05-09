@@ -11,6 +11,8 @@ services:
         NEXUS_APT_REPOSITORY: ${NEXUS_APT_REPOSITORY:-apt-debian-bookworm}
         NEXUS_APT_UPDATES_REPOSITORY: ${NEXUS_APT_UPDATES_REPOSITORY:-apt-debian-bookworm-updates}
         NEXUS_APT_SECURITY_REPOSITORY: ${NEXUS_APT_SECURITY_REPOSITORY:-apt-debian-bookworm-security}
+        RTK_REQUIRED: ${RTK_REQUIRED:-0}
+        RTK_VERSION: ${RTK_VERSION:-}
     user: "1000:1000"
     group_add:
       - "${DOCKER_GID}"

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/AppLayout.vue';
 import {
     create as flowCreate,
@@ -85,86 +84,86 @@ const statusLabel = (status?: string | null) =>
     <Head :title="t('nav.flows')" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <section class="space-y-6 p-4">
-            <div class="flex flex-col gap-8 lg:flex-row lg:items-center">
-                <div class="space-y-1">
-                    <h1 class="text-3xl leading-tight font-semibold">
-                        {{ t('flows.index.title') }}
-                    </h1>
-                    <div class="flex flex-wrap gap-3 pt-2">
-                        <Badge
-                            variant="outline"
-                            class="bg-primary/10 text-primary"
-                            >{{
-                                t('flows.index.total', {
-                                    count: metrics.total,
-                                })
-                            }}</Badge
-                        >
-                        <Badge
-                            v-if="metrics.running > 0"
-                            variant="outline"
-                            class="bg-emerald-500/10 text-emerald-300"
-                            >{{
-                                t('flows.index.running', {
-                                    count: metrics.running,
-                                })
-                            }}
-                        </Badge>
-                        <Badge
-                            v-if="metrics.failing > 0"
-                            variant="outline"
-                            class="bg-rose-500/10 text-rose-300"
-                            >{{
-                                t('flows.index.errors', {
-                                    count: metrics.failing,
-                                })
-                            }}
-                        </Badge>
-                        <Badge
-                            v-if="metrics.drafts > 0"
-                            variant="outline"
-                            class="bg-muted/60 text-muted-foreground"
-                            >{{
-                                t('flows.index.drafts', {
-                                    count: metrics.drafts,
-                                })
-                            }}
-                        </Badge>
+        <div class="flex flex-col divide-y">
+            <section class="space-y-6 p-4">
+                <div class="flex flex-col gap-8 lg:flex-row lg:items-center">
+                    <div class="space-y-1">
+                        <h1 class="text-3xl leading-tight font-semibold">
+                            {{ t('flows.index.title') }}
+                        </h1>
+                        <div class="flex flex-wrap gap-3 pt-2">
+                            <Badge
+                                variant="outline"
+                                class="bg-primary/10 text-primary"
+                                >{{
+                                    t('flows.index.total', {
+                                        count: metrics.total,
+                                    })
+                                }}</Badge
+                            >
+                            <Badge
+                                v-if="metrics.running > 0"
+                                variant="outline"
+                                class="bg-emerald-500/10 text-emerald-300"
+                                >{{
+                                    t('flows.index.running', {
+                                        count: metrics.running,
+                                    })
+                                }}
+                            </Badge>
+                            <Badge
+                                v-if="metrics.failing > 0"
+                                variant="outline"
+                                class="bg-rose-500/10 text-rose-300"
+                                >{{
+                                    t('flows.index.errors', {
+                                        count: metrics.failing,
+                                    })
+                                }}
+                            </Badge>
+                            <Badge
+                                v-if="metrics.drafts > 0"
+                                variant="outline"
+                                class="bg-muted/60 text-muted-foreground"
+                                >{{
+                                    t('flows.index.drafts', {
+                                        count: metrics.drafts,
+                                    })
+                                }}
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <div class="flex-1" />
+
+                    <div class="flex flex-wrap gap-3">
+                        <Button as-child>
+                            <Link :href="flowCreate().url">
+                                <Plus class="size-4" />
+                                {{ t('flows.actions.create') }}
+                            </Link>
+                        </Button>
                     </div>
                 </div>
+            </section>
 
-                <div class="flex-1" />
-
-                <div class="flex flex-wrap gap-3">
-                    <Button as-child>
-                        <Link :href="flowCreate().url">
-                            <Plus class="size-4" />
-                            {{ t('flows.actions.create') }}
-                        </Link>
-                    </Button>
-                </div>
-            </div>
-        </section>
-
-        <Separator />
-
-        <section class="p-4">
-            <div v-if="props.flows.length" class="space-y-0">
-                <template v-for="(flow, index) in props.flows" :key="flow.id">
-                    <div
-                        class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+            <section>
+                <template v-if="props.flows.length">
+                    <Link
+                        v-for="flow in props.flows"
+                        :key="flow.id"
+                        :href="flowShow({ flow: flow.id }).url"
+                        class="flex flex-col gap-2 border-b px-4 py-2 transition hover:bg-muted/60 md:flex-row md:items-center md:justify-between"
                     >
                         <div class="space-y-1">
-                            <Link
-                                :href="flowShow({ flow: flow.id }).url"
-                                class="inline-flex items-center gap-2 text-base font-semibold hover:text-primary"
+                            <div
+                                class="inline-flex items-center gap-2 text-base font-semibold"
                             >
                                 <Workflow
                                     class="size-4 text-muted-foreground"
                                 />
                                 {{ flow.name }}
-                            </Link>
+                            </div>
                             <p class="text-sm text-muted-foreground">
                                 {{
                                     flow.description ||
@@ -208,13 +207,12 @@ const statusLabel = (status?: string | null) =>
                                 </Link>
                             </Button>
                         </div>
-                    </div>
-                    <Separator v-if="index < props.flows.length - 1" />
+                    </Link>
                 </template>
-            </div>
-            <p v-else class="py-6 text-sm text-muted-foreground">
-                {{ t('flows.index.empty') }}
-            </p>
-        </section>
+                <p v-else class="px-4 py-10 text-sm text-muted-foreground">
+                    {{ t('flows.index.empty') }}
+                </p>
+            </section>
+        </div>
     </AppLayout>
 </template>

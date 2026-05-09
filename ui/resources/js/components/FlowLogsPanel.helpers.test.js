@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-    resolveFreshLogIds,
     resolveDispatchPathHighlight,
+    resolveFreshLogIds,
+    resolveLogEdgeHighlight,
     resolveNewLogs,
     resolveStreamReplaySuppression,
     retainVisibleLogIds,
@@ -32,8 +33,14 @@ describe('FlowLogsPanel helpers', () => {
     it('suppresses fresh-log replay when the stream changes', () => {
         const nextLogs = [{ id: 24 }, { id: 23 }, { id: 22 }];
 
-        assert.deepEqual(resolveNewLogs(nextLogs, 11, { streamChanged: true }), []);
-        assert.deepEqual(resolveFreshLogIds(nextLogs, 11, { streamChanged: true }), []);
+        assert.deepEqual(
+            resolveNewLogs(nextLogs, 11, { streamChanged: true }),
+            [],
+        );
+        assert.deepEqual(
+            resolveFreshLogIds(nextLogs, 11, { streamChanged: true }),
+            [],
+        );
     });
 
     it('keeps replay suppression pending until replacement logs arrive', () => {
@@ -127,6 +134,55 @@ describe('FlowLogsPanel helpers', () => {
                 id: 16,
                 message: 'Event: actor_message',
                 context: log.context,
+            }),
+            null,
+        );
+    });
+
+    it('extracts hover edge highlights from invocation and dispatch logs', () => {
+        assert.deepEqual(
+            resolveLogEdgeHighlight({
+                id: 17,
+                message: 'Event: flow_runtime_event',
+                context: {
+                    kind: 'actor_invoked',
+                    actor: 'Worker',
+                    event: 'Start',
+                },
+            }),
+            {
+                from: 'Start',
+                to: 'Worker',
+            },
+        );
+
+        assert.deepEqual(
+            resolveLogEdgeHighlight({
+                id: 18,
+                message: 'Event: activity_log',
+                context: {
+                    type: 'actor_dispatched',
+                    details: {
+                        actor: 'Worker',
+                        dispatched_event: 'Done',
+                    },
+                },
+            }),
+            {
+                from: 'Worker',
+                to: 'Done',
+            },
+        );
+    });
+
+    it('ignores logs that do not map to a single graph edge', () => {
+        assert.equal(
+            resolveLogEdgeHighlight({
+                id: 19,
+                message: 'Event: actor_message',
+                context: {
+                    actor: 'Worker',
+                },
             }),
             null,
         );

@@ -15,9 +15,9 @@ Enforces an opinionated UI baseline to prevent AI-generated interface slop.
 
 - `/baseline-ui <file>`
   Review the file against all constraints below and output:
-  - violations (quote the exact line/snippet)
-  - why it matters (1 short sentence)
-  - a concrete fix (code-level suggestion)
+    - violations (quote the exact line/snippet)
+    - why it matters (1 short sentence)
+    - a concrete fix (code-level suggestion)
 
 ## Stack
 

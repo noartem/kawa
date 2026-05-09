@@ -163,23 +163,6 @@ const paginationItems = computed<PaginationToken[]>(() => {
     ];
 });
 
-const resultsLabel = computed<string>(() => {
-    if (props.deployments.total === 0) {
-        return t('flows.deployments_page.results_empty');
-    }
-
-    const fallbackFrom =
-        (props.deployments.current_page - 1) * props.deployments.per_page + 1;
-    const from = props.deployments.from ?? fallbackFrom;
-    const to = props.deployments.to ?? from + deploymentCards.value.length - 1;
-
-    return t('flows.deployments_page.results', {
-        from,
-        to,
-        total: props.deployments.total,
-    });
-});
-
 const statusFilterValue = computed<string>(() => selectedStatus.value ?? 'all');
 const typeFilterValue = computed<string>(() => selectedType.value ?? 'all');
 
@@ -370,314 +353,259 @@ onBeforeUnmount(() => {
     <Head :title="t('flows.deployments_page.title')" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="mx-auto w-full max-w-[1600px] divide-y">
-            <div class="space-y-1 p-4">
-                <h1 class="text-xl font-semibold">
-                    {{ t('flows.deployments_page.title') }}
-                </h1>
-                <p class="text-sm text-muted-foreground">
-                    {{ resultsLabel }}
-                </p>
-            </div>
+        <div class="flex flex-col gap-2 p-4 md:flex-row md:items-center">
+            <ClearableSearchFilter
+                v-model="searchValue"
+                class="w-full md:max-w-xl"
+                :placeholder="
+                    t('flows.deployments_page.filters.search_placeholder')
+                "
+                :clear-label="t('flows.deployments_page.filters.reset')"
+                clearable
+                @input="onSearchInput"
+            />
 
-            <div class="p-4">
-                <div class="flex flex-col gap-2 md:flex-row md:items-center">
-                    <ClearableSearchFilter
-                        v-model="searchValue"
-                        class="w-full md:max-w-xl"
-                        :placeholder="
-                            t(
-                                'flows.deployments_page.filters.search_placeholder',
-                            )
-                        "
-                        :clear-label="t('flows.deployments_page.filters.reset')"
-                        clearable
-                        @input="onSearchInput"
-                    />
+            <ClearableDropdownFilter
+                :model-value="statusFilterValue"
+                :label="t('flows.deployments_page.filters.status')"
+                :options="statusFilterOptions"
+                :clear-label="t('flows.deployments_page.filters.reset')"
+                class="md:w-[196px]"
+                clearable
+                @update:model-value="onStatusFilterChange"
+            />
 
-                    <ClearableDropdownFilter
-                        :model-value="statusFilterValue"
-                        :label="t('flows.deployments_page.filters.status')"
-                        :options="statusFilterOptions"
-                        :clear-label="t('flows.deployments_page.filters.reset')"
-                        class="md:w-[170px]"
-                        clearable
-                        @update:model-value="onStatusFilterChange"
-                    />
-
-                    <ClearableDropdownFilter
-                        :model-value="typeFilterValue"
-                        :label="t('flows.deployments_page.filters.type')"
-                        :options="typeOptions"
-                        :clear-label="t('flows.deployments_page.filters.reset')"
-                        class="md:w-[170px]"
-                        clearable
-                        @update:model-value="onTypeFilterChange"
-                    />
-                </div>
-
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>
-                                {{ t('flows.deployments_page.columns.status') }}
-                            </TableHead>
-                            <TableHead>
-                                {{ t('flows.deployments_page.columns.type') }}
-                            </TableHead>
-                            <TableHead>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="-ml-2 h-8 px-2"
-                                    @click="toggleSorting('started_at')"
-                                >
-                                    {{
-                                        t(
-                                            'flows.deployments_page.columns.started',
-                                        )
-                                    }}
-                                    <component
-                                        :is="sortIconFor('started_at')"
-                                        class="ml-1 size-3.5"
-                                    />
-                                </Button>
-                            </TableHead>
-                            <TableHead>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="-ml-2 h-8 px-2"
-                                    @click="toggleSorting('finished_at')"
-                                >
-                                    {{
-                                        t(
-                                            'flows.deployments_page.columns.finished',
-                                        )
-                                    }}
-                                    <component
-                                        :is="sortIconFor('finished_at')"
-                                        class="ml-1 size-3.5"
-                                    />
-                                </Button>
-                            </TableHead>
-                            <TableHead>
-                                {{
-                                    t('flows.deployments_page.columns.duration')
-                                }}
-                            </TableHead>
-                            <TableHead class="text-right">
-                                {{ t('flows.deployments_page.columns.logs') }}
-                            </TableHead>
-                            <TableHead class="text-right">
-                                {{ t('flows.deployments_page.columns.actors') }}
-                            </TableHead>
-                            <TableHead class="text-right">
-                                {{ t('flows.deployments_page.columns.events') }}
-                            </TableHead>
-                            <TableHead>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="-ml-2 h-8 px-2"
-                                    @click="toggleSorting('updated_at')"
-                                >
-                                    {{
-                                        t(
-                                            'flows.deployments_page.columns.updated',
-                                        )
-                                    }}
-                                    <component
-                                        :is="sortIconFor('updated_at')"
-                                        class="ml-1 size-3.5"
-                                    />
-                                </Button>
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-
-                    <TableBody>
-                        <TableRow
-                            v-for="card in deploymentCards"
-                            :key="card.deployment.id"
-                            class="cursor-pointer"
-                            tabindex="0"
-                            @click="openDeploymentDetails(card.deployment.id)"
-                            @keydown.enter.prevent="
-                                openDeploymentDetails(card.deployment.id)
-                            "
-                            @keydown.space.prevent="
-                                openDeploymentDetails(card.deployment.id)
-                            "
-                        >
-                            <TableCell>
-                                <Badge
-                                    variant="outline"
-                                    :class="statusTone(card.deployment.status)"
-                                >
-                                    {{ statusLabel(card.deployment.status) }}
-                                </Badge>
-                            </TableCell>
-                            <TableCell>
-                                <Badge
-                                    variant="outline"
-                                    class="border-border bg-muted/50 text-muted-foreground"
-                                >
-                                    {{ runTypeLabel(card.deployment.type) }}
-                                </Badge>
-                            </TableCell>
-                            <TableCell class="text-xs text-muted-foreground">
-                                {{ formatDate(card.deployment.started_at) }}
-                            </TableCell>
-                            <TableCell class="text-xs text-muted-foreground">
-                                {{ formatDate(card.deployment.finished_at) }}
-                            </TableCell>
-                            <TableCell class="text-xs text-muted-foreground">
-                                {{
-                                    formatDuration(
-                                        card.deployment.started_at,
-                                        card.deployment.finished_at,
-                                    )
-                                }}
-                            </TableCell>
-                            <TableCell class="text-right font-mono text-xs">
-                                {{ card.deployment.logs.length }}
-                            </TableCell>
-                            <TableCell class="text-right font-mono text-xs">
-                                {{ card.graphMeta.actors }}
-                            </TableCell>
-                            <TableCell class="text-right font-mono text-xs">
-                                {{ card.graphMeta.events }}
-                            </TableCell>
-                            <TableCell class="text-xs text-muted-foreground">
-                                {{ card.graphMeta.updatedAt }}
-                            </TableCell>
-                        </TableRow>
-
-                        <TableRow v-if="deploymentCards.length === 0">
-                            <TableCell
-                                colspan="9"
-                                class="py-10 text-center text-muted-foreground"
-                            >
-                                {{ t('flows.deployments_page.empty') }}
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-
-                <div
-                    v-if="props.deployments.last_page > 1"
-                    class="border-t border-border p-3"
-                >
-                    <Pagination :aria-label="t('flows.deployments_page.title')">
-                        <PaginationContent>
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    v-if="props.deployments.current_page > 1"
-                                    :as-child="true"
-                                >
-                                    <Link
-                                        :href="
-                                            paginationHref(
-                                                props.deployments.current_page -
-                                                    1,
-                                            )
-                                        "
-                                        preserve-state
-                                        preserve-scroll
-                                    >
-                                        {{
-                                            t(
-                                                'flows.deployments_page.pagination.previous',
-                                            )
-                                        }}
-                                    </Link>
-                                </PaginationPrevious>
-                                <PaginationPrevious
-                                    v-else
-                                    as="span"
-                                    class="pointer-events-none opacity-50"
-                                >
-                                    {{
-                                        t(
-                                            'flows.deployments_page.pagination.previous',
-                                        )
-                                    }}
-                                </PaginationPrevious>
-                            </PaginationItem>
-
-                            <PaginationItem
-                                v-for="item in paginationItems"
-                                :key="item"
-                            >
-                                <PaginationEllipsis
-                                    v-if="typeof item !== 'number'"
-                                />
-                                <PaginationLink
-                                    v-else
-                                    :as-child="true"
-                                    :is-active="
-                                        item === props.deployments.current_page
-                                    "
-                                >
-                                    <Link
-                                        :href="paginationHref(item)"
-                                        preserve-state
-                                        preserve-scroll
-                                        :aria-current="
-                                            item ===
-                                            props.deployments.current_page
-                                                ? 'page'
-                                                : undefined
-                                        "
-                                    >
-                                        {{ item }}
-                                    </Link>
-                                </PaginationLink>
-                            </PaginationItem>
-
-                            <PaginationItem>
-                                <PaginationNext
-                                    v-if="
-                                        props.deployments.current_page <
-                                        props.deployments.last_page
-                                    "
-                                    :as-child="true"
-                                >
-                                    <Link
-                                        :href="
-                                            paginationHref(
-                                                props.deployments.current_page +
-                                                    1,
-                                            )
-                                        "
-                                        preserve-state
-                                        preserve-scroll
-                                    >
-                                        {{
-                                            t(
-                                                'flows.deployments_page.pagination.next',
-                                            )
-                                        }}
-                                    </Link>
-                                </PaginationNext>
-                                <PaginationNext
-                                    v-else
-                                    as="span"
-                                    class="pointer-events-none opacity-50"
-                                >
-                                    {{
-                                        t(
-                                            'flows.deployments_page.pagination.next',
-                                        )
-                                    }}
-                                </PaginationNext>
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
-                </div>
-            </div>
+            <ClearableDropdownFilter
+                :model-value="typeFilterValue"
+                :label="t('flows.deployments_page.filters.type')"
+                :options="typeOptions"
+                :clear-label="t('flows.deployments_page.filters.reset')"
+                class="md:w-[180px]"
+                clearable
+                @update:model-value="onTypeFilterChange"
+            />
         </div>
 
+        <Table class="mb-4">
+            <TableHeader>
+                <TableRow>
+                    <TableHead class="px-4">
+                        {{ t('flows.deployments_page.columns.status') }}
+                    </TableHead>
+                    <TableHead class="px-4">
+                        {{ t('flows.deployments_page.columns.type') }}
+                    </TableHead>
+                    <TableHead class="px-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="-ml-2 h-8 px-2"
+                            @click="toggleSorting('started_at')"
+                        >
+                            {{ t('flows.deployments_page.columns.started') }}
+                            <component
+                                :is="sortIconFor('started_at')"
+                                class="ml-1 size-3.5"
+                            />
+                        </Button>
+                    </TableHead>
+                    <TableHead class="px-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="-ml-2 h-8 px-2"
+                            @click="toggleSorting('finished_at')"
+                        >
+                            {{ t('flows.deployments_page.columns.finished') }}
+                            <component
+                                :is="sortIconFor('finished_at')"
+                                class="ml-1 size-3.5"
+                            />
+                        </Button>
+                    </TableHead>
+                    <TableHead class="px-4">
+                        {{ t('flows.deployments_page.columns.duration') }}
+                    </TableHead>
+                    <TableHead class="px-4 text-right">
+                        {{ t('flows.deployments_page.columns.logs') }}
+                    </TableHead>
+                    <TableHead class="px-4 text-right">
+                        {{ t('flows.deployments_page.columns.actors') }}
+                    </TableHead>
+                    <TableHead class="px-4 text-right">
+                        {{ t('flows.deployments_page.columns.events') }}
+                    </TableHead>
+                    <TableHead class="px-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="-ml-2 h-8 px-2"
+                            @click="toggleSorting('updated_at')"
+                        >
+                            {{ t('flows.deployments_page.columns.updated') }}
+                            <component
+                                :is="sortIconFor('updated_at')"
+                                class="ml-1 size-3.5"
+                            />
+                        </Button>
+                    </TableHead>
+                </TableRow>
+            </TableHeader>
+
+            <TableBody>
+                <TableRow
+                    v-for="card in deploymentCards"
+                    :key="card.deployment.id"
+                    class="cursor-pointer"
+                    tabindex="0"
+                    @click="openDeploymentDetails(card.deployment.id)"
+                    @keydown.enter.prevent="
+                        openDeploymentDetails(card.deployment.id)
+                    "
+                    @keydown.space.prevent="
+                        openDeploymentDetails(card.deployment.id)
+                    "
+                >
+                    <TableCell class="px-4">
+                        <Badge
+                            variant="outline"
+                            :class="statusTone(card.deployment.status)"
+                        >
+                            {{ statusLabel(card.deployment.status) }}
+                        </Badge>
+                    </TableCell>
+                    <TableCell class="px-4">
+                        <Badge
+                            variant="outline"
+                            class="border-border bg-muted/50 text-muted-foreground"
+                        >
+                            {{ runTypeLabel(card.deployment.type) }}
+                        </Badge>
+                    </TableCell>
+                    <TableCell class="px-4 text-xs text-muted-foreground">
+                        {{ formatDate(card.deployment.started_at) }}
+                    </TableCell>
+                    <TableCell class="px-4 text-xs text-muted-foreground">
+                        {{ formatDate(card.deployment.finished_at) }}
+                    </TableCell>
+                    <TableCell class="px-4 text-xs text-muted-foreground">
+                        {{
+                            formatDuration(
+                                card.deployment.started_at,
+                                card.deployment.finished_at,
+                            )
+                        }}
+                    </TableCell>
+                    <TableCell class="px-4 text-right font-mono text-xs">
+                        {{ card.deployment.logs.length }}
+                    </TableCell>
+                    <TableCell class="px-4 text-right font-mono text-xs">
+                        {{ card.graphMeta.actors }}
+                    </TableCell>
+                    <TableCell class="px-4 text-right font-mono text-xs">
+                        {{ card.graphMeta.events }}
+                    </TableCell>
+                    <TableCell class="px-4 text-xs text-muted-foreground">
+                        {{ card.graphMeta.updatedAt }}
+                    </TableCell>
+                </TableRow>
+
+                <TableRow v-if="deploymentCards.length === 0">
+                    <TableCell
+                        colspan="9"
+                        class="px-4 py-10 text-center text-muted-foreground"
+                    >
+                        {{ t('flows.deployments_page.empty') }}
+                    </TableCell>
+                </TableRow>
+            </TableBody>
+        </Table>
+
+        <Pagination
+            v-if="props.deployments.last_page > 1"
+            class="my-4"
+            :aria-label="t('flows.deployments_page.title')"
+        >
+            <PaginationContent>
+                <PaginationItem>
+                    <PaginationPrevious
+                        v-if="props.deployments.current_page > 1"
+                        :as-child="true"
+                    >
+                        <Link
+                            :href="
+                                paginationHref(
+                                    props.deployments.current_page - 1,
+                                )
+                            "
+                            preserve-state
+                            preserve-scroll
+                        >
+                            {{
+                                t('flows.deployments_page.pagination.previous')
+                            }}
+                        </Link>
+                    </PaginationPrevious>
+                    <PaginationPrevious
+                        v-else
+                        as="span"
+                        class="pointer-events-none opacity-50"
+                    >
+                        {{ t('flows.deployments_page.pagination.previous') }}
+                    </PaginationPrevious>
+                </PaginationItem>
+
+                <PaginationItem v-for="item in paginationItems" :key="item">
+                    <PaginationEllipsis v-if="typeof item !== 'number'" />
+                    <PaginationLink
+                        v-else
+                        :as-child="true"
+                        :is-active="item === props.deployments.current_page"
+                    >
+                        <Link
+                            :href="paginationHref(item)"
+                            preserve-state
+                            preserve-scroll
+                            :aria-current="
+                                item === props.deployments.current_page
+                                    ? 'page'
+                                    : undefined
+                            "
+                        >
+                            {{ item }}
+                        </Link>
+                    </PaginationLink>
+                </PaginationItem>
+
+                <PaginationItem>
+                    <PaginationNext
+                        v-if="
+                            props.deployments.current_page <
+                            props.deployments.last_page
+                        "
+                        :as-child="true"
+                    >
+                        <Link
+                            :href="
+                                paginationHref(
+                                    props.deployments.current_page + 1,
+                                )
+                            "
+                            preserve-state
+                            preserve-scroll
+                        >
+                            {{ t('flows.deployments_page.pagination.next') }}
+                        </Link>
+                    </PaginationNext>
+                    <PaginationNext
+                        v-else
+                        as="span"
+                        class="pointer-events-none opacity-50"
+                    >
+                        {{ t('flows.deployments_page.pagination.next') }}
+                    </PaginationNext>
+                </PaginationItem>
+            </PaginationContent>
+        </Pagination>
     </AppLayout>
 </template>

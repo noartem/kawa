@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Flows\FlowChatRequest;
 use App\Http\Requests\Flows\FlowChatsIndexRequest;
+use App\Models\AgentConversation;
 use App\Models\Flow;
+use App\Models\FlowChatRequestStatus;
 use App\Services\FlowChatService;
 use Illuminate\Database\Eloquent\JsonEncodingException;
 use Illuminate\Http\Client\ConnectionException;
@@ -90,38 +92,74 @@ class FlowChatController extends Controller
         ]);
     }
 
+    public function show(
+        Flow $flow,
+        AgentConversation $chat,
+        FlowChatService $flowChatService,
+    ): Response {
+        return Inertia::render('flows/Chat', [
+            'flow' => [
+                'id' => $flow->id,
+                'name' => $flow->name,
+            ],
+            'chat' => $flowChatService->conversationPayload($chat),
+        ]);
+    }
+
     public function store(
-        FlowChatRequest $request,
+        Request $request,
         Flow $flow,
         FlowChatService $flowChatService,
     ): JsonResponse {
         return $this->handleChatAction(
-            callback: fn (): array => $flowChatService->sendMessage(
+            callback: fn (): array => $flowChatService->createChat(
                 $flow,
                 $request->user(),
-                $request->message(),
-                $request->currentCode(),
-                $request->history(),
             ),
             action: 'store',
             flow: $flow,
         );
     }
 
-    public function newChat(
+    public function storeMessage(
+        FlowChatRequest $request,
         Flow $flow,
+        AgentConversation $chat,
         FlowChatService $flowChatService,
     ): JsonResponse {
         return $this->handleChatAction(
-            callback: fn (): array => $flowChatService->startNewChat($flow),
-            action: 'new_chat',
+            callback: fn (): array => $flowChatService->submitMessage(
+                $flow,
+                $chat,
+                $request->user(),
+                $request->message(),
+                $request->currentCode(),
+            ),
+            action: 'store_message',
             flow: $flow,
+        );
+    }
+
+    public function showMessageRequest(
+        Flow $flow,
+        AgentConversation $chat,
+        FlowChatRequestStatus $chatRequest,
+        FlowChatService $flowChatService,
+    ): JsonResponse {
+        abort_unless(
+            $chatRequest->conversation_id === $chat->id && $chatRequest->flow_id === $flow->id,
+            404,
+        );
+
+        return response()->json(
+            $flowChatService->chatRequestPayload($flow, $chat, $chatRequest),
         );
     }
 
     public function compact(
         Request $request,
         Flow $flow,
+        AgentConversation $chat,
         FlowChatService $flowChatService,
     ): JsonResponse {
         $data = $request->validate([
@@ -129,8 +167,9 @@ class FlowChatController extends Controller
         ]);
 
         return $this->handleChatAction(
-            callback: fn (): array => $flowChatService->compactActiveChat(
+            callback: fn (): array => $flowChatService->compactChat(
                 $flow,
+                $chat,
                 $request->user(),
                 (string) ($data['current_code'] ?? ''),
             ),
@@ -148,7 +187,11 @@ class FlowChatController extends Controller
         ?Flow $flow = null,
     ): JsonResponse {
         try {
-            return response()->json($callback());
+            $payload = $callback();
+            $status = (int) ($payload['__http_status'] ?? 200);
+            unset($payload['__http_status']);
+
+            return response()->json($payload, $status);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (JsonEncodingException $exception) {

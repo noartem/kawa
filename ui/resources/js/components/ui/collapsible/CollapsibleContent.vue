@@ -1,14 +1,32 @@
 <script setup lang="ts">
-import { CollapsibleContent, type CollapsibleContentProps } from 'reka-ui'
+import { cn } from '@/lib/utils';
+import { collapsibleContentAnimationClass } from './collapsibleContent';
+import {
+    CollapsibleContent,
+    type CollapsibleContentProps,
+    useForwardProps,
+} from 'reka-ui';
+import { computed, type HTMLAttributes } from 'vue';
 
-const props = defineProps<CollapsibleContentProps>()
+const props = defineProps<
+    CollapsibleContentProps & { class?: HTMLAttributes['class'] }
+>();
+
+const delegatedProps = computed(() => {
+    const { class: _, ...delegated } = props;
+
+    return delegated;
+});
+
+const forwarded = useForwardProps(delegatedProps);
 </script>
 
 <template>
-  <CollapsibleContent
-    data-slot="collapsible-content"
-    v-bind="props"
-  >
-    <slot />
-  </CollapsibleContent>
+    <CollapsibleContent
+        data-slot="collapsible-content"
+        v-bind="forwarded"
+        :class="cn(collapsibleContentAnimationClass, props.class)"
+    >
+        <slot />
+    </CollapsibleContent>
 </template>

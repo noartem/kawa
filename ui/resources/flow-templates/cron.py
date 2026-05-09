@@ -2,7 +2,7 @@ from kawa import Context, Message, Cron, actor  # type: ignore
 
 
 @actor(
-    receivs=Cron.by("* * * * *"),
+    receives=Cron.by("* * * * *"),
     sends=Message,
 )
 def EveryMinuteMessage(ctx: Context, event: Cron) -> None:

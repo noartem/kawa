@@ -48,4 +48,9 @@ class AgentConversation extends Model
             ->orderBy('created_at')
             ->orderBy('id');
     }
+
+    public function chatRequests(): HasMany
+    {
+        return $this->hasMany(FlowChatRequestStatus::class, 'conversation_id');
+    }
 }

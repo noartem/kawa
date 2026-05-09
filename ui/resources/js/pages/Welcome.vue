@@ -30,38 +30,31 @@ const { t } = useI18n();
         />
 
         <section
-            class="relative z-10 flex flex-col min-h-screen items-center justify-center px-6 py-16"
+            class="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-16"
         >
-        <h1
-                            class="text-5xl mb-4 font-semibold tracking-[-0.06em] text-balance sm:text-7xl"
-                        >
-                            {{ t('app.name') }}
-                        </h1>
+            <h1
+                class="mb-4 text-5xl font-semibold tracking-[-0.06em] text-balance sm:text-7xl"
+            >
+                {{ t('app.name') }}
+            </h1>
 
-                        <div class="flex gap-2">
+            <div class="flex gap-2">
+                <Button as-child size="lg" class="min-w-40">
+                    <Link :href="login()">{{ t('auth.login.short') }}</Link>
+                </Button>
 
-                        <Button
-                            as-child
-                            size="lg"
-                            class="min-w-40"
-                        >
-                            <Link :href="login()">{{
-                                t('auth.login.short')
-                            }}</Link>
-                        </Button>
-
-                        <Button
-                            v-if="canRegister"
-                            as-child
-                            size="lg"
-                            variant="outline"
-                            class="min-w-40 border-black/15 bg-white/40 backdrop-blur sm:bg-white/52 dark:border-white/15 dark:bg-white/8"
-                        >
-                            <Link :href="register()">{{
-                                t('auth.register.short')
-                            }}</Link>
-                        </Button>
-                        </div>
+                <Button
+                    v-if="canRegister"
+                    as-child
+                    size="lg"
+                    variant="outline"
+                    class="min-w-40 border-black/15 bg-white/40 backdrop-blur sm:bg-white/52 dark:border-white/15 dark:bg-white/8"
+                >
+                    <Link :href="register()">{{
+                        t('auth.register.short')
+                    }}</Link>
+                </Button>
+            </div>
         </section>
     </main>
 </template>

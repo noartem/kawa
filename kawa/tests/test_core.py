@@ -26,7 +26,7 @@ class Another:
     pass
 
 
-@actor(receivs=(My,), sends=(Another,))
+@actor(receives=(My,), sends=(Another,))
 def my_actor(ctx: Context, event: My):
     """This is a test actor."""
     ctx.dispatch(Another())
@@ -128,7 +128,7 @@ def test_actor_send_event_definition():
 def test__actor_definition_from_function():
     definition = ActorDefinition(
         my_actor,
-        receivs=(My,),
+        receives=(My,),
         sends=(Another,),
         min_instances=1,
         max_instances=5,
@@ -136,7 +136,7 @@ def test__actor_definition_from_function():
     )
     assert definition.name == "my_actor"
     assert definition.doc == "This is a test actor."
-    assert len(definition.receivs) == 1
+    assert len(definition.receives) == 1
     assert len(definition.sends) == 1
     assert definition.min_instances == 1
     assert definition.max_instances == 5
@@ -147,7 +147,7 @@ def test_actor_definition_from_class():
     actor_instance = MyActorClass()
     definition = ActorDefinition(
         actor_instance,
-        receivs=(My,),
+        receives=(My,),
         sends=(Another,),
     )
     assert definition.name == "MyActorClass"

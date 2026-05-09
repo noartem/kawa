@@ -133,7 +133,7 @@ class ActorDefinition:
     def __init__(
         self,
         actorFuncOrClass: ActorFuncOrClass,
-        receivs: Optional[tuple[EventClassOrFilter, ...]] = None,
+        receives: Optional[tuple[EventClassOrFilter, ...]] = None,
         sends: Optional[tuple[type[object], ...]] = None,
         min_instances: Optional[int] = None,
         max_instances: Optional[int] = None,
@@ -146,9 +146,9 @@ class ActorDefinition:
             self.name = actorFuncOrClass.__name__
         self.doc = untab_string(actorFuncOrClass.__doc__ or "").strip()
         self.actorFuncOrClass = actorFuncOrClass
-        self.receivs = [
+        self.receives = [
             ActorReceiveEventDefinition(receive)
-            for receive in (receivs if receivs is not None else tuple())
+            for receive in (receives if receives is not None else tuple())
         ]
         self.sends = [
             ActorSendEventDefinition(send)

@@ -1234,7 +1234,7 @@ for node in tree.body:
                 continue
 
             for keyword in decorator.keywords:
-                if keyword.arg in ('receivs', 'receives'):
+                if keyword.arg == 'receives':
                     normalized = normalize(keyword.value)
                     if isinstance(normalized, list):
                         receives.extend(normalized)

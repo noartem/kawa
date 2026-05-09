@@ -8,13 +8,13 @@ Define auth requirements in `nuxt.config.ts`:
 
 ```ts
 export default defineNuxtConfig({
-  routeRules: {
-    '/admin/**': { auth: { user: { role: 'admin' } } },
-    '/dashboard/**': { auth: 'user' },
-    '/login': { auth: 'guest' },
-    '/public/**': { auth: false }
-  }
-})
+    routeRules: {
+        '/admin/**': { auth: { user: { role: 'admin' } } },
+        '/dashboard/**': { auth: 'user' },
+        '/login': { auth: 'guest' },
+        '/public/**': { auth: false },
+    },
+});
 ```
 
 ## Auth Modes
@@ -33,7 +33,7 @@ Override or define auth for specific pages:
 ```vue
 <script setup>
 // Require authentication
-definePageMeta({ auth: 'user' })
+definePageMeta({ auth: 'user' });
 </script>
 ```
 
@@ -41,15 +41,15 @@ definePageMeta({ auth: 'user' })
 <script setup>
 // Require admin role
 definePageMeta({
-  auth: { user: { role: 'admin' } }
-})
+    auth: { user: { role: 'admin' } },
+});
 </script>
 ```
 
 ```vue
 <script setup>
 // Guest-only (login page)
-definePageMeta({ auth: 'guest' })
+definePageMeta({ auth: 'guest' });
 </script>
 ```
 
@@ -71,13 +71,13 @@ definePageMeta({ auth: 'guest' })
 ```ts
 // nuxt.config.ts
 export default defineNuxtConfig({
-  auth: {
-    redirects: {
-      login: '/login',    // Where to redirect unauthenticated users
-      guest: '/dashboard' // Where to redirect logged-in users from guest pages
-    }
-  }
-})
+    auth: {
+        redirects: {
+            login: '/login', // Where to redirect unauthenticated users
+            guest: '/dashboard', // Where to redirect logged-in users from guest pages
+        },
+    },
+});
 ```
 
 ## Server Middleware
@@ -89,9 +89,9 @@ For custom API protection, use `requireUserSession()`:
 ```ts
 // server/api/admin/[...].ts
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event, { user: { role: 'admin' } })
-  // Handle request
-})
+    await requireUserSession(event, { user: { role: 'admin' } });
+    // Handle request
+});
 ```
 
 ## Priority Order

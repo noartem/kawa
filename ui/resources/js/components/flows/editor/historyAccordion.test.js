@@ -19,9 +19,9 @@ describe('history accordion helpers', () => {
     });
 
     it('deduplicates repeated expanded values while preserving order', () => {
-        assert.deepEqual(
-            retainExpandedHistoryValues([4, 5], ['4', '4', '5']),
-            ['4', '5'],
-        );
+        assert.deepEqual(retainExpandedHistoryValues([4, 5], ['4', '4', '5']), [
+            '4',
+            '5',
+        ]);
     });
 });

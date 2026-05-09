@@ -18,7 +18,10 @@ describe('renderMarkdown', () => {
         assert.match(rendered, /<em>italic<\/em>/);
         assert.match(rendered, /<del>gone<\/del>/);
         assert.match(rendered, /<ul>\s*<li>one<\/li>\s*<li>two<\/li>\s*<\/ul>/);
-        assert.match(rendered, /<blockquote>\s*<p>quoted<\/p>\s*<\/blockquote>/);
+        assert.match(
+            rendered,
+            /<blockquote>\s*<p>quoted<\/p>\s*<\/blockquote>/,
+        );
     });
 
     it('preserves single line breaks inside paragraphs', () => {
@@ -28,9 +31,7 @@ describe('renderMarkdown', () => {
     });
 
     it('keeps fenced code blocks escaped with language classes', () => {
-        const rendered = renderMarkdown(
-            '```python\nprint("<unsafe>")\n```',
-        );
+        const rendered = renderMarkdown('```python\nprint("<unsafe>")\n```');
 
         assert.match(rendered, /<pre><code class="language-python">/);
         assert.match(rendered, /print\("&#x3C;unsafe>"\)/);
@@ -51,7 +52,9 @@ describe('renderMarkdown', () => {
     });
 
     it('strips markdown images to avoid remote resource loading', () => {
-        const rendered = renderMarkdown('![tracker](https://example.com/pixel.png)');
+        const rendered = renderMarkdown(
+            '![tracker](https://example.com/pixel.png)',
+        );
 
         assert.doesNotMatch(rendered, /<img/);
         assert.doesNotMatch(rendered, /pixel\.png/);

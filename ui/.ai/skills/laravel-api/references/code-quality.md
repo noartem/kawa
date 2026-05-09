@@ -5,9 +5,11 @@ This guide covers code quality standards and refactoring patterns for Laravel AP
 ## Core Principles
 
 ### 1. Preserve Functionality
+
 When refactoring, NEVER change what code does - only how it does it. All original features, outputs, and behaviors must remain intact.
 
 **Example:**
+
 ```php
 // Before refactoring
 public function calculateTotal($items) {
@@ -30,9 +32,11 @@ public function calculateTotal(array $items): float
 ```
 
 ### 2. Explicit Over Implicit
+
 Prefer clear, readable code over clever shortcuts. Code is read far more often than it's written.
 
 **Example:**
+
 ```php
 // ❌ Avoid: Too compact
 $result = $a ?? $b ?: $c;
@@ -44,9 +48,11 @@ $result = $a !== null ? $a : ($b !== false ? $b : $c);
 ```
 
 ### 3. Type Declarations Always
+
 Use return types on all methods and parameter types where beneficial. Enable strict types.
 
 **Example:**
+
 ```php
 // ❌ Avoid: No types
 class TaskService
@@ -74,9 +80,10 @@ final readonly class TaskService
 Nested ternary operators are notoriously hard to read. Use match expressions for clarity.
 
 **Example 1: Status Determination**
+
 ```php
 // ❌ Avoid: Nested ternary
-$status = $task->completed_at 
+$status = $task->completed_at
     ? ($task->verified ? 'verified' : 'completed')
     : ($task->started_at ? 'in_progress' : 'pending');
 
@@ -90,12 +97,13 @@ $status = match (true) {
 ```
 
 **Example 2: Permission Levels**
+
 ```php
 // ❌ Avoid: Complex ternary chain
-$access = $user->is_admin 
-    ? 'full' 
-    : ($user->is_manager 
-        ? 'limited' 
+$access = $user->is_admin
+    ? 'full'
+    : ($user->is_manager
+        ? 'limited'
         : ($user->is_viewer ? 'read' : 'none'));
 
 // ✅ Prefer: Match with role
@@ -112,6 +120,7 @@ $access = match ($user->role) {
 When conditional logic becomes complex, extract it into well-named methods.
 
 **Example:**
+
 ```php
 // ❌ Avoid: Inline complexity
 class TaskController
@@ -119,7 +128,7 @@ class TaskController
     public function update(Task $task): Response
     {
         if (
-            auth()->user()->id === $task->owner_id 
+            auth()->user()->id === $task->owner_id
             || (auth()->user()->role === 'admin' && auth()->user()->department === $task->department)
             || (auth()->user()->role === 'manager' && auth()->user()->manages($task->project))
         ) {
@@ -154,13 +163,13 @@ class TaskController
 
     private function isAuthorizedAdmin(Task $task, User $user): bool
     {
-        return $user->role === 'admin' 
+        return $user->role === 'admin'
             && $user->department === $task->department;
     }
 
     private function isProjectManager(Task $task, User $user): bool
     {
-        return $user->role === 'manager' 
+        return $user->role === 'manager'
             && $user->manages($task->project);
     }
 }
@@ -171,6 +180,7 @@ class TaskController
 Replace magic numbers and strings with named constants.
 
 **Example:**
+
 ```php
 // ❌ Avoid: Magic values
 if ($task->priority > 7) {
@@ -211,6 +221,7 @@ if ($user->status === UserStatus::ACTIVE) {
 Use Laravel's collection methods instead of manual loops when appropriate.
 
 **Example:**
+
 ```php
 // ❌ Avoid: Manual loops
 $activeUserIds = [];
@@ -251,6 +262,7 @@ final readonly class StoreController
 ```
 
 **Key elements:**
+
 1. Opening tag with no closing tag
 2. `declare(strict_types=1)` immediately after opening tag
 3. Namespace declaration
@@ -261,17 +273,20 @@ final readonly class StoreController
 ### Naming Conventions
 
 **Classes:**
+
 - Use PascalCase
 - Controllers: `{Resource}{Action}Controller` (e.g., `StoreTaskController`)
 - Actions: `{Action}{Resource}` (e.g., `CreateTask`)
 - DTOs: `{Action}{Resource}Payload` (e.g., `StoreTaskPayload`)
 
 **Methods:**
+
 - Use camelCase
 - Be descriptive: `getUserById()` not `get()`
 - Boolean methods: start with `is`, `has`, `can`, `should`
 
 **Variables:**
+
 - Use camelCase
 - Be descriptive: `$activeUsers` not `$au`
 - Avoid abbreviations unless universally known
@@ -318,18 +333,21 @@ final class TaskService
 When reviewing Laravel API code, check for:
 
 ### Type Safety
+
 - [ ] All methods have return type declarations
 - [ ] Parameter types are declared where beneficial
 - [ ] File starts with `declare(strict_types=1)`
 - [ ] DTOs use readonly properties with types
 
 ### Readability
+
 - [ ] No nested ternary operators (use match instead)
 - [ ] Complex conditions extracted to named methods
 - [ ] Magic values replaced with named constants
 - [ ] Variable and method names are descriptive
 
 ### Laravel Conventions
+
 - [ ] Models use HasUlids trait
 - [ ] Controllers are invokable with single responsibility
 - [ ] Form Requests have payload() method returning DTO
@@ -337,12 +355,14 @@ When reviewing Laravel API code, check for:
 - [ ] Response classes implement Responsable
 
 ### Structure
+
 - [ ] Proper namespace organization
 - [ ] Imports alphabetically sorted
 - [ ] One blank line between class sections
 - [ ] PSR-12 formatting followed
 
 ### Best Practices
+
 - [ ] Model::shouldBeStrict() enabled in AppServiceProvider
 - [ ] No business logic in models
 - [ ] No direct request access in controllers/actions
@@ -370,10 +390,10 @@ class Task extends Model
     {
         $this->completed_at = now();
         $this->save();
-        
+
         // Send notification
         Mail::to($this->assignee)->send(new TaskCompleted($this));
-        
+
         // Update project status
         $this->project->checkCompletion();
     }
@@ -390,10 +410,10 @@ final readonly class CompleteTask
     public function handle(Task $task): Task
     {
         $task->update(['completed_at' => now()]);
-        
+
         $this->notifications->sendCompletionEmail($task);
         $this->projectStatus->updateIfNeeded($task->project);
-        
+
         return $task->fresh();
     }
 }
@@ -408,13 +428,13 @@ class TaskController
     public function store(Request $request)
     {
         $validated = $request->validate([...]);
-        
+
         $task = Task::create($validated);
-        
+
         Mail::to($task->assignee)->send(new TaskAssigned($task));
-        
+
         Cache::forget('tasks:' . $task->project_id);
-        
+
         return response()->json($task, 201);
     }
 }
@@ -429,7 +449,7 @@ final readonly class StoreController
     public function __invoke(StoreTaskRequest $request): JsonResponse
     {
         $task = $this->createTask->handle($request->payload());
-        
+
         return new JsonDataResponse(data: $task, status: 201);
     }
 }
@@ -461,6 +481,7 @@ composer require laravel/pint --dev
 ```
 
 Configure in `pint.json`:
+
 ```json
 {
     "preset": "laravel",
@@ -482,6 +503,7 @@ composer require --dev phpstan/phpstan
 ```
 
 Configure in `phpstan.neon`:
+
 ```neon
 parameters:
     level: 8

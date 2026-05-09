@@ -2,17 +2,58 @@
 import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import Sigma from 'sigma';
+import { animateNodes } from 'sigma/utils';
 import {
+    createDefaultSvgViewport,
+    expandSvgBounds,
+    estimateSvgLabelFrame,
+    interpolateSvgViewport,
+    panSvgViewport,
+    resolveFallbackEdgeColor,
+    resolveFocusedSvgViewportOnPoint,
+    resolveSvgWheelPixelDelta,
+    resolveSvgWheelZoomMode,
+    resolveSvgWheelZoomScale,
+    scaleSvgViewport,
+    resolveSvgLine,
+    resolveSvgViewportFromBounds,
+    resolveSvgViewportZoomPercent,
+    SVG_NODE_RADIUS,
+    toSvgPoint,
+    zoomSvgViewport,
+    type SvgViewport,
+} from './graphFallback';
+import {
+    getProgrammaticHighlightStrength,
+    PROGRAMMATIC_HIGHLIGHT_COLOR,
+    pruneProgrammaticHighlights,
+    resolveDirectHighlightEdgeIds,
     resolveDispatchHighlightEdgeIds,
     resolveEdgeHighlightAttributes,
+    resolveHighlightedEdgeSize,
+    resolveNodeHighlightAttributes,
     type DispatchPathHighlight,
+    type FlowGraphEdgeHighlight,
 } from './graphHighlights';
+import {
+    FLOW_GRAPH_EDGE_BASE_SIZE,
+    FLOW_GRAPH_FALLBACK_ARROW_MARKER,
+} from './graphStyle';
+import {
+    hasRenderableContainerSize,
+    shouldMountRendererOnResize,
+} from './graphRendererState';
+import {
+    logFlowGraphVisibility,
+    summarizeGraphForDebug,
+} from './graphVisibilityDebug';
 import {
     computed,
     nextTick,
     onBeforeUnmount,
     onMounted,
     ref,
+    useId,
     watch,
 } from 'vue';
 
@@ -42,6 +83,40 @@ interface NormalizedEdge {
     tone: GraphNodeType;
 }
 
+interface BuiltGraphState {
+    sigmaGraph: Graph;
+    nodes: NormalizedNode[];
+    edges: NormalizedEdge[];
+    edgeIdsByNode: Map<string, Set<string>>;
+    nodeById: Map<string, BaseNode>;
+    positionedNodeById: Map<string, NormalizedNode>;
+}
+
+interface GraphNodePosition {
+    x: number;
+    y: number;
+}
+
+const summarizeBuiltGraphStateForDebug = (
+    graphState: BuiltGraphState | null,
+): Record<string, unknown> => {
+    if (!graphState) {
+        return {
+            nodeCount: 0,
+            edgeCount: 0,
+            nodeIds: [],
+            edgeIds: [],
+        };
+    }
+
+    return {
+        nodeCount: graphState.nodes.length,
+        edgeCount: graphState.edges.length,
+        nodeIds: graphState.nodes.map((node) => node.id),
+        edgeIds: graphState.edges.map((edge) => edge.id),
+    };
+};
+
 const props = withDefaults(
     defineProps<{
         graph?: Record<string, unknown> | null;
@@ -56,24 +131,79 @@ const emit = defineEmits<{
     (event: 'node-click', value: BaseNode): void;
 }>();
 
+const svgIdPrefix = useId().replace(/:/g, '-');
+const arrowMarkerId = `${svgIdPrefix}-flow-graph-arrow`;
+const softShadowFilterId = `${svgIdPrefix}-flow-graph-soft-shadow`;
+
+const rootRef = ref<HTMLDivElement | null>(null);
 const containerRef = ref<HTMLDivElement | null>(null);
+const fallbackGraph = ref<BuiltGraphState | null>(null);
+const fallbackRenderVersion = ref(0);
+const fallbackBaseViewport = ref<SvgViewport>(createDefaultSvgViewport());
+const fallbackViewport = ref<SvgViewport>({ ...fallbackBaseViewport.value });
+const fallbackDragState = ref<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startViewport: SvgViewport;
+} | null>(null);
 
 let sigmaRenderer: Sigma | null = null;
 let releaseCameraListener: (() => void) | null = null;
 let releaseInteractionListeners: (() => void) | null = null;
 let intersectionObserver: IntersectionObserver | null = null;
+let resizeObserver: ResizeObserver | null = null;
 let mountRetryFrame: number | null = null;
 let mountRetryCount = 0;
-let hoveredNodeId: string | null = null;
-let hoverHighlightedEdgeIds = new Set<string>();
-let programmaticEdgeHighlights = new Map<string, number>();
+const hoveredNodeId = ref<string | null>(null);
+const hoverHighlightedEdgeIds = ref(new Set<string>());
+const externallyHoveredEdgeIds = ref(new Set<string>());
+const programmaticEdgeHighlights = ref(new Map<string, number>());
+const programmaticNodeHighlights = ref(new Map<string, number>());
 let programmaticHighlightFrame: number | null = null;
 let pendingDispatchHighlight: DispatchPathHighlight | null = null;
+let currentHoveredEdgeHighlight: FlowGraphEdgeHighlight | null = null;
+let fallbackViewportAnimationFrame: number | null = null;
 const hasBeenVisible = ref(false);
 const renderedGraphSignature = ref<string | null>(null);
+const activeGraphState = ref<BuiltGraphState | null>(null);
 
 const hasRenderableGraph = computed(() => {
     return buildNodes(props.graph).length > 0;
+});
+
+const isUsingFallbackRenderer = computed(() => {
+    return fallbackGraph.value !== null;
+});
+
+const isFallbackDragging = computed(() => {
+    return fallbackDragState.value !== null;
+});
+
+const activeHoverHighlightedEdgeIds = computed(() => {
+    return new Set<string>([
+        ...hoverHighlightedEdgeIds.value,
+        ...externallyHoveredEdgeIds.value,
+    ]);
+});
+
+const hasActiveEdgeHover = computed(() => {
+    return (
+        hoveredNodeId.value !== null || externallyHoveredEdgeIds.value.size > 0
+    );
+});
+
+const fallbackViewBox = computed(() => {
+    const viewport = fallbackViewport.value;
+
+    return `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`;
+});
+
+const fallbackZoomPercent = computed(() => {
+    return resolveSvgViewportZoomPercent(
+        fallbackViewport.value,
+        fallbackBaseViewport.value,
+    );
 });
 
 interface CameraStateSnapshot {
@@ -87,6 +217,8 @@ const ZOOM_STEP = 1.2;
 const MIN_RATIO = 0.2;
 const MAX_RATIO = 8;
 const DEFAULT_CAMERA_RATIO = 100 / 83;
+const FOCUS_ZOOM_PERCENT = 150;
+const FOCUS_TRANSITION_DURATION_MS = 260;
 const DEFAULT_CAMERA_STATE: CameraStateSnapshot = {
     x: 0.5,
     y: 0.5,
@@ -95,8 +227,12 @@ const DEFAULT_CAMERA_STATE: CameraStateSnapshot = {
 };
 const LAYOUT_PADDING = 0.22;
 const MAX_MOUNT_RETRIES = 30;
-const PROGRAMMATIC_HIGHLIGHT_FLASH_MS = 260;
-const PROGRAMMATIC_HIGHLIGHT_FADE_MS = 2100;
+const FALLBACK_SHADOW_BOUNDS_MARGIN = 36;
+const SIGMA_LAYOUT_ANIMATION_DURATION_MS = 260;
+
+let cancelNodeAnimation: (() => void) | null = null;
+let pendingSigmaGraphCleanup: (() => void) | null = null;
+let sigmaAnimationRefreshFrame: number | null = null;
 
 const clearMountRetry = (): void => {
     if (mountRetryFrame === null) {
@@ -114,6 +250,75 @@ const clearProgrammaticHighlightFrame = (): void => {
 
     cancelAnimationFrame(programmaticHighlightFrame);
     programmaticHighlightFrame = null;
+};
+
+const clearFallbackViewportAnimation = (): void => {
+    if (fallbackViewportAnimationFrame === null) {
+        return;
+    }
+
+    cancelAnimationFrame(fallbackViewportAnimationFrame);
+    fallbackViewportAnimationFrame = null;
+};
+
+const clearSigmaAnimationRefreshFrame = (): void => {
+    if (sigmaAnimationRefreshFrame === null) {
+        return;
+    }
+
+    cancelAnimationFrame(sigmaAnimationRefreshFrame);
+    sigmaAnimationRefreshFrame = null;
+};
+
+const clearNodeAnimation = (): void => {
+    clearSigmaAnimationRefreshFrame();
+
+    if (cancelNodeAnimation) {
+        cancelNodeAnimation();
+        cancelNodeAnimation = null;
+    }
+};
+
+const scheduleSigmaAnimationRefresh = (): void => {
+    if (
+        sigmaAnimationRefreshFrame !== null ||
+        !sigmaRenderer ||
+        !cancelNodeAnimation
+    ) {
+        return;
+    }
+
+    sigmaAnimationRefreshFrame = requestAnimationFrame(() => {
+        sigmaAnimationRefreshFrame = null;
+
+        if (!sigmaRenderer) {
+            return;
+        }
+
+        sigmaRenderer.scheduleRefresh();
+
+        if (cancelNodeAnimation) {
+            scheduleSigmaAnimationRefresh();
+        }
+    });
+};
+
+const flushPendingSigmaGraphCleanup = (): void => {
+    if (!pendingSigmaGraphCleanup) {
+        return;
+    }
+
+    const cleanup = pendingSigmaGraphCleanup;
+    pendingSigmaGraphCleanup = null;
+    cleanup();
+};
+
+const easeInOutCubic = (progress: number): number => {
+    if (progress < 0.5) {
+        return 4 * progress * progress * progress;
+    }
+
+    return 1 - Math.pow(-2 * progress + 2, 3) / 2;
 };
 
 const resolveGraphId = (value: unknown): string | null => {
@@ -213,6 +418,20 @@ const seedPosition = (node: BaseNode): { x: number; y: number } => {
     };
 };
 
+const isFiniteGraphCoordinate = (value: unknown): value is number => {
+    return typeof value === 'number' && Number.isFinite(value);
+};
+
+const resolveFiniteGraphPosition = (
+    position: Partial<GraphNodePosition> | null | undefined,
+    fallback: GraphNodePosition,
+): GraphNodePosition => {
+    return {
+        x: isFiniteGraphCoordinate(position?.x) ? position.x : fallback.x,
+        y: isFiniteGraphCoordinate(position?.y) ? position.y : fallback.y,
+    };
+};
+
 const normalizeAxis = (values: number[]): { min: number; max: number } => {
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -236,6 +455,7 @@ const toPaddedRange = (value: number, min: number, max: number): number => {
 const buildLayoutNodes = (
     nodes: BaseNode[],
     edges: NormalizedEdge[],
+    seedPositions: Map<string, GraphNodePosition> = new Map(),
 ): NormalizedNode[] => {
     if (nodes.length === 0) {
         return [];
@@ -248,7 +468,10 @@ const buildLayoutNodes = (
     });
 
     for (const node of nodes) {
-        const seed = seedPosition(node);
+        const seed = resolveFiniteGraphPosition(
+            seedPositions.get(node.id),
+            seedPosition(node),
+        );
         layoutGraph.addNode(node.id, {
             x: seed.x,
             y: seed.y,
@@ -292,13 +515,18 @@ const buildLayoutNodes = (
     );
 
     return nodes.map((node) => {
-        const x = layoutGraph.getNodeAttribute(node.id, 'x');
-        const y = layoutGraph.getNodeAttribute(node.id, 'y');
+        const normalizedPosition = resolveFiniteGraphPosition(
+            {
+                x: layoutGraph.getNodeAttribute(node.id, 'x'),
+                y: layoutGraph.getNodeAttribute(node.id, 'y'),
+            },
+            seedPosition(node),
+        );
 
         return {
             ...node,
-            x: toPaddedRange(x, xAxis.min, xAxis.max),
-            y: toPaddedRange(y, yAxis.min, yAxis.max),
+            x: toPaddedRange(normalizedPosition.x, xAxis.min, xAxis.max),
+            y: toPaddedRange(normalizedPosition.y, yAxis.min, yAxis.max),
         };
     });
 };
@@ -365,48 +593,26 @@ const edgeColor = (type: GraphNodeType): string => {
     }
 };
 
-const clamp = (value: number, min: number, max: number): number => {
-    return Math.min(max, Math.max(min, value));
+const fallbackNodeFill = (type: GraphNodeType): string => {
+    switch (type) {
+        case 'event':
+            return '#f0f9ff';
+        case 'actor':
+            return '#ecfdf5';
+        default:
+            return '#f8fafc';
+    }
 };
 
-const getProgrammaticHighlightStrength = (edgeId: string): number => {
-    const startedAt = programmaticEdgeHighlights.get(edgeId);
-
-    if (typeof startedAt !== 'number') {
-        return 0;
+const fallbackNodeStroke = (type: GraphNodeType): string => {
+    switch (type) {
+        case 'event':
+            return '#38bdf8';
+        case 'actor':
+            return '#34d399';
+        default:
+            return '#94a3b8';
     }
-
-    const elapsed = performance.now() - startedAt;
-    if (elapsed <= PROGRAMMATIC_HIGHLIGHT_FLASH_MS) {
-        return 1;
-    }
-
-    return clamp(
-        1 -
-            (elapsed - PROGRAMMATIC_HIGHLIGHT_FLASH_MS) /
-                PROGRAMMATIC_HIGHLIGHT_FADE_MS,
-        0,
-        1,
-    );
-};
-
-const pruneProgrammaticHighlights = (): boolean => {
-    const now = performance.now();
-    let hasActiveHighlights = false;
-
-    for (const [edgeId, startedAt] of programmaticEdgeHighlights) {
-        if (
-            now - startedAt >=
-            PROGRAMMATIC_HIGHLIGHT_FLASH_MS + PROGRAMMATIC_HIGHLIGHT_FADE_MS
-        ) {
-            programmaticEdgeHighlights.delete(edgeId);
-            continue;
-        }
-
-        hasActiveHighlights = true;
-    }
-
-    return hasActiveHighlights;
 };
 
 const scheduleProgrammaticHighlightRefresh = (): void => {
@@ -417,17 +623,124 @@ const scheduleProgrammaticHighlightRefresh = (): void => {
     programmaticHighlightFrame = requestAnimationFrame(() => {
         programmaticHighlightFrame = null;
 
-        const hasActiveHighlights = pruneProgrammaticHighlights();
-        sigmaRenderer?.refresh();
+        const now = performance.now();
+        const hasActiveEdgeHighlights = pruneProgrammaticHighlights(
+            programmaticEdgeHighlights.value,
+            now,
+        );
+        const hasActiveNodeHighlights = pruneProgrammaticHighlights(
+            programmaticNodeHighlights.value,
+            now,
+        );
 
-        if (hasActiveHighlights) {
+        refreshActiveRenderer();
+
+        if (hasActiveEdgeHighlights || hasActiveNodeHighlights) {
             scheduleProgrammaticHighlightRefresh();
         }
     });
 };
 
+const refreshActiveRenderer = (): void => {
+    logFlowGraphVisibility('FlowGraphRenderer.refreshActiveRenderer', {
+        hasSigmaRenderer: sigmaRenderer !== null,
+        hasFallbackGraph: fallbackGraph.value !== null,
+        activeGraphState: summarizeBuiltGraphStateForDebug(activeGraphState.value),
+    });
+
+    if (sigmaRenderer) {
+        const sigmaGraph = sigmaRenderer.getGraph();
+        const graphState = activeGraphState.value;
+
+        for (const nodeId of sigmaGraph.nodes()) {
+            const fallbackNode =
+                graphState?.positionedNodeById.get(nodeId) ??
+                graphState?.nodeById.get(nodeId);
+
+            if (!fallbackNode) {
+                continue;
+            }
+
+            sigmaGraph.mergeNodeAttributes(
+                nodeId,
+                resolveFiniteGraphPosition(
+                    {
+                        x: sigmaGraph.getNodeAttribute(nodeId, 'x'),
+                        y: sigmaGraph.getNodeAttribute(nodeId, 'y'),
+                    },
+                    seedPosition(fallbackNode),
+                ),
+            );
+        }
+    }
+
+    sigmaRenderer?.refresh();
+
+    if (fallbackGraph.value) {
+        fallbackRenderVersion.value += 1;
+    }
+};
+
+const setHoveredNode = (
+    nodeId: string | null,
+    edgeIdsByNode: Map<string, Set<string>> | null = null,
+): void => {
+    hoveredNodeId.value = nodeId;
+    hoverHighlightedEdgeIds.value =
+        nodeId && edgeIdsByNode
+            ? new Set(edgeIdsByNode.get(nodeId) ?? [])
+            : new Set<string>();
+
+    refreshActiveRenderer();
+};
+
+const setHoveredEdgeHighlight = (
+    highlight: FlowGraphEdgeHighlight | null,
+): void => {
+    currentHoveredEdgeHighlight = highlight;
+    externallyHoveredEdgeIds.value = highlight
+        ? resolveDirectHighlightEdgeIds(props.graph, highlight)
+        : new Set<string>();
+
+    if (!sigmaRenderer && !fallbackGraph.value) {
+        return;
+    }
+
+    refreshActiveRenderer();
+};
+
+const highlightEdgeIds = (edgeIds: Iterable<string>): boolean => {
+    const startedAt = performance.now();
+    let hasHighlightedEdge = false;
+
+    for (const edgeId of edgeIds) {
+        if (sigmaRenderer && !sigmaRenderer.getGraph().hasEdge(edgeId)) {
+            continue;
+        }
+
+        if (
+            fallbackGraph.value &&
+            !fallbackGraph.value.edges.some((edge) => edge.id === edgeId)
+        ) {
+            continue;
+        }
+
+        programmaticEdgeHighlights.value.set(edgeId, startedAt);
+        hasHighlightedEdge = true;
+    }
+
+    if (!hasHighlightedEdge) {
+        return false;
+    }
+
+    refreshActiveRenderer();
+    scheduleProgrammaticHighlightRefresh();
+
+    return true;
+};
+
 const highlightDispatchPath = (highlight: DispatchPathHighlight): void => {
-    if (!sigmaRenderer) {
+    if (!sigmaRenderer && !fallbackGraph.value) {
         pendingDispatchHighlight = highlight;
         return;
     }
@@ -439,17 +752,89 @@ const highlightDispatchPath = (highlight: DispatchPathHighlight): void => {
         return;
     }
 
-    const startedAt = performance.now();
+    highlightEdgeIds(edgeIds);
+};
 
-    for (const edgeId of edgeIds) {
-        if (!sigmaRenderer.getGraph().hasEdge(edgeId)) {
-            continue;
-        }
-
-        programmaticEdgeHighlights.set(edgeId, startedAt);
+const focusEdge = (highlight: FlowGraphEdgeHighlight): void => {
+    const edgeIds = resolveDirectHighlightEdgeIds(props.graph, highlight);
+    if (edgeIds.size === 0) {
+        return;
     }
 
-    sigmaRenderer.refresh();
+    highlightEdgeIds(edgeIds);
+    highlightNode(highlight.from);
+    highlightNode(highlight.to);
+
+    if (!sigmaRenderer) {
+        const fromPoint = resolveFallbackNodePoint(highlight.from);
+        const toPoint = resolveFallbackNodePoint(highlight.to);
+
+        if (!fromPoint || !toPoint) {
+            return;
+        }
+
+        const rootBounds = rootRef.value?.getBoundingClientRect();
+        const aspectRatio =
+            rootBounds && rootBounds.width > 0 && rootBounds.height > 0
+                ? rootBounds.width / rootBounds.height
+                : undefined;
+
+        animateFallbackViewport(
+            resolveSvgViewportFromBounds(
+                expandSvgBounds(
+                    {
+                        minX: Math.min(fromPoint.x, toPoint.x),
+                        minY: Math.min(fromPoint.y, toPoint.y),
+                        maxX: Math.max(fromPoint.x, toPoint.x),
+                        maxY: Math.max(fromPoint.y, toPoint.y),
+                    },
+                    FALLBACK_SHADOW_BOUNDS_MARGIN,
+                ),
+                120,
+                aspectRatio,
+            ),
+        );
+
+        return;
+    }
+
+    const graph = sigmaRenderer.getGraph();
+    if (!graph.hasNode(highlight.from) || !graph.hasNode(highlight.to)) {
+        return;
+    }
+
+    const fromX = graph.getNodeAttribute(highlight.from, 'x');
+    const fromY = graph.getNodeAttribute(highlight.from, 'y');
+    const toX = graph.getNodeAttribute(highlight.to, 'x');
+    const toY = graph.getNodeAttribute(highlight.to, 'y');
+
+    sigmaRenderer.getCamera().animate(
+        {
+            x: (fromX + toX) / 2,
+            y: (fromY + toY) / 2,
+            ratio: DEFAULT_CAMERA_RATIO,
+            angle: 0,
+        },
+        { duration: FOCUS_TRANSITION_DURATION_MS },
+    );
+};
+
+const highlightNode = (nodeId: string): void => {
+    const startedAt = performance.now();
+
+    if (sigmaRenderer?.getGraph().hasNode(nodeId)) {
+        programmaticNodeHighlights.value.set(nodeId, startedAt);
+    }
+
+    if (fallbackGraph.value?.positionedNodeById.has(nodeId)) {
+        programmaticNodeHighlights.value.set(nodeId, startedAt);
+    }
+
+    if (!programmaticNodeHighlights.value.has(nodeId)) {
+        return;
+    }
+
+    refreshActiveRenderer();
     scheduleProgrammaticHighlightRefresh();
 };
 
@@ -544,12 +929,22 @@ const buildGraphSignature = (
         .map((edge) => `${edge.from}->${edge.to}`)
         .sort();
 
-    return `n:${nodeSignature.join('|')}|e:${edgeSignature.join('|')}`;
+    const signature = `n:${nodeSignature.join('|')}|e:${edgeSignature.join('|')}`;
+
+    logFlowGraphVisibility('FlowGraphRenderer.buildGraphSignature', {
+        graph: summarizeGraphForDebug(graph),
+        signature,
+    });
+
+    return signature;
 };
 
 const destroyRenderer = (): void => {
     clearMountRetry();
     clearProgrammaticHighlightFrame();
+    clearFallbackViewportAnimation();
+    clearNodeAnimation();
+    pendingSigmaGraphCleanup = null;
 
     if (releaseCameraListener) {
         releaseCameraListener();
@@ -566,21 +961,28 @@ const destroyRenderer = (): void => {
         sigmaRenderer = null;
     }
 
+    fallbackGraph.value = null;
+    fallbackBaseViewport.value = createDefaultSvgViewport();
+    fallbackViewport.value = { ...fallbackBaseViewport.value };
+    fallbackDragState.value = null;
+    activeGraphState.value = null;
+
     renderedGraphSignature.value = null;
 
-    hoveredNodeId = null;
-    hoverHighlightedEdgeIds = new Set<string>();
-    programmaticEdgeHighlights = new Map<string, number>();
+    hoveredNodeId.value = null;
+    hoverHighlightedEdgeIds.value = new Set<string>();
+    externallyHoveredEdgeIds.value = new Set<string>();
+    programmaticEdgeHighlights.value = new Map<string, number>();
+    programmaticNodeHighlights.value = new Map<string, number>();
 };
 
-const buildSigmaGraph = (): {
-    sigmaGraph: Graph;
-    edgeIdsByNode: Map<string, Set<string>>;
-    nodeById: Map<string, BaseNode>;
-} => {
-    const nodes = buildNodes(props.graph);
-    const edges = buildEdges(props.graph, nodes);
-    const positionedNodes = buildLayoutNodes(nodes, edges);
+const buildGraphState = (
+    graph: Record<string, unknown> | null | undefined = props.graph,
+    seedPositions: Map<string, GraphNodePosition> = new Map(),
+): BuiltGraphState => {
+    const nodes = buildNodes(graph);
+    const edges = buildEdges(graph, nodes);
+    const positionedNodes = buildLayoutNodes(nodes, edges, seedPositions);
     const sigmaGraph = new Graph({
         type: 'directed',
         multi: false,
@@ -588,6 +990,9 @@ const buildSigmaGraph = (): {
     });
     const edgeIdsByNode = new Map<string, Set<string>>();
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const positionedNodeById = new Map(
+        positionedNodes.map((node) => [node.id, node]),
+    );
 
     for (const node of positionedNodes) {
         sigmaGraph.addNode(node.id, {
@@ -597,6 +1002,7 @@ const buildSigmaGraph = (): {
             color: nodeColor(node.type),
             label: node.shortLabel,
             labelColor: '#0f172a',
+            type: node.type,
         });
     }
 
@@ -607,7 +1013,7 @@ const buildSigmaGraph = (): {
 
         sigmaGraph.addEdgeWithKey(edge.id, edge.from, edge.to, {
             type: 'arrow',
-            size: 2,
+            size: FLOW_GRAPH_EDGE_BASE_SIZE,
             color: edgeColor(edge.tone),
         });
 
@@ -620,11 +1026,240 @@ const buildSigmaGraph = (): {
         edgeIdsByNode.set(edge.to, toEdgeIds);
     }
 
-    return { sigmaGraph, edgeIdsByNode, nodeById };
+    const graphState = {
+        sigmaGraph,
+        nodes: positionedNodes,
+        edges,
+        edgeIdsByNode,
+        nodeById,
+        positionedNodeById,
+    };
+
+    logFlowGraphVisibility('FlowGraphRenderer.buildGraphState', {
+        inputGraph: summarizeGraphForDebug(graph),
+        seedPositionCount: seedPositions.size,
+        graphState: summarizeBuiltGraphStateForDebug(graphState),
+    });
+
+    return graphState;
 };
 
-const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
+const readSigmaNodePositions = (graph: Graph): Map<string, GraphNodePosition> => {
+    const positions = new Map<string, GraphNodePosition>();
+
+    for (const nodeId of graph.nodes()) {
+        const x = graph.getNodeAttribute(nodeId, 'x');
+        const y = graph.getNodeAttribute(nodeId, 'y');
+
+        if (!isFiniteGraphCoordinate(x) || !isFiniteGraphCoordinate(y)) {
+            continue;
+        }
+
+        positions.set(nodeId, { x, y });
+    }
+
+    logFlowGraphVisibility('FlowGraphRenderer.readSigmaNodePositions', {
+        nodeCount: positions.size,
+        nodeIds: [...positions.keys()],
+    });
+
+    return positions;
+};
+
+const syncSigmaGraphState = (nextGraphState: BuiltGraphState): void => {
+    if (!sigmaRenderer) {
+        return;
+    }
+
+    const currentCameraState = sigmaRenderer.getCamera().getState();
+
+    logFlowGraphVisibility('FlowGraphRenderer.syncSigmaGraphState', {
+        cameraState: currentCameraState,
+        nextGraphState: summarizeBuiltGraphStateForDebug(nextGraphState),
+    });
+
+    mountRenderer(currentCameraState, nextGraphState);
+};
+
+const syncFallbackGraphState = (nextGraphState: BuiltGraphState): void => {
+    const nextNodeIds = new Set(nextGraphState.nodes.map((node) => node.id));
+
+    if (hoveredNodeId.value && !nextNodeIds.has(hoveredNodeId.value)) {
+        hoveredNodeId.value = null;
+        hoverHighlightedEdgeIds.value = new Set<string>();
+    }
+
+    fallbackGraph.value = nextGraphState;
+    activeGraphState.value = nextGraphState;
+    renderedGraphSignature.value = buildGraphSignature(props.graph);
+
+    refreshFallbackViewport();
+
+    if (currentHoveredEdgeHighlight) {
+        externallyHoveredEdgeIds.value = resolveDirectHighlightEdgeIds(
+            props.graph,
+            currentHoveredEdgeHighlight,
+        );
+    }
+
+    logFlowGraphVisibility('FlowGraphRenderer.syncFallbackGraphState', {
+        nextGraphState: summarizeBuiltGraphStateForDebug(nextGraphState),
+        renderedGraphSignature: renderedGraphSignature.value,
+    });
+
+    refreshActiveRenderer();
+};
+
+const animateSigmaGraphExit = (): void => {
+    if (!sigmaRenderer) {
+        logFlowGraphVisibility('FlowGraphRenderer.animateSigmaGraphExit', {
+            hasSigmaRenderer: false,
+            activeGraphState: summarizeBuiltGraphStateForDebug(activeGraphState.value),
+        });
+
+        destroyRenderer();
+        emit('zoom-change', 100);
+        return;
+    }
+
+    clearNodeAnimation();
+    flushPendingSigmaGraphCleanup();
+
+    const sigmaGraph = sigmaRenderer.getGraph();
+    const animationTargets: Record<string, Record<string, number>> = {};
+
+    for (const nodeId of sigmaGraph.nodes()) {
+        animationTargets[nodeId] = { size: 0 };
+    }
+
+    logFlowGraphVisibility('FlowGraphRenderer.animateSigmaGraphExit', {
+        hasSigmaRenderer: true,
+        nodeIds: sigmaGraph.nodes(),
+        activeGraphState: summarizeBuiltGraphStateForDebug(activeGraphState.value),
+    });
+
+    pendingSigmaGraphCleanup = () => {
+        destroyRenderer();
+        emit('zoom-change', 100);
+    };
+
+    cancelNodeAnimation = animateNodes(
+        sigmaGraph,
+        animationTargets,
+        {
+            duration: SIGMA_LAYOUT_ANIMATION_DURATION_MS,
+            easing: 'quadraticInOut',
+        },
+        () => {
+            clearSigmaAnimationRefreshFrame();
+            cancelNodeAnimation = null;
+            flushPendingSigmaGraphCleanup();
+        },
+    );
+
+    refreshActiveRenderer();
+    scheduleSigmaAnimationRefresh();
+};
+
+const buildFallbackViewport = (graphState: BuiltGraphState): SvgViewport => {
+    if (graphState.nodes.length === 0) {
+        return createDefaultSvgViewport();
+    }
+
+    const rootBounds = rootRef.value?.getBoundingClientRect();
+    const aspectRatio =
+        rootBounds && rootBounds.width > 0 && rootBounds.height > 0
+            ? rootBounds.width / rootBounds.height
+            : undefined;
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const node of graphState.nodes) {
+        const point = toSvgPoint(node.x, node.y);
+        const labelFrame = estimateSvgLabelFrame(node.shortLabel, point);
+
+        minX = Math.min(minX, point.x - SVG_NODE_RADIUS - 8, labelFrame.x);
+        minY = Math.min(minY, point.y - SVG_NODE_RADIUS - 8, labelFrame.y);
+        maxX = Math.max(
+            maxX,
+            point.x + SVG_NODE_RADIUS + 8,
+            labelFrame.x + labelFrame.width,
+        );
+        maxY = Math.max(
+            maxY,
+            point.y + SVG_NODE_RADIUS + 8,
+            labelFrame.y + labelFrame.height,
+        );
+    }
+
+    return resolveSvgViewportFromBounds(
+        expandSvgBounds(
+            { minX, minY, maxX, maxY },
+            FALLBACK_SHADOW_BOUNDS_MARGIN,
+        ),
+        72,
+        aspectRatio,
+    );
+};
+
+const refreshFallbackViewport = (): void => {
+    if (!fallbackGraph.value) {
+        return;
+    }
+
+    clearFallbackViewportAnimation();
+
+    const fittedViewport = buildFallbackViewport(fallbackGraph.value);
+    fallbackBaseViewport.value = fittedViewport;
+    fallbackViewport.value = { ...fittedViewport };
+    emit('zoom-change', fallbackZoomPercent.value);
+};
+
+const animateFallbackViewport = (targetViewport: SvgViewport): void => {
+    clearFallbackViewportAnimation();
+
+    const startViewport = { ...fallbackViewport.value };
+    const startedAt = performance.now();
+
+    const step = (now: number): void => {
+        const progress = Math.min(
+            (now - startedAt) / FOCUS_TRANSITION_DURATION_MS,
+            1,
+        );
+
+        fallbackViewport.value = interpolateSvgViewport(
+            startViewport,
+            targetViewport,
+            easeInOutCubic(progress),
+        );
+        emit('zoom-change', fallbackZoomPercent.value);
+
+        if (progress >= 1) {
+            fallbackViewportAnimationFrame = null;
+            return;
+        }
+
+        fallbackViewportAnimationFrame = requestAnimationFrame(step);
+    };
+
+    fallbackViewportAnimationFrame = requestAnimationFrame(step);
+};
+
+const mountRenderer = (
+    cameraState?: CameraStateSnapshot | null,
+    graphStateOverride?: BuiltGraphState | null,
+): void => {
     if (!hasRenderableGraph.value) {
+        logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.emptyGraph', {
+            cameraState,
+            graphStateOverride: summarizeBuiltGraphStateForDebug(
+                graphStateOverride ?? null,
+            ),
+        });
+
         destroyRenderer();
         emit('zoom-change', 100);
         return;
@@ -632,11 +1267,22 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
 
     const container = containerRef.value;
     if (!container) {
+        logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.noContainer', {
+            cameraState,
+        });
+
         return;
     }
 
     const rect = container.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
+    if (!hasRenderableContainerSize(rect.width, rect.height)) {
+        logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.noRenderableSize', {
+            cameraState,
+            width: rect.width,
+            height: rect.height,
+            mountRetryCount,
+        });
+
         if (mountRetryCount >= MAX_MOUNT_RETRIES) {
             return;
         }
@@ -655,44 +1301,114 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
 
     destroyRenderer();
 
-    const { sigmaGraph, edgeIdsByNode, nodeById } = buildSigmaGraph();
-    sigmaRenderer = new Sigma(sigmaGraph, container, {
-        hideEdgesOnMove: false,
-        hideLabelsOnMove: false,
-        renderLabels: true,
-        renderEdgeLabels: false,
-        zIndex: true,
-        defaultNodeType: 'circle',
-        defaultEdgeType: 'arrow',
-        enableEdgeEvents: false,
-        defaultDrawNodeHover: () => {},
-        edgeReducer: (edge, data) => {
-            const programmaticHighlightStrength =
-                getProgrammaticHighlightStrength(edge);
+    const graphState = graphStateOverride ?? buildGraphState();
+    const { sigmaGraph } = graphState;
 
-            return resolveEdgeHighlightAttributes({
-                edgeId: edge,
-                baseColor:
-                    typeof data.color === 'string'
-                        ? data.color
-                        : edgeColor('other'),
-                baseSize: typeof data.size === 'number' ? data.size : 2,
-                hoveredNodeId,
-                hoverHighlightedEdgeIds,
-                programmaticHighlightStrength,
-            });
-        },
-        labelFont: 'IBM Plex Sans, Inter, system-ui, sans-serif',
-        labelSize: 12,
-        labelWeight: '600',
-        labelColor: { attribute: 'labelColor', color: '#0f172a' },
-        labelDensity: 0.9,
-        labelGridCellSize: 48,
-        labelRenderedSizeThreshold: 0,
-        minCameraRatio: MIN_RATIO,
-        maxCameraRatio: MAX_RATIO,
-        defaultDrawNodeLabel: drawRoundedLabel,
+    logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.start', {
+        cameraState,
+        graphStateOverride: graphStateOverride
+            ? summarizeBuiltGraphStateForDebug(graphStateOverride)
+            : null,
+        graphState: summarizeBuiltGraphStateForDebug(graphState),
     });
+
+    try {
+        sigmaRenderer = new Sigma(sigmaGraph, container, {
+            hideEdgesOnMove: false,
+            hideLabelsOnMove: false,
+            renderLabels: true,
+            renderEdgeLabels: false,
+            zIndex: true,
+            defaultNodeType: 'circle',
+            defaultEdgeType: 'arrow',
+            enableEdgeEvents: false,
+            defaultDrawNodeHover: () => {},
+            nodeReducer: (node, data) => {
+                const programmaticHighlightStrength =
+                    getProgrammaticHighlightStrength(
+                        programmaticNodeHighlights.value,
+                        node,
+                    );
+
+                return {
+                    ...data,
+                    ...resolveNodeHighlightAttributes({
+                        baseColor:
+                            typeof data.color === 'string'
+                                ? data.color
+                                : nodeColor('other'),
+                        baseSize:
+                            typeof data.size === 'number' ? data.size : 10,
+                        hovered: hoveredNodeId.value === node,
+                        programmaticHighlightStrength,
+                    }),
+                };
+            },
+            edgeReducer: (edge, data) => {
+                const programmaticHighlightStrength =
+                    getProgrammaticHighlightStrength(
+                        programmaticEdgeHighlights.value,
+                        edge,
+                    );
+
+                return {
+                    ...data,
+                    ...resolveEdgeHighlightAttributes({
+                        edgeId: edge,
+                        baseColor:
+                            typeof data.color === 'string'
+                                ? data.color
+                                : edgeColor('other'),
+                        baseSize:
+                            typeof data.size === 'number'
+                                ? data.size
+                                : FLOW_GRAPH_EDGE_BASE_SIZE,
+                        hoverActive: hasActiveEdgeHover.value,
+                        hoverHighlightedEdgeIds:
+                            activeHoverHighlightedEdgeIds.value,
+                        programmaticHighlightStrength,
+                    }),
+                };
+            },
+            labelFont: 'IBM Plex Sans, Inter, system-ui, sans-serif',
+            labelSize: 12,
+            labelWeight: '600',
+            labelColor: { attribute: 'labelColor', color: '#0f172a' },
+            labelDensity: 0.9,
+            labelGridCellSize: 48,
+            labelRenderedSizeThreshold: 0,
+            minCameraRatio: MIN_RATIO,
+            maxCameraRatio: MAX_RATIO,
+            defaultDrawNodeLabel: drawRoundedLabel,
+        });
+    } catch {
+        destroyRenderer();
+        const fittedViewport = buildFallbackViewport(graphState);
+        fallbackGraph.value = graphState;
+        fallbackBaseViewport.value = fittedViewport;
+        fallbackViewport.value = { ...fittedViewport };
+        activeGraphState.value = graphState;
+        renderedGraphSignature.value = buildGraphSignature(props.graph);
+        emit('zoom-change', fallbackZoomPercent.value);
+
+        if (pendingDispatchHighlight) {
+            highlightDispatchPath(pendingDispatchHighlight);
+        }
+
+        if (currentHoveredEdgeHighlight) {
+            setHoveredEdgeHighlight(currentHoveredEdgeHighlight);
+        }
+
+        logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.fallback', {
+            cameraState,
+            graphState: summarizeBuiltGraphStateForDebug(graphState),
+        });
+
+        return;
+    }
+
+    fallbackGraph.value = null;
+    activeGraphState.value = graphState;
 
     const camera = sigmaRenderer.getCamera();
     const onCameraUpdate = (): void => {
@@ -705,27 +1421,24 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
     };
 
     const onEnterNode = ({ node }: { node: string }): void => {
-        hoveredNodeId = node;
-        hoverHighlightedEdgeIds = new Set(edgeIdsByNode.get(node) ?? []);
-        sigmaRenderer?.refresh();
+        setHoveredNode(node, activeGraphState.value?.edgeIdsByNode ?? null);
     };
 
     const onLeaveNode = (): void => {
-        if (!hoveredNodeId) {
+        if (!hoveredNodeId.value) {
             return;
         }
 
-        hoveredNodeId = null;
-        hoverHighlightedEdgeIds = new Set<string>();
-        sigmaRenderer?.refresh();
+        setHoveredNode(null);
     };
 
     const onClickNode = ({ node }: { node: string }): void => {
-        const selectedNode = nodeById.get(node);
+        const selectedNode = activeGraphState.value?.nodeById.get(node);
         if (!selectedNode) {
             return;
         }
 
+        focusNode(node);
         emit('node-click', selectedNode);
     };
 
@@ -745,6 +1458,16 @@ const mountRenderer = (cameraState?: CameraStateSnapshot | null): void => {
     if (pendingDispatchHighlight) {
         highlightDispatchPath(pendingDispatchHighlight);
     }
+
+    if (currentHoveredEdgeHighlight) {
+        setHoveredEdgeHighlight(currentHoveredEdgeHighlight);
+    }
+
+    logFlowGraphVisibility('FlowGraphRenderer.mountRenderer.sigma', {
+        cameraState,
+        graphState: summarizeBuiltGraphStateForDebug(graphState),
+        renderedGraphSignature: renderedGraphSignature.value,
+    });
 };
 
 const withCamera = (callback: (ratio: number) => void): void => {
@@ -757,6 +1480,20 @@ const withCamera = (callback: (ratio: number) => void): void => {
 };
 
 const zoomIn = (): void => {
+    if (!sigmaRenderer) {
+        if (fallbackGraph.value) {
+            clearFallbackViewportAnimation();
+            fallbackViewport.value = zoomSvgViewport(
+                fallbackViewport.value,
+                'in',
+                { baseViewport: fallbackBaseViewport.value },
+            );
+            emit('zoom-change', fallbackZoomPercent.value);
+        }
+
+        return;
+    }
+
     withCamera((ratio) => {
         sigmaRenderer
             ?.getCamera()
@@ -768,6 +1505,20 @@ const zoomIn = (): void => {
 };
 
 const zoomOut = (): void => {
+    if (!sigmaRenderer) {
+        if (fallbackGraph.value) {
+            clearFallbackViewportAnimation();
+            fallbackViewport.value = zoomSvgViewport(
+                fallbackViewport.value,
+                'out',
+                { baseViewport: fallbackBaseViewport.value },
+            );
+            emit('zoom-change', fallbackZoomPercent.value);
+        }
+
+        return;
+    }
+
     withCamera((ratio) => {
         sigmaRenderer
             ?.getCamera()
@@ -779,14 +1530,343 @@ const zoomOut = (): void => {
 };
 
 const resetView = (): void => {
+    if (!sigmaRenderer) {
+        clearFallbackViewportAnimation();
+        fallbackViewport.value = { ...fallbackBaseViewport.value };
+        emit('zoom-change', fallbackZoomPercent.value);
+        return;
+    }
+
     sigmaRenderer?.getCamera().animate(DEFAULT_CAMERA_STATE, { duration: 180 });
 };
 
+const focusNode = (nodeId: string): void => {
+    if (!nodeId) {
+        return;
+    }
+
+    if (!sigmaRenderer) {
+        const point = resolveFallbackNodePoint(nodeId);
+        if (!point) {
+            return;
+        }
+
+        highlightNode(nodeId);
+        animateFallbackViewport(
+            resolveFocusedSvgViewportOnPoint(
+                point,
+                FOCUS_ZOOM_PERCENT,
+                fallbackBaseViewport.value,
+            ),
+        );
+        return;
+    }
+
+    const graph = sigmaRenderer.getGraph();
+    if (!graph.hasNode(nodeId)) {
+        return;
+    }
+
+    highlightNode(nodeId);
+
+    const camera = sigmaRenderer.getCamera();
+    const focusRatio = Math.max(
+        MIN_RATIO,
+        Math.min(MAX_RATIO, DEFAULT_CAMERA_RATIO / (FOCUS_ZOOM_PERCENT / 100)),
+    );
+
+    camera.animate(
+        {
+            x: graph.getNodeAttribute(nodeId, 'x'),
+            y: graph.getNodeAttribute(nodeId, 'y'),
+            ratio: focusRatio,
+            angle: 0,
+        },
+        { duration: FOCUS_TRANSITION_DURATION_MS },
+    );
+};
+
+const resolveFallbackNodePoint = (nodeId: string) => {
+    const node = fallbackGraph.value?.positionedNodeById.get(nodeId);
+
+    return node ? toSvgPoint(node.x, node.y) : null;
+};
+
+const resolveFallbackEdgeLine = (edge: NormalizedEdge) => {
+    const from = resolveFallbackNodePoint(edge.from);
+    const to = resolveFallbackNodePoint(edge.to);
+
+    if (!from || !to) {
+        return null;
+    }
+
+    return resolveSvgLine(from, to, SVG_NODE_RADIUS + 2);
+};
+
+const resolveFallbackLabelFrame = (node: NormalizedNode) => {
+    return estimateSvgLabelFrame(node.shortLabel, toSvgPoint(node.x, node.y));
+};
+
+const resolveFallbackEdgeStyle = (edge: NormalizedEdge) => {
+    const programmaticHighlightStrength = getProgrammaticHighlightStrength(
+        programmaticEdgeHighlights.value,
+        edge.id,
+    );
+    const hoverHighlighted = activeHoverHighlightedEdgeIds.value.has(edge.id);
+    const color = resolveFallbackEdgeColor(
+        edgeColor(edge.tone),
+        hasActiveEdgeHover.value,
+        hoverHighlighted,
+        programmaticHighlightStrength,
+    );
+
+    return {
+        stroke: color,
+        strokeWidth: resolveHighlightedEdgeSize({
+            baseSize: FLOW_GRAPH_EDGE_BASE_SIZE,
+            hoverHighlighted,
+            programmaticHighlightStrength,
+        }),
+        strokeOpacity:
+            hasActiveEdgeHover.value &&
+            !hoverHighlighted &&
+            programmaticHighlightStrength <= 0
+                ? 0.6
+                : 1,
+    };
+};
+
+const handleFallbackNodeEnter = (nodeId: string): void => {
+    setHoveredNode(nodeId, fallbackGraph.value?.edgeIdsByNode ?? null);
+};
+
+const handleFallbackNodeLeave = (): void => {
+    if (!hoveredNodeId.value) {
+        return;
+    }
+
+    setHoveredNode(null);
+};
+
+const handleFallbackNodeClick = (nodeId: string): void => {
+    const node = fallbackGraph.value?.nodeById.get(nodeId);
+    if (!node) {
+        return;
+    }
+
+    focusNode(nodeId);
+    emit('node-click', node);
+};
+
+const handleFallbackPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) {
+        return;
+    }
+
+    clearFallbackViewportAnimation();
+
+    const target = event.target;
+    if (
+        target instanceof Element &&
+        target.closest('[data-fallback-node="true"]')
+    ) {
+        return;
+    }
+
+    const svg = event.currentTarget;
+    if (!(svg instanceof SVGSVGElement)) {
+        return;
+    }
+
+    fallbackDragState.value = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startViewport: { ...fallbackViewport.value },
+    };
+
+    svg.setPointerCapture(event.pointerId);
+};
+
+const handleFallbackPointerMove = (event: PointerEvent): void => {
+    const dragState = fallbackDragState.value;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+    }
+
+    const svg = event.currentTarget;
+    if (!(svg instanceof SVGSVGElement)) {
+        return;
+    }
+
+    const bounds = svg.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+    }
+
+    const deltaX =
+        ((event.clientX - dragState.startClientX) / bounds.width) *
+        dragState.startViewport.width;
+    const deltaY =
+        ((event.clientY - dragState.startClientY) / bounds.height) *
+        dragState.startViewport.height;
+
+    fallbackViewport.value = panSvgViewport(
+        dragState.startViewport,
+        deltaX,
+        deltaY,
+    );
+};
+
+const resolveFallbackSvgPoint = (
+    svg: SVGSVGElement,
+    clientX: number,
+    clientY: number,
+) => {
+    const bounds = svg.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) {
+        return null;
+    }
+
+    return {
+        x:
+            fallbackViewport.value.x +
+            ((clientX - bounds.left) / bounds.width) *
+                fallbackViewport.value.width,
+        y:
+            fallbackViewport.value.y +
+            ((clientY - bounds.top) / bounds.height) *
+                fallbackViewport.value.height,
+    };
+};
+
+const handleFallbackWheel = (event: WheelEvent): void => {
+    if (!fallbackGraph.value) {
+        return;
+    }
+
+    clearFallbackViewportAnimation();
+
+    const svg = event.currentTarget;
+    if (!(svg instanceof SVGSVGElement)) {
+        return;
+    }
+
+    const anchor = resolveFallbackSvgPoint(svg, event.clientX, event.clientY);
+    if (!anchor) {
+        return;
+    }
+
+    const zoomMode = resolveSvgWheelZoomMode(event.ctrlKey);
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const pixelDelta = resolveSvgWheelPixelDelta(event.deltaY, event.deltaMode);
+    const zoomScale = resolveSvgWheelZoomScale(pixelDelta, zoomMode);
+
+    fallbackViewport.value = scaleSvgViewport(
+        fallbackViewport.value,
+        zoomScale,
+        {
+            anchor,
+            baseViewport: fallbackBaseViewport.value,
+        },
+    );
+    emit('zoom-change', fallbackZoomPercent.value);
+};
+
+const handleFallbackPointerUp = (event: PointerEvent): void => {
+    const dragState = fallbackDragState.value;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+        return;
+    }
+
+    const svg = event.currentTarget;
+    if (
+        svg instanceof SVGSVGElement &&
+        svg.hasPointerCapture(event.pointerId)
+    ) {
+        svg.releasePointerCapture(event.pointerId);
+    }
+
+    fallbackDragState.value = null;
+};
+
+const fallbackEdgeViews = computed(() => {
+    void fallbackRenderVersion.value;
+
+    return (fallbackGraph.value?.edges ?? [])
+        .map((edge) => {
+            const line = resolveFallbackEdgeLine(edge);
+            if (!line) {
+                return null;
+            }
+
+            return {
+                edge,
+                line,
+                style: resolveFallbackEdgeStyle(edge),
+            };
+        })
+        .filter((edgeView): edgeView is NonNullable<typeof edgeView> => {
+            return edgeView !== null;
+        });
+});
+
+const fallbackNodeViews = computed(() => {
+    void fallbackRenderVersion.value;
+
+    return (fallbackGraph.value?.nodes ?? []).map((node) => {
+        const point = toSvgPoint(node.x, node.y);
+        const hovered = hoveredNodeId.value === node.id;
+        const programmaticHighlightStrength = getProgrammaticHighlightStrength(
+            programmaticNodeHighlights.value,
+            node.id,
+        );
+        const highlightAttributes = resolveNodeHighlightAttributes({
+            baseColor: fallbackNodeStroke(node.type),
+            baseSize: 16,
+            hovered,
+            programmaticHighlightStrength,
+        });
+        const outerStroke =
+            typeof highlightAttributes.color === 'string'
+                ? highlightAttributes.color
+                : hovered
+                  ? '#0f172a'
+                  : fallbackNodeStroke(node.type);
+        const outerRadius =
+            typeof highlightAttributes.size === 'number'
+                ? highlightAttributes.size
+                : 16;
+
+        return {
+            node,
+            point,
+            labelFrame: resolveFallbackLabelFrame(node),
+            hovered,
+            outerRadius,
+            outerStroke,
+            outerStrokeWidth:
+                hovered || programmaticHighlightStrength > 0 ? 3 : 2,
+            labelStroke:
+                programmaticHighlightStrength > 0
+                    ? `rgba(34, 197, 94, ${0.28 + programmaticHighlightStrength * 0.32})`
+                    : 'rgba(148, 163, 184, 0.32)',
+            glowOpacity: programmaticHighlightStrength * 0.35,
+        };
+    });
+});
+
 defineExpose({
+    focusEdge,
     zoomIn,
     zoomOut,
     resetView,
+    focusNode,
     highlightDispatchPath,
+    setHoveredEdgeHighlight,
 });
 
 watch(
@@ -794,35 +1874,128 @@ watch(
     async () => {
         pendingDispatchHighlight = null;
 
+        logFlowGraphVisibility('FlowGraphRenderer.watchGraph.start', {
+            graph: summarizeGraphForDebug(props.graph),
+            hasRenderableGraph: hasRenderableGraph.value,
+            hasBeenVisible: hasBeenVisible.value,
+            renderedGraphSignature: renderedGraphSignature.value,
+            hasSigmaRenderer: sigmaRenderer !== null,
+        });
+
         if (!hasRenderableGraph.value) {
+            if (sigmaRenderer) {
+                logFlowGraphVisibility('FlowGraphRenderer.watchGraph.emptyGraph', {
+                    action: 'animateSigmaGraphExit',
+                });
+
+                animateSigmaGraphExit();
+                return;
+            }
+
+            logFlowGraphVisibility('FlowGraphRenderer.watchGraph.emptyGraph', {
+                action: 'destroyRenderer',
+            });
+
             destroyRenderer();
             emit('zoom-change', 100);
             return;
         }
 
         if (!hasBeenVisible.value) {
+            logFlowGraphVisibility('FlowGraphRenderer.watchGraph.skipNotVisible');
             return;
         }
 
         const nextGraphSignature = buildGraphSignature(props.graph);
         if (nextGraphSignature === renderedGraphSignature.value) {
+            logFlowGraphVisibility(
+                'FlowGraphRenderer.watchGraph.skipSameSignature',
+                {
+                    nextGraphSignature,
+                    renderedGraphSignature: renderedGraphSignature.value,
+                },
+            );
+
             return;
         }
 
-        const currentCameraState = sigmaRenderer
-            ? { ...sigmaRenderer.getCamera().getState() }
-            : null;
+        logFlowGraphVisibility('FlowGraphRenderer.watchGraph.signatureChanged', {
+            nextGraphSignature,
+            renderedGraphSignature: renderedGraphSignature.value,
+        });
 
         await nextTick();
-        mountRenderer(currentCameraState);
+
+        if (sigmaRenderer) {
+            logFlowGraphVisibility('FlowGraphRenderer.watchGraph.syncSigma', {
+                nextGraphSignature,
+            });
+
+            syncSigmaGraphState(
+                buildGraphState(
+                    props.graph,
+                    readSigmaNodePositions(sigmaRenderer.getGraph()),
+                ),
+            );
+            return;
+        }
+
+        if (fallbackGraph.value) {
+            logFlowGraphVisibility('FlowGraphRenderer.watchGraph.syncFallback', {
+                nextGraphSignature,
+            });
+
+            syncFallbackGraphState(buildGraphState(props.graph));
+            return;
+        }
+
+        logFlowGraphVisibility('FlowGraphRenderer.watchGraph.mountRenderer', {
+            nextGraphSignature,
+        });
+
+        mountRenderer();
     },
     { deep: true, immediate: false },
 );
 
 onMounted(() => {
+    const root = rootRef.value;
     const container = containerRef.value;
-    if (!container) {
+    if (!root || !container) {
         return;
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver((entries) => {
+            const sizedEntry = entries.find((entry) => {
+                return hasRenderableContainerSize(
+                    entry.contentRect.width,
+                    entry.contentRect.height,
+                );
+            });
+
+            if (!sizedEntry || !hasBeenVisible.value) {
+                return;
+            }
+
+            if (fallbackGraph.value) {
+                refreshFallbackViewport();
+                return;
+            }
+
+            if (
+                shouldMountRendererOnResize({
+                    width: sizedEntry.contentRect.width,
+                    height: sizedEntry.contentRect.height,
+                    hasBeenVisible: hasBeenVisible.value,
+                    hasActiveRenderer: sigmaRenderer !== null,
+                })
+            ) {
+                mountRenderer();
+            }
+        });
+
+        resizeObserver.observe(root);
     }
 
     if (typeof IntersectionObserver === 'undefined') {
@@ -881,10 +2054,143 @@ onBeforeUnmount(() => {
         intersectionObserver = null;
     }
 
+    if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+    }
+
     destroyRenderer();
 });
 </script>
 
 <template>
-    <div ref="containerRef" class="h-full w-full" />
+    <div
+        ref="rootRef"
+        class="relative h-full w-full overflow-hidden rounded-[inherit] bg-linear-to-br from-background via-background to-muted/20"
+    >
+        <div
+            v-show="!isUsingFallbackRenderer"
+            ref="containerRef"
+            class="h-full w-full"
+        />
+
+        <svg
+            v-if="fallbackGraph"
+            class="absolute inset-0 h-full w-full touch-none select-none"
+            :class="isFallbackDragging ? 'cursor-grabbing' : 'cursor-grab'"
+            :viewBox="fallbackViewBox"
+            preserveAspectRatio="xMidYMid meet"
+            @wheel="handleFallbackWheel"
+            @pointercancel="handleFallbackPointerUp"
+            @pointerdown="handleFallbackPointerDown"
+            @pointermove="handleFallbackPointerMove"
+            @pointerup="handleFallbackPointerUp"
+        >
+            <defs>
+                <filter
+                    :id="softShadowFilterId"
+                    x="-40%"
+                    y="-40%"
+                    width="180%"
+                    height="200%"
+                >
+                    <feDropShadow
+                        dx="0"
+                        dy="4"
+                        stdDeviation="6"
+                        flood-color="rgba(15, 23, 42, 0.08)"
+                    />
+                </filter>
+                <marker
+                    :id="arrowMarkerId"
+                    :markerWidth="FLOW_GRAPH_FALLBACK_ARROW_MARKER.width"
+                    :markerHeight="FLOW_GRAPH_FALLBACK_ARROW_MARKER.height"
+                    :refX="FLOW_GRAPH_FALLBACK_ARROW_MARKER.refX"
+                    :refY="FLOW_GRAPH_FALLBACK_ARROW_MARKER.refY"
+                    orient="auto"
+                    :markerUnits="FLOW_GRAPH_FALLBACK_ARROW_MARKER.units"
+                >
+                    <path
+                        :d="FLOW_GRAPH_FALLBACK_ARROW_MARKER.path"
+                        fill="context-stroke"
+                    />
+                </marker>
+            </defs>
+
+            <g v-for="edgeView in fallbackEdgeViews" :key="edgeView.edge.id">
+                <line
+                    :x1="edgeView.line.x1"
+                    :y1="edgeView.line.y1"
+                    :x2="edgeView.line.x2"
+                    :y2="edgeView.line.y2"
+                    :stroke="edgeView.style.stroke"
+                    :stroke-width="edgeView.style.strokeWidth"
+                    :stroke-opacity="edgeView.style.strokeOpacity"
+                    :marker-end="`url(#${arrowMarkerId})`"
+                    stroke-linecap="round"
+                />
+            </g>
+
+            <g
+                v-for="nodeView in fallbackNodeViews"
+                :key="nodeView.node.id"
+                data-fallback-node="true"
+                class="cursor-pointer"
+                @click="handleFallbackNodeClick(nodeView.node.id)"
+                @mouseenter="handleFallbackNodeEnter(nodeView.node.id)"
+                @mouseleave="handleFallbackNodeLeave"
+            >
+                <circle
+                    v-if="nodeView.glowOpacity > 0"
+                    :cx="nodeView.point.x"
+                    :cy="nodeView.point.y"
+                    :r="nodeView.outerRadius + 7"
+                    :fill="PROGRAMMATIC_HIGHLIGHT_COLOR"
+                    :fill-opacity="nodeView.glowOpacity"
+                    :filter="`url(#${softShadowFilterId})`"
+                />
+
+                <circle
+                    :cx="nodeView.point.x"
+                    :cy="nodeView.point.y"
+                    :r="nodeView.outerRadius"
+                    :fill="fallbackNodeFill(nodeView.node.type)"
+                    :stroke="nodeView.outerStroke"
+                    :stroke-width="nodeView.outerStrokeWidth"
+                    :filter="`url(#${softShadowFilterId})`"
+                />
+
+                <circle
+                    :cx="nodeView.point.x"
+                    :cy="nodeView.point.y"
+                    :r="5"
+                    :fill="fallbackNodeStroke(nodeView.node.type)"
+                />
+
+                <rect
+                    :x="nodeView.labelFrame.x"
+                    :y="nodeView.labelFrame.y"
+                    :width="nodeView.labelFrame.width"
+                    :height="nodeView.labelFrame.height"
+                    rx="10"
+                    fill="rgba(255, 255, 255, 0.96)"
+                    :stroke="nodeView.labelStroke"
+                    :filter="`url(#${softShadowFilterId})`"
+                />
+
+                <text
+                    :x="nodeView.point.x"
+                    :y="nodeView.labelFrame.textY"
+                    fill="#0f172a"
+                    font-family="IBM Plex Sans, Inter, system-ui, sans-serif"
+                    font-size="13"
+                    font-weight="600"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                >
+                    {{ nodeView.node.shortLabel }}
+                </text>
+            </g>
+        </svg>
+    </div>
 </template>

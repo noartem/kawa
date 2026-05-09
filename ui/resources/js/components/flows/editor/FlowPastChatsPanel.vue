@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import FlowPastChatDetailsDialog from '@/components/flows/editor/FlowPastChatDetailsDialog.vue';
 import type { FlowChatConversation } from '@/components/flows/editor/types';
 import { Badge } from '@/components/ui/badge';
+import { show as flowChatShow } from '@/routes/flows/chat';
 import { Link } from '@inertiajs/vue3';
 import { ArrowUpRight } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
+    flowId: number;
     chats: FlowChatConversation[];
     allChatsUrl?: string | null;
     formatDate: (value?: string | null) => string;
@@ -15,43 +15,6 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-const detailsOpen = ref(false);
-const selectedChatId = ref<string | null>(null);
-
-const selectedChat = computed<FlowChatConversation | null>(() => {
-    if (selectedChatId.value === null) {
-        return null;
-    }
-
-    return props.chats.find((chat) => chat.id === selectedChatId.value) ?? null;
-});
-
-const openChatDetails = (chatId: string): void => {
-    selectedChatId.value = chatId;
-    detailsOpen.value = true;
-};
-
-watch(detailsOpen, (open) => {
-    if (!open) {
-        selectedChatId.value = null;
-    }
-});
-
-watch(
-    () => props.chats,
-    (nextChats) => {
-        const availableChatIds = new Set(nextChats.map((chat) => chat.id));
-
-        if (
-            selectedChatId.value !== null &&
-            !availableChatIds.has(selectedChatId.value)
-        ) {
-            detailsOpen.value = false;
-            selectedChatId.value = null;
-        }
-    },
-    { immediate: true },
-);
 </script>
 
 <template>
@@ -73,15 +36,12 @@ watch(
             </Link>
         </div>
 
-        <div
-            class="grid divide-y rounded-xl border border-border"
-        >
-            <button
+        <div class="grid divide-y rounded-xl border border-border">
+            <Link
                 v-for="chat in chats"
                 :key="chat.id"
-                type="button"
-                class="w-full px-4 py-3 transition-colors hover:bg-muted/40"
-                @click="openChatDetails(chat.id)"
+                :href="flowChatShow({ flow: props.flowId, chat: chat.id }).url"
+                class="block w-full px-4 py-3 transition-colors hover:bg-muted/40"
             >
                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <p class="text-sm font-semibold text-foreground">
@@ -119,14 +79,7 @@ watch(
                         <ArrowUpRight class="size-4 shrink-0" />
                     </span>
                 </div>
-            </button>
+            </Link>
         </div>
-
-        <FlowPastChatDetailsDialog
-            v-model:open="detailsOpen"
-            :chat="selectedChat"
-            :format-date="formatDate"
-            :format-recent-date="formatRecentDate"
-        />
     </section>
 </template>

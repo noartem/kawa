@@ -85,6 +85,69 @@ class FlowGraphDefaultsTest extends TestCase
         $this->assertSame(File::get(resource_path('flow-templates/webhook.py')), $flow->code);
     }
 
+    public function test_rss_flow_uses_resource_template_code(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)->post(route('flows.store'), [
+            'name' => 'RSS flow',
+            'description' => 'RSS digest scenario',
+            'template' => 'rss',
+            'timezone' => 'UTC',
+        ])->assertRedirect();
+
+        $flow = Flow::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'RSS flow')
+            ->first();
+
+        $this->assertNotNull($flow);
+        $this->assertSame(File::get(resource_path('flow-templates/rss.py')), $flow->code);
+    }
+
+    public function test_imap_flow_uses_resource_template_code(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)->post(route('flows.store'), [
+            'name' => 'IMAP flow',
+            'description' => 'IMAP processing scenario',
+            'template' => 'imap',
+            'timezone' => 'UTC',
+        ])->assertRedirect();
+
+        $flow = Flow::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'IMAP flow')
+            ->first();
+
+        $this->assertNotNull($flow);
+        $this->assertSame(File::get(resource_path('flow-templates/imap.py')), $flow->code);
+    }
+
+    public function test_air_quality_flow_uses_resource_template_code(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $this->actingAs($user)->post(route('flows.store'), [
+            'name' => 'Air quality flow',
+            'description' => 'Air quality alert scenario',
+            'template' => 'air_quality',
+            'timezone' => 'UTC',
+        ])->assertRedirect();
+
+        $flow = Flow::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'Air quality flow')
+            ->first();
+
+        $this->assertNotNull($flow);
+        $this->assertSame(File::get(resource_path('flow-templates/air_quality.py')), $flow->code);
+    }
+
     public function test_flow_creation_rejects_invalid_timezone(): void
     {
         /** @var User $user */
@@ -118,7 +181,7 @@ class FlowGraphDefaultsTest extends TestCase
 from kawa import actor, Context, Cron
 
 
-@actor(receivs=Cron.by("0 8 * * *"))
+@actor(receives=Cron.by("0 8 * * *"))
 def MorningActor(ctx: Context, event):
     print("Good morning!")
 PY,
@@ -146,12 +209,41 @@ PY,
             ->get(route('flows.show', $flow))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('flows/Editor')
+                ->component('flows/Show')
                 ->where('lastDevelopmentDeployment.id', $run->id)
                 ->where('lastDevelopmentDeployment.graph.nodes.0.id', 'Cron')
                 ->where('lastDevelopmentDeployment.graph.edges.0.from', 'Cron')
                 ->where('lastDevelopmentDeployment.graph.edges.0.to', 'MorningActor')
             );
+    }
+
+    public function test_update_redirects_to_editor_when_origin_is_editor(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'name' => 'Editor redirect flow',
+            'description' => 'Editor origin should stay on editor route',
+            'code' => 'print("old")',
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('flows.update', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'editor',
+                'origin' => 'editor',
+            ]), [
+                'name' => 'Editor redirect flow',
+                'description' => 'Editor origin should stay on editor route',
+                'code' => 'print("new")',
+            ])
+            ->assertRedirect(route('flows.editor', [
+                'flow' => $flow,
+                'deployment' => 'production',
+                'tab' => 'editor',
+            ]));
     }
 
     public function test_update_ignores_legacy_graph_payload_and_tracks_code_update_time(): void
@@ -200,6 +292,48 @@ PY,
         $this->assertTrue($flow->code_updated_at->gt($previousCodeUpdatedAt));
         $this->assertArrayNotHasKey('graph', $flow->getAttributes());
         $this->assertArrayNotHasKey('graph_generated_at', $flow->getAttributes());
+    }
+
+    public function test_update_returns_json_for_xhr_requests(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->createOne();
+
+        $flow = Flow::factory()->forUser($user)->createOne([
+            'name' => 'Async save flow',
+            'description' => 'Saved without redirect',
+            'code' => 'print("old")',
+            'timezone' => 'UTC',
+            'code_updated_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($user)
+            ->withHeaders([
+                'Accept' => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ])
+            ->put(route('flows.update', [
+                'flow' => $flow,
+                'deployment' => 'development',
+                'tab' => 'editor',
+                'origin' => 'editor',
+            ]), [
+                'name' => 'Async save flow',
+                'description' => 'Saved without redirect',
+                'code' => 'print("new")',
+                'timezone' => 'Europe/Berlin',
+            ])
+            ->assertOk()
+            ->assertJsonPath('flow.name', 'Async save flow')
+            ->assertJsonPath('flow.description', 'Saved without redirect')
+            ->assertJsonPath('flow.code', 'print("new")')
+            ->assertJsonPath('flow.timezone', 'Europe/Berlin');
+
+        $flow->refresh();
+
+        $this->assertSame('print("new")', $flow->code);
+        $this->assertSame('Europe/Berlin', $flow->timezone);
+        $this->assertNotNull($flow->code_updated_at);
     }
 
     public function test_flow_update_rejects_invalid_timezone(): void

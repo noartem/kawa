@@ -525,87 +525,87 @@ test('validation rules are applied correctly', function () {
 
 1. **Group related constants**
 
-   ```php
-   class OrderConstants
-   {
-       // Statuses
-       public const STATUS_PENDING = 'pending';
-       public const STATUS_PAID = 'paid';
+    ```php
+    class OrderConstants
+    {
+        // Statuses
+        public const STATUS_PENDING = 'pending';
+        public const STATUS_PAID = 'paid';
 
-       // Limits
-       public const MAX_ITEMS = 100;
-       public const MIN_TOTAL = 10.00;
-   }
-   ```
+        // Limits
+        public const MAX_ITEMS = 100;
+        public const MIN_TOTAL = 10.00;
+    }
+    ```
 
 2. **Use descriptive names**
 
-   ```php
-   // BAD
-   const TIMEOUT = 30;
+    ```php
+    // BAD
+    const TIMEOUT = 30;
 
-   // GOOD
-   const API_TIMEOUT_SECONDS = 30;
-   ```
+    // GOOD
+    const API_TIMEOUT_SECONDS = 30;
+    ```
 
 3. **Document units and meanings**
 
-   ```php
-   class RateLimits
-   {
-       /** Maximum requests per minute for anonymous users */
-       public const ANONYMOUS_PER_MINUTE = 20;
+    ```php
+    class RateLimits
+    {
+        /** Maximum requests per minute for anonymous users */
+        public const ANONYMOUS_PER_MINUTE = 20;
 
-       /** Maximum requests per minute for authenticated users */
-       public const AUTHENTICATED_PER_MINUTE = 60;
+        /** Maximum requests per minute for authenticated users */
+        public const AUTHENTICATED_PER_MINUTE = 60;
 
-       /** Lockout duration in minutes after max attempts */
-       public const LOCKOUT_MINUTES = 15;
-   }
-   ```
+        /** Lockout duration in minutes after max attempts */
+        public const LOCKOUT_MINUTES = 15;
+    }
+    ```
 
 4. **Validate against constants**
 
-   ```php
-   public function setRole(string $role): void
-   {
-       if (!in_array($role, UserRole::ALL)) {
-           throw new InvalidArgumentException("Invalid role: {$role}");
-       }
+    ```php
+    public function setRole(string $role): void
+    {
+        if (!in_array($role, UserRole::ALL)) {
+            throw new InvalidArgumentException("Invalid role: {$role}");
+        }
 
-       $this->role = $role;
-   }
-   ```
+        $this->role = $role;
+    }
+    ```
 
 5. **Use configuration for environment-specific values**
 
-   ```php
-   // Don't use constants for environment-specific values
-   // BAD: const API_KEY = 'abc123';
+    ```php
+    // Don't use constants for environment-specific values
+    // BAD: const API_KEY = 'abc123';
 
-   // GOOD: Use config
-   'api_key' => env('EXTERNAL_API_KEY'),
-   ```
+    // GOOD: Use config
+    'api_key' => env('EXTERNAL_API_KEY'),
+    ```
 
 6. **Create helper functions for complex constants**
 
-   ```php
-   class DateConstants
-   {
-       public static function secondsIn(string $unit): int
-       {
-           return match($unit) {
-               'minute' => 60,
-               'hour' => 3600,
-               'day' => 86400,
-               'week' => 604800,
-               default => throw new InvalidArgumentException("Unknown unit: {$unit}")
-           };
-       }
-   }
+    ```php
+    class DateConstants
+    {
+        public static function secondsIn(string $unit): int
+        {
+            return match($unit) {
+                'minute' => 60,
+                'hour' => 3600,
+                'day' => 86400,
+                'week' => 604800,
+                default => throw new InvalidArgumentException("Unknown unit: {$unit}")
+            };
+        }
+    }
 
-   // Usage
-   $cacheTime = DateConstants::secondsIn('hour') * 2; // 2 hours
-   ```
+    // Usage
+    $cacheTime = DateConstants::secondsIn('hour') * 2; // 2 hours
+    ```
 
 Remember: Constants make your code self-documenting, reduce bugs from typos, and make refactoring much safer!

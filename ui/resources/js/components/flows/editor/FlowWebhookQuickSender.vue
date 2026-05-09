@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import FlowCodeEditor from '@/components/flows/FlowCodeEditor.vue';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
     Collapsible,
     CollapsibleContent,
@@ -127,7 +128,7 @@ onBeforeUnmount(() => {
 <template>
     <div class="grid gap-1 text-[11px]" @click.stop @keydown.stop>
         <div
-            class="grid gap-1 rounded-md border border-border/60 bg-background/80 px-2 py-1.5"
+            class="grid gap-0.5 rounded-md border border-border/60 bg-background/80 px-2 py-1.5"
         >
             <div class="flex flex-wrap items-center gap-1.5">
                 <span class="text-muted-foreground">
@@ -170,32 +171,32 @@ onBeforeUnmount(() => {
             </code>
         </div>
 
-        <Collapsible v-model:open="quickSenderOpen" v-slot="{ open }">
-            <div
-                class="overflow-hidden rounded-md border border-border/60 bg-background/80"
-            >
-                <CollapsibleTrigger as-child>
-                    <button
-                        type="button"
-                        class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-muted-foreground transition hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    >
-                        <span
-                            class="inline-flex items-center gap-2 font-medium"
-                        >
-                            <Send class="size-3.5" aria-hidden="true" />
-                            {{ t('flows.editor.discovery.quick_send') }}
-                        </span>
-                        <ChevronDown
-                            class="size-3.5 transition-transform"
-                            :class="open ? 'rotate-180' : ''"
-                            aria-hidden="true"
-                        />
-                    </button>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent
-                    class="grid gap-2 border-t border-border/60 px-2 pt-2 pb-2"
+        <Collapsible
+            class="overflow-hidden rounded-md border border-border/60 bg-background/80"
+            v-model:open="quickSenderOpen"
+            v-slot="{ open }"
+        >
+            <CollapsibleTrigger as-child>
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-muted-foreground transition hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
+                    <span class="inline-flex items-center gap-2 font-medium">
+                        <Send class="size-3.5" aria-hidden="true" />
+                        {{ t('flows.editor.discovery.quick_send') }}
+                    </span>
+                    <ChevronDown
+                        class="size-3.5 transition-transform"
+                        :class="open ? 'rotate-180' : ''"
+                        aria-hidden="true"
+                    />
+                </button>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+                <Separator />
+
+                <div class="grid gap-1 p-2">
                     <FlowCodeEditor
                         v-model="payload"
                         language="json"
@@ -204,7 +205,7 @@ onBeforeUnmount(() => {
                         :indent-with-tab="false"
                         :tab-size="4"
                         bottom-padding="0.75rem"
-                        class="min-h-[6rem] overflow-hidden rounded-md border border-input bg-transparent text-[11px] leading-5"
+                        class="min-h-24 overflow-hidden rounded-md border border-input bg-transparent text-[11px] leading-5"
                         :aria-invalid="validationError ? 'true' : 'false'"
                     />
 
@@ -223,13 +224,14 @@ onBeforeUnmount(() => {
                             :disabled="isSendDisabled"
                             @click="submitPayload"
                         >
-                            <Spinner v-if="isSubmitting" />
-                            <Send v-else class="size-3.5" aria-hidden="true" />
-                            {{
-                                isSubmitting
-                                    ? t('flows.webhook_page.sending')
-                                    : t('flows.webhook_page.send')
-                            }}
+                            <template v-if="isSubmitting">
+                                <Spinner />
+                                {{ t('flows.webhook_page.sending') }}
+                            </template>
+                            <template v-else>
+                                <Send class="size-3.5" aria-hidden="true" />
+                                {{ t('flows.webhook_page.send') }}
+                            </template>
                         </Button>
                     </div>
 
@@ -239,8 +241,8 @@ onBeforeUnmount(() => {
                         class="max-h-32 overflow-auto rounded-md border border-border/70 bg-muted/35 p-1.5 font-mono text-[10px] leading-5 text-foreground"
                         v-text="responseState.body"
                     />
-                </CollapsibleContent>
-            </div>
+                </div>
+            </CollapsibleContent>
         </Collapsible>
     </div>
 </template>

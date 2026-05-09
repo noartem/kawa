@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
+import AppearanceTabs from '@/components/AppearanceTabs.vue';
+import LanguageTabs from '@/components/LanguageTabs.vue';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -32,6 +34,22 @@ defineProps<Props>();
             <UserInfo :user="user" :show-email="true" />
         </div>
     </DropdownMenuLabel>
+    <DropdownMenuSeparator />
+    <DropdownMenuGroup class="grid gap-0.75">
+        <div class="grid gap-0.5 px-1">
+            <p class="text-xs font-medium text-muted-foreground">
+                {{ t('settings.appearance.title') }}
+            </p>
+            <AppearanceTabs />
+        </div>
+
+        <div class="grid gap-0.5 px-1">
+            <p class="text-xs font-medium text-muted-foreground">
+                {{ t('settings.language.title') }}
+            </p>
+            <LanguageTabs />
+        </div>
+    </DropdownMenuGroup>
     <DropdownMenuSeparator />
     <DropdownMenuGroup>
         <DropdownMenuItem :as-child="true">

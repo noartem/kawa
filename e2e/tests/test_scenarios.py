@@ -16,7 +16,7 @@ class Ping:
     pass
 
 
-@actor(receivs=Cron.by("*/5 * * * *"))
+@actor(receives=Cron.by("*/5 * * * *"))
 def Starter(ctx: Context, event):
     print("start")
 """
@@ -30,7 +30,7 @@ class Ping:
     pass
 
 
-@actor(receivs=Cron.by("*/10 * * * *"))
+@actor(receives=Cron.by("*/10 * * * *"))
 def Starter(ctx: Context, event):
     print("start again")
 """
@@ -51,17 +51,17 @@ class Pong:
     step: int
 
 
-@actor(receivs=Cron.by("* * * * *"), sends=Ping)
+@actor(receives=Cron.by("* * * * *"), sends=Ping)
 def Starter(ctx: Context, event):
     ctx.dispatch(Ping(text="hello-from-cron", step=1))
 
 
-@actor(receivs=Ping, sends=Pong)
+@actor(receives=Ping, sends=Pong)
 def Worker(ctx: Context, event: Ping):
     ctx.dispatch(Pong(text=event.text + "-pong", step=event.step + 1))
 
 
-@actor(receivs=Pong)
+@actor(receives=Pong)
 def Sink(ctx: Context, event: Pong):
     pass
 """

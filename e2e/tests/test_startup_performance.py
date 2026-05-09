@@ -22,7 +22,7 @@ class Ping:
     text: str
 
 
-@actor(receivs=Cron.by("* * * * *"), sends=Ping)
+@actor(receives=Cron.by("* * * * *"), sends=Ping)
 def Starter(ctx: Context, event):
     ctx.dispatch(Ping(text="hello-from-cron"))
 """

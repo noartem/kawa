@@ -15,18 +15,18 @@ def event(cls):
 
 
 def actor(
-    receivs: Optional[Union[tuple[EventClassOrFilter, ...], EventClassOrFilter]] = None,
+    receives: Optional[Union[tuple[EventClassOrFilter, ...], EventClassOrFilter]] = None,
     sends: Optional[Union[tuple[type[object], ...], type[object]]] = None,
     min_instances: Optional[int] = None,
     max_instances: Optional[int] = None,
     keep_instance: Optional[timedelta] = None,
 ):
-    normalized_receivs: tuple[EventClassOrFilter, ...] = ()
-    if receivs is not None:
-        if isinstance(receivs, tuple):
-            normalized_receivs = receivs
+    normalized_receives: tuple[EventClassOrFilter, ...] = ()
+    if receives is not None:
+        if isinstance(receives, tuple):
+            normalized_receives = receives
         else:
-            normalized_receivs = (receivs,)
+            normalized_receives = (receives,)
 
     normalized_sends: tuple[type[object], ...] = ()
     if sends is not None:
@@ -39,7 +39,7 @@ def actor(
         registry.register_actor(
             ActorDefinition(
                 actorFuncOrClass=actorFuncOrClass,
-                receivs=normalized_receivs,
+                receives=normalized_receives,
                 sends=normalized_sends,
                 min_instances=min_instances,
                 max_instances=max_instances,

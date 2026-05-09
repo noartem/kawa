@@ -38,6 +38,10 @@ return [
         ],
     ],
 
+    'chat' => [
+        'max_history_messages' => env('AI_CHAT_MAX_HISTORY_MESSAGES', 12),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | AI Providers

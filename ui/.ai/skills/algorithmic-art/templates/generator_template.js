@@ -72,12 +72,10 @@ function draw() {
     // - Generate everything in setup()
     // - Call noLoop() in setup()
     // - draw() doesn't do much or can be empty
-
     // Option 2: Animated generation (continuous)
     // - Update your system each frame
     // - Common patterns: particle movement, growth, evolution
     // - Can optionally call noLoop() after N frames
-
     // Option 3: User-triggered regeneration
     // - Use noLoop() by default
     // - Call redraw() when parameters change
@@ -131,11 +129,13 @@ class Entity {
 // Color utilities
 function hexToRgb(hex) {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : null;
+    return result
+        ? {
+              r: parseInt(result[1], 16),
+              g: parseInt(result[2], 16),
+              b: parseInt(result[3], 16),
+          }
+        : null;
 }
 
 function colorFromPalette(index) {

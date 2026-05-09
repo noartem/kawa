@@ -443,70 +443,70 @@ test('pluralization works correctly', function () {
 
 1. **Always wrap user-facing strings**
 
-   ```php
-   // Even in single-language apps
-   flash(__('Your changes have been saved.'));
-   ```
+    ```php
+    // Even in single-language apps
+    flash(__('Your changes have been saved.'));
+    ```
 
 2. **Use meaningful translation keys**
 
-   ```php
-   // BAD
-   __('msg1')
+    ```php
+    // BAD
+    __('msg1')
 
-   // GOOD
-   __('auth.login_successful')
-   ```
+    // GOOD
+    __('auth.login_successful')
+    ```
 
 3. **Group related translations**
 
-   ```php
-   // lang/en/auth.php
-   return [
-       'login' => 'Sign in',
-       'logout' => 'Sign out',
-       'register' => 'Register',
-       'forgot_password' => 'Forgot your password?',
-   ];
-   ```
+    ```php
+    // lang/en/auth.php
+    return [
+        'login' => 'Sign in',
+        'logout' => 'Sign out',
+        'register' => 'Register',
+        'forgot_password' => 'Forgot your password?',
+    ];
+    ```
 
 4. **Provide context in keys**
 
-   ```php
-   // Different contexts may need different translations
-   __('button.save')  // "Save"
-   __('message.save')  // "Your changes will be saved"
-   __('title.save')    // "Save Document"
-   ```
+    ```php
+    // Different contexts may need different translations
+    __('button.save')  // "Save"
+    __('message.save')  // "Your changes will be saved"
+    __('title.save')    // "Save Document"
+    ```
 
 5. **Handle missing translations gracefully**
 
-   ```php
-   class AppServiceProvider extends ServiceProvider
-   {
-       public function boot()
-       {
-           // Log missing translations in production
-           if (app()->environment('production')) {
-               Event::listen(TranslationNotFound::class, function ($event) {
-                   Log::warning('Missing translation', [
-                       'key' => $event->key,
-                       'locale' => $event->locale,
-                   ]);
-               });
-           }
-       }
-   }
-   ```
+    ```php
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function boot()
+        {
+            // Log missing translations in production
+            if (app()->environment('production')) {
+                Event::listen(TranslationNotFound::class, function ($event) {
+                    Log::warning('Missing translation', [
+                        'key' => $event->key,
+                        'locale' => $event->locale,
+                    ]);
+                });
+            }
+        }
+    }
+    ```
 
 6. **Cache translations in production**
 
-   ```bash
-   # Cache for better performance
-   sail artisan lang:cache
+    ```bash
+    # Cache for better performance
+    sail artisan lang:cache
 
-   # Clear when updating
-   sail artisan lang:clear
-   ```
+    # Clear when updating
+    sail artisan lang:clear
+    ```
 
 Remember: Start with translations from day one. It's much easier to maintain translations as you build than to retrofit them later!

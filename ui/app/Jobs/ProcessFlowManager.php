@@ -121,23 +121,20 @@ class ProcessFlowManager implements ShouldQueue
             return;
         }
 
+        if ($this->event === 'container_create_failed') {
+            $this->markRunAsError($flow, $flowRun);
+
+            return;
+        }
+
         if ($this->event === 'container_crashed') {
             if ($flowRun) {
                 if ($flowRun->status === 'stopped' && $flowRun->active === false) {
                     return;
                 }
-
-                $flowRun->update([
-                    'active' => false,
-                    'status' => 'error',
-                    'finished_at' => now(),
-                    'meta' => $this->payload,
-                ]);
             }
 
-            $this->clearFlowContainerBinding($flow);
-
-            $this->syncFlowStatusFromRun($flow, $flowRun, 'error');
+            $this->markRunAsError($flow, $flowRun, clearFlowContainerBinding: true);
 
             return;
         }
@@ -228,6 +225,24 @@ class ProcessFlowManager implements ShouldQueue
         ]);
     }
 
+    private function markRunAsError(Flow $flow, ?FlowRun $flowRun, bool $clearFlowContainerBinding = false): void
+    {
+        if ($flowRun) {
+            $flowRun->update([
+                'active' => false,
+                'status' => 'error',
+                'finished_at' => now(),
+                'meta' => $this->payload,
+            ]);
+        }
+
+        if ($clearFlowContainerBinding) {
+            $this->clearFlowContainerBinding($flow);
+        }
+
+        $this->syncFlowStatusFromRun($flow, $flowRun, 'error');
+    }
+
     private function syncFlowStatusFromRun(Flow $flow, ?FlowRun $run, string $status): void
     {
         if (! $run || $run->type !== 'production') {
@@ -251,7 +266,7 @@ class ProcessFlowManager implements ShouldQueue
     {
         $level = match ($this->event) {
             'container_health_warning', 'resource_alert' => 'warning',
-            'container_crashed' => 'error',
+            'container_crashed', 'container_create_failed' => 'error',
             default => 'info',
         };
 

@@ -35,7 +35,7 @@ class Registry:
                     "id": receive.id,
                     "ctx": receive.ctx,
                 }
-                for receive in actor.receivs
+                for receive in actor.receives
             ],
             "sends": [
                 {
