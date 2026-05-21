@@ -2,6 +2,7 @@ import {
     FLOW_GRAPH_EDGE_HIGHLIGHT_SIZE_DELTA,
     FLOW_GRAPH_EDGE_HOVER_SIZE,
 } from './graphStyle.ts';
+import { resolveMatchingEventNodeId } from './eventNodeIds.ts';
 
 export interface DispatchPathHighlight {
     actor: string;
@@ -276,10 +277,22 @@ export const resolveDispatchHighlightEdgeIds = (
     highlight: DispatchPathHighlight,
 ): Set<string> => {
     const edges = resolveNormalizedEdges(graph);
+    const nodeIds = resolveGraphNodeIds(graph);
     const edgeIds = new Set<string>();
+    const resolveMatchingEventId = (value: unknown): string | null => {
+        const nodeId = resolveGraphId(value);
+
+        if (!nodeId) {
+            return null;
+        }
+
+        return (
+            resolveMatchingEventNodeId(nodeId, nodeIds.values()) ?? nodeId
+        );
+    };
     const actorId = resolveGraphId(highlight.actor);
-    const eventId = resolveGraphId(highlight.event);
-    const triggerEventId = resolveGraphId(highlight.triggerEvent);
+    const eventId = resolveMatchingEventId(highlight.event);
+    const triggerEventId = resolveMatchingEventId(highlight.triggerEvent);
 
     if (!actorId || !eventId) {
         return edgeIds;
@@ -311,8 +324,20 @@ export const resolveDirectHighlightEdgeIds = (
     highlight: FlowGraphEdgeHighlight,
 ): Set<string> => {
     const edgeIds = new Set<string>();
-    const fromId = resolveGraphId(highlight.from);
-    const toId = resolveGraphId(highlight.to);
+    const nodeIds = resolveGraphNodeIds(graph);
+    const resolveMatchingEventId = (value: unknown): string | null => {
+        const nodeId = resolveGraphId(value);
+
+        if (!nodeId) {
+            return null;
+        }
+
+        return (
+            resolveMatchingEventNodeId(nodeId, nodeIds.values()) ?? nodeId
+        );
+    };
+    const fromId = resolveMatchingEventId(highlight.from) ?? resolveGraphId(highlight.from);
+    const toId = resolveMatchingEventId(highlight.to) ?? resolveGraphId(highlight.to);
 
     if (!fromId || !toId) {
         return edgeIds;

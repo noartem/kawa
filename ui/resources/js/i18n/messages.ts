@@ -535,6 +535,7 @@ export const messages = {
                     sends: 'Sends',
                     consumed_by: 'Consumed by',
                     produced_by: 'Produced by',
+                    related: 'Related',
                     implementation_line: 'Implementation · Line {line}',
                     empty_title: 'Overview is not available yet',
                     empty_description:
@@ -1266,6 +1267,7 @@ export const messages = {
                     sends: 'Отдает',
                     consumed_by: 'Получают',
                     produced_by: 'Создают',
+                    related: 'Связан',
                     implementation_line: 'Реализация · Строка {line}',
                     empty_title: 'Обзор пока недоступен',
                     empty_description:

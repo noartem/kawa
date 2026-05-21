@@ -42,7 +42,7 @@ def FetchImapEmails(ctx: Context, event: Cron):
     highest_uid = last_uid
 
     with MailBox(host).login(username, password, folder) as mailbox:
-        for message in sorted(mailbox.fetch(), key=lambda message: int(message.uid))
+        for message in sorted(mailbox.fetch(), key=lambda message: int(message.uid)):
             message_uid = int(message.uid)
             if message_uid <= last_uid:
                 continue
@@ -74,4 +74,3 @@ def ProcessImapEmail(ctx: Context, event: ImapEmailReceived):
             )
         )
     )
-

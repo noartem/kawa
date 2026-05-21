@@ -5,6 +5,7 @@ import {
     describeCronExpression,
     splitCronEventName,
 } from '@/components/flows/editor/cronEvent';
+import { collectRelatedEventIdsById } from '@/components/flows/editor/eventConnections';
 import FlowWebhookQuickSender from '@/components/flows/editor/FlowWebhookQuickSender.vue';
 import {
     Tooltip,
@@ -52,6 +53,7 @@ interface DiscoveryEvent extends DiscoveryItemBase {
     type: 'event';
     consumedBy: string[];
     producedBy: string[];
+    relatedEvents: string[];
     cronDescription: string | null;
 }
 
@@ -237,6 +239,57 @@ const nodeMetadataById = computed(() => {
     return metadata;
 });
 
+const nodeTypeById = computed(() => {
+    const rawNodes = Array.isArray(props.graph?.nodes) ? props.graph.nodes : [];
+    const rawActors = Array.isArray(props.graph?.actors) ? props.graph.actors : [];
+    const rawEvents = Array.isArray(props.graph?.events) ? props.graph.events : [];
+    const nodeTypes = new Map<string, DiscoveryItemType>();
+
+    for (const rawNode of rawNodes) {
+        if (!rawNode || typeof rawNode !== 'object') {
+            continue;
+        }
+
+        const node = rawNode as Record<string, unknown>;
+        const id = resolveGraphId(node.id ?? node.name);
+        if (!id || (node.type !== 'actor' && node.type !== 'event')) {
+            continue;
+        }
+
+        nodeTypes.set(id, node.type);
+    }
+
+    for (const rawActor of rawActors) {
+        if (!rawActor || typeof rawActor !== 'object') {
+            continue;
+        }
+
+        const actor = rawActor as Record<string, unknown>;
+        const id = resolveGraphId(actor.id ?? actor.name);
+        if (id) {
+            nodeTypes.set(id, 'actor');
+        }
+    }
+
+    for (const rawEvent of rawEvents) {
+        if (!rawEvent || typeof rawEvent !== 'object') {
+            continue;
+        }
+
+        const event = rawEvent as Record<string, unknown>;
+        const id = resolveGraphId(event.id ?? event.name);
+        if (id) {
+            nodeTypes.set(id, 'event');
+        }
+    }
+
+    return nodeTypes;
+});
+
+const relatedEventIdsById = computed(() => {
+    return collectRelatedEventIdsById(props.graph ?? null);
+});
+
 const edgeLinks = computed(() => {
     const rawEdges = Array.isArray(props.graph?.edges) ? props.graph.edges : [];
     const eventToActors = new Map<string, string[]>();
@@ -254,13 +307,21 @@ const edgeLinks = computed(() => {
             continue;
         }
 
-        const eventConsumers = eventToActors.get(from) ?? [];
-        eventConsumers.push(to);
-        eventToActors.set(from, eventConsumers);
+        const fromType = nodeTypeById.value.get(from);
+        const toType = nodeTypeById.value.get(to);
 
-        const actorOutputs = actorToEvents.get(from) ?? [];
-        actorOutputs.push(to);
-        actorToEvents.set(from, actorOutputs);
+        if (fromType === 'event' && toType === 'actor') {
+            const eventConsumers = eventToActors.get(from) ?? [];
+            eventConsumers.push(to);
+            eventToActors.set(from, eventConsumers);
+            continue;
+        }
+
+        if (fromType === 'actor' && toType === 'event') {
+            const actorOutputs = actorToEvents.get(from) ?? [];
+            actorOutputs.push(to);
+            actorToEvents.set(from, actorOutputs);
+        }
     }
 
     return {
@@ -409,6 +470,8 @@ const events = computed<DiscoveryEvent[]>(() => {
                                 .filter(([, targets]) => targets.includes(id))
                                 .map(([actorId]) => actorId),
                         ),
+                        relatedEvents:
+                            relatedEventIdsById.value.get(id) ?? [],
                         sourceLine: resolveSourceLine(node.source_line),
                         sourceKind: resolveSourceKind(node.source_kind),
                         sourceModule: resolveSourceModule(node.source_module),
@@ -452,6 +515,7 @@ const events = computed<DiscoveryEvent[]>(() => {
                             .filter(([, targets]) => targets.includes(id))
                             .map(([actorId]) => actorId),
                     ),
+                    relatedEvents: relatedEventIdsById.value.get(id) ?? [],
                     sourceLine:
                         resolveSourceLine(event?.source_line) ??
                         sourceMetadata?.sourceLine ??
@@ -537,6 +601,7 @@ const displayEvents = computed<DiscoveryEventView[]>(() => {
             type: 'event',
             consumedBy: [],
             producedBy: [],
+            relatedEvents: [],
             cronDescription: null,
             sourceLine: webhook.sourceLine,
             sourceKind: 'main',
@@ -918,6 +983,24 @@ onBeforeUnmount(() => {
                         @click.stop="openLinkedItem('actor', actorName)"
                     >
                         {{ actorName }}
+                    </button>
+                </div>
+
+                <div
+                    v-if="event.relatedEvents.length > 0"
+                    class="flex flex-wrap items-center gap-1.5"
+                >
+                    <span class="text-[11px] text-muted-foreground">
+                        {{ t('flows.editor.discovery.related') }}
+                    </span>
+                    <button
+                        v-for="relatedEventName in event.relatedEvents"
+                        :key="`${event.id}-related-${relatedEventName}`"
+                        type="button"
+                        class="rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-700 transition hover:bg-violet-500/15 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:text-violet-300"
+                        @click.stop="openLinkedItem('event', relatedEventName)"
+                    >
+                        {{ relatedEventName }}
                     </button>
                 </div>
 

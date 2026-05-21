@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import FlowLogPayloadPopover from '@/components/FlowLogPayloadPopover.vue';
 import { cn } from '@/lib/utils';
+import { resolveEventGraphNodeId } from '@/components/flows/eventNodeIds';
 import {
     resolveFreshLogIds,
     resolveDispatchPathHighlight,
@@ -446,12 +447,13 @@ const createActorInvokedSegments = (
     actor: string,
     event: string,
     payloadDetails: PayloadDetails,
+    targetId?: string,
 ): LogLabelSegment[] => {
     return [
         createTextSegment(t('flows.logs.inline.actor_prefix')),
         createActorSegment(actor),
         createTextSegment(t('flows.logs.inline.invoked_by')),
-        createEventSegment(event, payloadDetails),
+        createEventSegment(event, payloadDetails, targetId),
     ];
 };
 
@@ -495,8 +497,17 @@ const resolveActivityLabelSegments = (
         const actor = stringValue(details?.actor) ?? t('common.unknown');
         const triggerEvent =
             stringValue(details?.trigger_event) ?? t('common.unknown');
+        const triggerEventTargetId = resolveEventGraphNodeId(
+            triggerEvent,
+            details?.event_data,
+        );
 
-        return createActorInvokedSegments(actor, triggerEvent, payloadDetails);
+        return createActorInvokedSegments(
+            actor,
+            triggerEvent,
+            payloadDetails,
+            triggerEventTargetId ?? undefined,
+        );
     }
 
     if (activityType === 'actor_dispatched') {
@@ -570,7 +581,12 @@ const resolveRuntimeEventLabelSegments = (
         t('common.unknown');
 
     if (kind === 'actor_invoked') {
-        return createActorInvokedSegments(actor, triggerEvent, payloadDetails);
+        return createActorInvokedSegments(
+            actor,
+            triggerEvent,
+            payloadDetails,
+            resolveEventGraphNodeId(triggerEvent, context?.payload) ?? undefined,
+        );
     }
 
     if (kind === 'event_dispatched') {

@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 class FlowGraphDefaultsTest extends TestCase
@@ -125,6 +126,20 @@ class FlowGraphDefaultsTest extends TestCase
 
         $this->assertNotNull($flow);
         $this->assertSame(File::get(resource_path('flow-templates/imap.py')), $flow->code);
+    }
+
+    public function test_imap_flow_template_has_valid_python_syntax(): void
+    {
+        $process = new Process([
+            'python3',
+            '-c',
+            'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text())',
+            resource_path('flow-templates/imap.py'),
+        ], base_path());
+
+        $process->run();
+
+        $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
     }
 
     public function test_air_quality_flow_uses_resource_template_code(): void

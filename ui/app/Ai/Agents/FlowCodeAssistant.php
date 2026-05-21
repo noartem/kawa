@@ -25,7 +25,7 @@ class FlowCodeAssistant implements Agent, Conversational, HasStructuredOutput
         messages as rememberedMessages;
     }
 
-    public const MODEL = 'qwen/qwen3.6-plus';
+    public const MODEL = 'deepseek/deepseek-v4-flash';
 
     public const RESPONSE_MODE_MESSAGE_ONLY = 'message_only';
 

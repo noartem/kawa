@@ -16,6 +16,7 @@ import FlowDiscoveryPanel from '@/components/flows/editor/FlowDiscoveryPanel.vue
 import FlowEditorChatPanel from '@/components/flows/editor/FlowEditorChatPanel.vue';
 import StackedSidePanelsLayout from '@/components/flows/editor/StackedSidePanelsLayout.vue';
 import FlowStoragePanel from '@/components/flows/editor/FlowStoragePanel.vue';
+import { connectRelatedEventsInGraph } from '@/components/flows/editor/eventConnections';
 import { formatFlowStorageContent } from '@/components/flows/editor/storageContent';
 import {
     createDefaultStackedSidePanelsResizeState,
@@ -293,7 +294,7 @@ const discoveryWebhookEndpoints = computed<FlowWebhookEndpoint[]>(() => {
     return selectedDeployment.value?.webhooks ?? [];
 });
 const displayGraph = computed<Record<string, unknown> | null>(() => {
-    return selectedDeployment.value?.graph ?? null;
+    return connectRelatedEventsInGraph(selectedDeployment.value?.graph ?? null);
 });
 const displayDeploymentStatus = computed(() => {
     return selectedDeployment.value?.status ?? null;

@@ -18,6 +18,7 @@ import {
     buildDeploymentGraphMeta,
     createDeploymentDetailsHelpers,
 } from '@/components/flows/editor/deploymentDetails';
+import { connectRelatedEventsInGraph } from '@/components/flows/editor/eventConnections';
 import {
     createDefaultStackedSidePanelsResizeState,
     readStackedSidePanelsResizeState,
@@ -103,6 +104,10 @@ const graphMeta = computed(() => {
         statusLabel,
         formatDate,
     );
+});
+
+const displayGraph = computed<Record<string, unknown> | null>(() => {
+    return connectRelatedEventsInGraph(props.deployment.graph ?? null);
 });
 
 const storageSnapshotJson = computed(() => {
@@ -694,7 +699,7 @@ onBeforeUnmount(() => {
                             >
                                 <FlowDiscoveryPanel
                                     class="h-full"
-                                    :graph="deployment.graph"
+                                    :graph="displayGraph"
                                     :hidden-node-ids="hiddenNodeIds"
                                     :webhook-endpoints="deployment.webhooks ?? []"
                                     :selected-target="selectedDiscoveryTarget"
@@ -711,7 +716,7 @@ onBeforeUnmount(() => {
                     <FlowGraph
                         ref="flowGraph"
                         class="h-full min-h-0 w-full"
-                        :graph="deployment.graph"
+                        :graph="displayGraph"
                         :hidden-node-ids="hiddenNodeIds"
                         :meta="graphMeta"
                         variant="plain"

@@ -2,6 +2,7 @@ import type {
     DispatchPathHighlight,
     FlowGraphEdgeHighlight,
 } from './flows/graphHighlights';
+import { resolveEventGraphNodeId } from './flows/eventNodeIds.ts';
 
 interface FlowLogRecord {
     id: number;
@@ -75,7 +76,7 @@ export const resolveDispatchPathHighlight = (
 
     return {
         actor,
-        event,
+        event: resolveEventGraphNodeId(event, context?.payload) ?? event,
         triggerEvent: stringValue(context?.trigger_event),
     };
 };
@@ -91,8 +92,10 @@ export const resolveLogEdgeHighlight = (
         const actor = stringValue(context?.actor);
 
         if (kind === 'actor_invoked') {
-            const triggerEvent =
-                stringValue(context?.trigger_event) ?? stringValue(context?.event);
+            const triggerEvent = resolveEventGraphNodeId(
+                stringValue(context?.trigger_event) ?? stringValue(context?.event),
+                context?.payload,
+            );
 
             if (!triggerEvent || !actor) {
                 return null;
@@ -105,7 +108,10 @@ export const resolveLogEdgeHighlight = (
         }
 
         if (kind === 'event_dispatched') {
-            const event = stringValue(context?.event);
+            const event = resolveEventGraphNodeId(
+                stringValue(context?.event),
+                context?.payload,
+            );
 
             if (!actor || !event) {
                 return null;
@@ -130,7 +136,10 @@ export const resolveLogEdgeHighlight = (
     const actor = stringValue(details?.actor);
 
     if (activityType === 'actor_invoked') {
-        const triggerEvent = stringValue(details?.trigger_event);
+        const triggerEvent = resolveEventGraphNodeId(
+            stringValue(details?.trigger_event),
+            details?.event_data,
+        );
 
         if (!triggerEvent || !actor) {
             return null;
@@ -143,7 +152,10 @@ export const resolveLogEdgeHighlight = (
     }
 
     if (activityType === 'actor_dispatched') {
-        const dispatchedEvent = stringValue(details?.dispatched_event);
+        const dispatchedEvent = resolveEventGraphNodeId(
+            stringValue(details?.dispatched_event),
+            details?.event_data,
+        );
 
         if (!actor || !dispatchedEvent) {
             return null;

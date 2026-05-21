@@ -39,6 +39,7 @@ import {
     FLOW_GRAPH_EDGE_BASE_SIZE,
     FLOW_GRAPH_FALLBACK_ARROW_MARKER,
 } from './graphStyle';
+import { resolveMatchingEventNodeId } from './eventNodeIds';
 import {
     hasRenderableContainerSize,
     shouldMountRendererOnResize,
@@ -1546,12 +1547,17 @@ const focusNode = (nodeId: string): void => {
     }
 
     if (!sigmaRenderer) {
-        const point = resolveFallbackNodePoint(nodeId);
+        const resolvedNodeId =
+            resolveMatchingEventNodeId(
+                nodeId,
+                fallbackGraph.value?.positionedNodeById.keys() ?? [],
+            ) ?? nodeId;
+        const point = resolveFallbackNodePoint(resolvedNodeId);
         if (!point) {
             return;
         }
 
-        highlightNode(nodeId);
+        highlightNode(resolvedNodeId);
         animateFallbackViewport(
             resolveFocusedSvgViewportOnPoint(
                 point,
@@ -1563,11 +1569,14 @@ const focusNode = (nodeId: string): void => {
     }
 
     const graph = sigmaRenderer.getGraph();
-    if (!graph.hasNode(nodeId)) {
+    const resolvedNodeId =
+        resolveMatchingEventNodeId(nodeId, graph.nodes()) ?? nodeId;
+
+    if (!graph.hasNode(resolvedNodeId)) {
         return;
     }
 
-    highlightNode(nodeId);
+    highlightNode(resolvedNodeId);
 
     const camera = sigmaRenderer.getCamera();
     const focusRatio = Math.max(
@@ -1577,8 +1586,8 @@ const focusNode = (nodeId: string): void => {
 
     camera.animate(
         {
-            x: graph.getNodeAttribute(nodeId, 'x'),
-            y: graph.getNodeAttribute(nodeId, 'y'),
+            x: graph.getNodeAttribute(resolvedNodeId, 'x'),
+            y: graph.getNodeAttribute(resolvedNodeId, 'y'),
             ratio: focusRatio,
             angle: 0,
         },
@@ -1587,7 +1596,13 @@ const focusNode = (nodeId: string): void => {
 };
 
 const resolveFallbackNodePoint = (nodeId: string) => {
-    const node = fallbackGraph.value?.positionedNodeById.get(nodeId);
+    const resolvedNodeId = resolveMatchingEventNodeId(
+        nodeId,
+        fallbackGraph.value?.positionedNodeById.keys() ?? [],
+    );
+    const node = fallbackGraph.value?.positionedNodeById.get(
+        resolvedNodeId ?? nodeId,
+    );
 
     return node ? toSvgPoint(node.x, node.y) : null;
 };
