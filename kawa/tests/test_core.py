@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from kawa import Message
+from kawa import EventFilter as ExportedEventFilter, Message
 from kawa.core import (
     Context,
     EventFilter,
@@ -110,6 +110,10 @@ def test_event_filter():
     event_filter = EventFilter(My, {"key": "value"}, filter_func)
     assert event_filter(event)
     filter_func.assert_called_once_with(event)
+
+
+def test_event_filter_is_exported_from_package():
+    assert ExportedEventFilter is EventFilter
 
 
 def test_actor_receive_event_definition():
