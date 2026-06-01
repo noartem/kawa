@@ -14,7 +14,7 @@ use Laravel\Ai\Promptable;
 use Stringable;
 
 #[Provider('openai')]
-#[Model('deepseek/deepseek-v4-flash')]
+#[Model('minimax/minimax-m3')]
 #[Timeout(120)]
 class FlowChatCompactor implements Agent, Conversational, HasStructuredOutput
 {
