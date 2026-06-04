@@ -67,6 +67,13 @@ class DemoSeeder extends Seeder
         ]);
 
         $this->call(AdminShowcaseFlowSeeder::class);
+
+        $this->createFlow($admin, $now, [
+            'slug' => 'demo-imap-inbox',
+            'name' => 'Demo · Email Inbox (IMAP)',
+            'description' => 'Опрос почтового ящика по IMAP (Cron, раз в минуту) и публикация входящих писем как событий.',
+            'code' => $this->imapInboxCode(),
+        ]);
     }
 
     /**
@@ -170,6 +177,99 @@ def ReceiveWebhook(ctx: Context, event: Webhook) -> None:
 @actor(receives=IntakeReceived, sends=Message)
 def ProcessIntake(ctx: Context, event: IntakeReceived) -> None:
     ctx.dispatch(Message(message=f"[webhook] обработано: {event.payload}"))
+PY;
+    }
+
+    private function imapInboxCode(): string
+    {
+        return <<<'PY'
+import email
+import imaplib
+from email.header import decode_header, make_header
+
+from kawa import Context, Message, Cron, actor, event
+
+IMAP_HOST = "imap.yandex.ru"
+IMAP_PORT = 993
+IMAP_USER = "noonartem@yandex.ru"
+IMAP_PASSWORD = "burwhdrvgaimltnh"
+
+# Максимум писем, обрабатываемых за один опрос, чтобы не переполнять журнал.
+BATCH_LIMIT = 10
+
+
+@event
+class EmailReceived:
+    uid: str
+    sender: str
+    subject: str
+
+
+def _decode_header(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        return str(make_header(decode_header(value)))
+    except Exception:
+        return value
+
+
+@actor(receives=Cron.by("*/1 * * * *"), sends=(EmailReceived, Message))
+def PollInbox(ctx: Context, event: Cron) -> None:
+    last_uid = int(ctx.storage.get("last_uid", 0))
+
+    try:
+        client = imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT)
+        client.login(IMAP_USER, IMAP_PASSWORD)
+    except Exception as exc:
+        ctx.dispatch(Message(message=f"[imap] не удалось подключиться: {exc}"))
+        return
+
+    try:
+        client.select("INBOX")
+        status, data = client.uid("search", None, "ALL")
+        if status != "OK":
+            ctx.dispatch(Message(message="[imap] поиск писем не выполнен"))
+            return
+
+        all_uids = [int(raw) for raw in data[0].split()]
+        new_uids = [uid for uid in all_uids if uid > last_uid][-BATCH_LIMIT:]
+
+        if not new_uids:
+            ctx.dispatch(Message(message="[imap] новых писем нет"))
+            if all_uids:
+                ctx.storage.set("last_uid", max(all_uids))
+            return
+
+        for uid in new_uids:
+            status, msg_data = client.uid("fetch", str(uid), "(RFC822)")
+            if status != "OK" or not msg_data or msg_data[0] is None:
+                continue
+
+            message = email.message_from_bytes(msg_data[0][1])
+            sender = _decode_header(message.get("From"))
+            subject = _decode_header(message.get("Subject"))
+
+            ctx.dispatch(
+                EmailReceived(uid=str(uid), sender=sender, subject=subject)
+            )
+            ctx.dispatch(Message(message=f"[imap] письмо от {sender}: {subject}"))
+
+        ctx.storage.set("last_uid", max(new_uids))
+    finally:
+        try:
+            client.logout()
+        except Exception:
+            pass
+
+
+@actor(receives=EmailReceived, sends=Message)
+def HandleEmail(ctx: Context, event: EmailReceived) -> None:
+    ctx.dispatch(
+        Message(
+            message=f"[imap] обработано письмо #{event.uid}: «{event.subject}» от {event.sender}"
+        )
+    )
 PY;
     }
 
