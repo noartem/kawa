@@ -25,7 +25,7 @@ class FlowCodeAssistant implements Agent, Conversational, HasStructuredOutput
         messages as rememberedMessages;
     }
 
-    public const MODEL = 'moonshotai/kimi-k2.6';
+    public const MODEL = 'qwen/qwen3.7-plus';
 
     public const RESPONSE_MODE_MESSAGE_ONLY = 'message_only';
 

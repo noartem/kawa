@@ -14,7 +14,7 @@ use Laravel\Ai\Promptable;
 use Stringable;
 
 #[Provider('openai')]
-#[Model('moonshotai/kimi-k2.6')]
+#[Model('qwen/qwen3.7-plus')]
 #[Timeout(120)]
 class FlowChatCompactor implements Agent, Conversational, HasStructuredOutput
 {
