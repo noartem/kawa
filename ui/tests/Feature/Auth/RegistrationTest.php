@@ -15,7 +15,9 @@ class RegistrationTest extends TestCase
         $response = $this->get(route('register'));
 
         $response->assertSuccessful()
-            ->assertInertia(fn (Assert $page) => $page->component('auth/Register'));
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('auth/Register')
+                ->where('locale', 'ru'));
     }
 
     public function test_new_users_can_register()
@@ -28,6 +30,10 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'email' => 'test@example.com',
+            'locale' => 'ru',
+        ]);
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 }

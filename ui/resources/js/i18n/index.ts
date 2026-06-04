@@ -1,15 +1,15 @@
 import { createI18n } from 'vue-i18n';
-import { messages } from './messages';
+import { messages } from './messages.ts';
 
 export const SUPPORTED_LOCALES = ['en', 'ru'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 const normalizeLocale = (locale?: string | null): SupportedLocale => {
-    if (!locale) return 'en';
+    if (!locale) return 'ru';
     if (SUPPORTED_LOCALES.includes(locale as SupportedLocale)) {
         return locale as SupportedLocale;
     }
-    return 'en';
+    return 'ru';
 };
 
 export const createI18nInstance = (locale?: string | null) =>
@@ -17,6 +17,6 @@ export const createI18nInstance = (locale?: string | null) =>
         legacy: false,
         globalInjection: true,
         locale: normalizeLocale(locale),
-        fallbackLocale: 'en',
+        fallbackLocale: 'ru',
         messages,
     });

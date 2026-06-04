@@ -33,6 +33,7 @@ class CreateNewUser implements CreatesNewUsers
         return User::create([
             'name' => $input['name'],
             'email' => $input['email'],
+            'locale' => app()->getLocale(),
             'password' => $input['password'],
         ]);
     }

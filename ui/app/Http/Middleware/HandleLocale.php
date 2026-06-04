@@ -12,7 +12,7 @@ class HandleLocale
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -27,7 +27,7 @@ class HandleLocale
         }
 
         if (! $locale || ! in_array($locale, $supported, true)) {
-            $locale = config('app.locale', 'en');
+            $locale = config('app.locale', 'ru');
         }
 
         App::setLocale($locale);

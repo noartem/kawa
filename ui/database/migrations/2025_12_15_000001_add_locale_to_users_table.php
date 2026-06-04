@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', static function (Blueprint $table): void {
-            $table->string('locale', 8)->default('en')->after('email');
+            $table->string('locale', 8)->default('ru')->after('email');
         });
     }
 
