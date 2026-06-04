@@ -19,6 +19,7 @@ from pydash import unset as pydash_unset
 SOCKET_PATH = "/run/kawaflow.sock"
 FLOW_PATH = Path(os.getenv("FLOW_PATH", "/flow/flow.py"))
 STORAGE_MISSING = object()
+EVENT_PROCESSING_STEP_LIMIT = 128
 
 
 def runtime_metadata() -> dict:
@@ -610,8 +611,32 @@ def invoke_actor(actor_definition, incoming_event, pending_events: list) -> None
 
 
 def process_pending_events(pending_events: list, registry) -> None:
+    processed_steps = 0
+
     while pending_events:
+        if processed_steps >= EVENT_PROCESSING_STEP_LIMIT:
+            blocked_event = pending_events[0]
+            event_name = blocked_event.__class__.__name__
+            append_runtime_event(
+                {
+                    "kind": "runtime_error",
+                    "actor": "runtime",
+                    "trigger_event": event_name,
+                    "event": event_name,
+                    "payload": {
+                        "error": (
+                            "event processing stopped after "
+                            f"{EVENT_PROCESSING_STEP_LIMIT} steps "
+                            "to prevent infinite recursion"
+                        )
+                    },
+                }
+            )
+            pending_events.clear()
+            return
+
         incoming_event = pending_events.pop(0)
+        processed_steps += 1
 
         for actor_definition in registry.actors.values():
             if not any(
