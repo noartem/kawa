@@ -40,28 +40,28 @@ class DemoSeeder extends Seeder
 
         $this->createFlow($admin, $now, [
             'slug' => 'demo-hello-world',
-            'name' => 'Demo · Hello World',
-            'description' => 'Простейший флоу: один актор, одно сообщение. Запустите и посмотрите лог.',
+            'name' => 'Demo Hello World',
+            'description' => 'Простейший поток: один актор, одно сообщение. Запустите и посмотрите лог.',
             'code' => $this->helloWorldCode(),
         ]);
 
         $this->createFlow($admin, $now, [
             'slug' => 'demo-cron-message',
-            'name' => 'Demo · Cron + Message',
+            'name' => 'Demo Cron + Message',
             'description' => 'Срабатывает по расписанию каждую минуту, пишет сообщение в лог.',
             'code' => $this->cronCode(),
         ]);
 
         $this->createFlow($admin, $now, [
             'slug' => 'demo-webhook-intake',
-            'name' => 'Demo · Webhook',
+            'name' => 'Demo Webhook',
             'description' => 'Принимает входящий webhook и обрабатывает его в акторе.',
             'code' => $this->webhookCode(),
         ]);
 
         $this->createFlow($admin, $now, [
             'slug' => 'demo-email-notification',
-            'name' => 'Demo · Email Notification',
+            'name' => 'Demo Email Notification',
             'description' => 'Cron-триггер → отправка email-уведомления через SendEmail.',
             'code' => $this->emailCode(),
         ]);
@@ -70,7 +70,7 @@ class DemoSeeder extends Seeder
 
         $this->createFlow($admin, $now, [
             'slug' => 'demo-imap-inbox',
-            'name' => 'Demo · Email Inbox (IMAP)',
+            'name' => 'Demo Email Inbox (IMAP)',
             'description' => 'Опрос почтового ящика по IMAP (Cron, раз в минуту) и публикация входящих писем как событий.',
             'code' => $this->imapInboxCode(),
         ]);
@@ -92,7 +92,7 @@ class DemoSeeder extends Seeder
             'container_id' => null,
             'entrypoint' => 'main.py',
             'image' => 'flow:dev',
-            'timezone' => 'Europe/Moscow',
+            'timezone' => 'Asia/Yekaterinburg',
             'last_started_at' => null,
             'last_finished_at' => null,
         ]);
